@@ -24,6 +24,7 @@
 - T004：通过 `S:` ASCII 驱动器路径运行，Android 单测 1/1、lintDebug、assembleDebug 均通过；APK 约 15.8 MB。
 - 阶段一回归：后端 lint/typecheck/2 tests/build 通过；Android test/lint/assemble 通过。
 - Git checkpoint：`035987c chore: scaffold sync listen monorepo`，分支 `feat/mvp`。
+- Git checkpoint：`081ff99 feat: define protocol and room APIs`。
 - T005：后端协议测试 3/3、Android 协议测试 2/2 通过；API 与 WebSocket 文档已建立。
 - T006：创建/加入/查询/关闭房间 API 完成；后端完整回归 10/10 测试、lint、typecheck、build 通过。
 - 当前批次回归：Android test/lint/assemble 通过；后端 10/10 tests、lint、typecheck、build 通过。
