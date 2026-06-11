@@ -1,0 +1,31 @@
+# Environment and local configuration
+.env
+local.properties
+
+# Node.js
+node_modules/
+backend/dist/
+backend/coverage/
+
+# Runtime data
+backend/data/
+backend/uploads/
+backend/tmp/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Android / Gradle
+.gradle/
+.kotlin/
+android-app/.idea/
+android-app/build/
+android-app/app/build/
+android-app/local.properties
+*.iml
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

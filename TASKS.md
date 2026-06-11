@@ -1,0 +1,876 @@
+# Sync Listen 多人同步听歌 App 任务列表
+
+> 本文件是项目唯一进度跟踪清单。执行任务时逐项勾选，并在每个阶段验收通过后更新阶段状态。
+
+## 0. 项目约定
+
+### 0.1 目标
+
+构建一个可供朋友实际使用的 Android 多人同步听歌 App 原型。多部手机加入同一房间，共享播放列表，上传并缓存本地 MP3/FLAC，由房主控制各设备从本地缓存大致同步播放。
+
+### 0.2 固定技术方案
+
+- Monorepo：`android-app/`、`backend/`、`docs/`、`README.md`
+- Android：Kotlin、Jetpack Compose、Media3、Room、DataStore、WorkManager、Hilt、Retrofit、OkHttp WebSocket
+- Android 配置：`minSdk 26`、`compileSdk 35`、`targetSdk 35`、包名 `com.synclisten.app`
+- 后端：Node.js、TypeScript、Fastify、SQLite、本地磁盘音频存储
+- 后端测试：Vitest、Fastify inject、WebSocket 多客户端测试
+- 文件去重与完整性校验：SHA-256
+- 身份：临时 `userId`、昵称、房间加入令牌，不实现账号系统
+- 首期验收环境：本机后端 + 两个 Android 模拟器，通过局域网地址连接
+
+### 0.3 核心规则
+
+- Host 可播放、暂停、拖动和切歌；Member 可上传、下载和收听，不能控制播放。
+- Host 离开后关闭房间，不实现主机迁移。
+- 当前播放必须使用本地缓存，不使用实时音频流。
+- 服务器统一分配播放列表顺序和播放执行时间。
+- WebSocket 消息统一为 `{ "type": "...", "payload": {}, "serverTimeMs": 0 }`。
+- P0 完整闭环验收通过后，才开始 P1。
+- P2 不实现，只记录接口方向和 backlog。
+
+### 0.4 总体验收命令
+
+```powershell
+# 后端
+cd C:\Users\15224\Desktop\工程\sync-listen\backend
+npm ci
+npm run lint
+npm run typecheck
+npm test
+npm run build
+
+# Android
+cd C:\Users\15224\Desktop\工程\sync-listen\android-app
+.\gradlew.bat testDebugUnitTest
+.\gradlew.bat lintDebug
+.\gradlew.bat assembleDebug
+```
+
+---
+
+## 1. 阶段一：准备与工程骨架（P0）
+
+**阶段依赖：** 无  
+**阶段完成条件：** 后端可启动；Android 可构建并安装；README 有基础运行方法。
+
+### T001 创建 Monorepo 与基础文档
+
+**依赖：** 无
+
+- [x] 创建 `android-app/`、`backend/`、`docs/` 目录。
+- [x] 初始化 Git，并创建适用于 Android、Node.js、SQLite 数据文件和音频缓存的 `.gitignore`。
+- [x] 创建根目录 `README.md`，写明项目目标、目录结构、环境要求和当前状态。
+- [x] 创建 `.env.example`，至少包含服务监听地址、端口、SQLite 路径、音频目录、房间清理时间。
+- [x] 记录本地开发默认端口和 Android 模拟器访问宿主机的地址规则。
+
+**验证：**
+
+```powershell
+cd C:\Users\15224\Desktop\工程\sync-listen
+git status
+Get-ChildItem -Force
+```
+
+**验收：**
+
+- [x] 根目录结构与约定一致。
+- [x] 环境配置示例不包含密钥或本机私有数据。
+
+### T002 初始化 Fastify 后端
+
+**依赖：** T001
+
+- [x] 初始化 Node.js + TypeScript 工程，锁定 Node.js 版本要求。
+- [x] 配置 Fastify、环境变量校验、结构化日志、统一错误处理和优雅退出。
+- [x] 配置 ESLint、TypeScript 类型检查、Vitest 和构建脚本。
+- [x] 实现 `GET /health`，返回服务状态和服务器时间。
+- [x] 建立 `src/app.ts` 与 `src/server.ts` 分离结构，允许测试通过 Fastify inject 启动应用。
+
+**验证：**
+
+```powershell
+cd backend
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm run dev
+```
+
+**验收：**
+
+- [x] `GET /health` 返回 HTTP 200。
+- [x] 类型检查、测试和构建通过。
+
+### T003 初始化 SQLite 与数据目录
+
+**依赖：** T002
+
+- [x] 选择并配置 SQLite 驱动和迁移机制。
+- [x] 建立 `rooms`、`members`、`tracks`、`playback_states` 数据表。
+- [x] 对 `roomId`、`trackId`、`fileHash`、`orderIndex` 建立必要索引和唯一约束。
+- [x] 建立运行时音频目录和临时上传目录。
+- [x] 增加数据库初始化、迁移和测试数据库清理脚本。
+
+**验证：**
+
+```powershell
+cd backend
+npm test -- database
+npm run db:migrate
+```
+
+**验收：**
+
+- [x] 新环境可通过单条命令完成数据库初始化。
+- [x] 测试数据库可独立创建与清理。
+
+### T004 初始化 Android Compose 工程
+
+**依赖：** T001
+
+- [x] 创建单 Activity Jetpack Compose 工程，包名为 `com.synclisten.app`。
+- [x] 配置 Gradle Wrapper、版本目录和 Debug/Release 构建类型。
+- [x] 配置 Hilt、Navigation Compose、Coroutines、Retrofit、OkHttp、Room、DataStore、WorkManager、Media3。
+- [x] 建立 `ui/`、`data/`、`domain/`、`playback/`、`transfer/`、`nearby/`、`util/` 包结构。
+- [x] 实现基础主题、导航壳、日志封装和 Debug 环境服务器地址配置。
+- [x] 配置 `INTERNET`，并为局域网 HTTP 调试提供明确的 Debug 网络安全配置。
+
+**验证：**
+
+```powershell
+cd android-app
+.\gradlew.bat testDebugUnitTest
+.\gradlew.bat lintDebug
+.\gradlew.bat assembleDebug
+```
+
+**验收：**
+
+- [x] Debug APK 构建成功。
+- [ ] App 可在模拟器启动并显示占位首页。
+
+---
+
+## 2. 阶段二：共享协议与后端核心（P0）
+
+**阶段依赖：** 阶段一  
+**阶段完成条件：** 后端测试覆盖房间、成员、上传下载、权限和播放控制。
+
+### T005 定义共享领域模型与协议文档
+
+**依赖：** T002、T003、T004
+
+- [ ] 定义 Room、Member、Track、PlaybackState、TransferStatus 数据结构。
+- [ ] 固定 Track 字段：`trackId`、`roomId`、`title`、`artist`、`durationMs`、`fileName`、`fileSize`、`fileHash`、`uploaderId`、`uploaderName`、`orderIndex`、`status`、`createdAt`。
+- [ ] 固定 REST 成功响应和错误响应格式。
+- [ ] 固定 WebSocket 信封和事件 payload。
+- [ ] 在 `docs/api.md` 与 `docs/websocket.md` 中记录协议。
+- [ ] Android 与后端分别建立与文档一致的模型和序列化测试。
+
+**验证：**
+
+```powershell
+cd backend
+npm test -- protocol
+cd ..\android-app
+.\gradlew.bat testDebugUnitTest --tests "*Protocol*"
+```
+
+**验收：**
+
+- [ ] Android 与后端字段名称、空值规则和枚举值一致。
+- [ ] 协议文档包含请求、响应和错误示例。
+
+### T006 实现房间与成员 REST API
+
+**依赖：** T005
+
+- [ ] 实现 `POST /api/rooms`，创建 Host、房间码和加入令牌。
+- [ ] 实现 `POST /api/rooms/{roomId}/join`，通过令牌或房间码加入。
+- [ ] 实现 `GET /api/rooms/{roomId}`，返回房间、成员和播放状态快照。
+- [ ] 实现 Host 离开关闭房间的逻辑。
+- [ ] 校验昵称、房间码、令牌和不存在/已关闭房间错误。
+
+**验证：**
+
+```powershell
+cd backend
+npm test -- rooms
+```
+
+**验收：**
+
+- [ ] 创建者获得 Host 身份。
+- [ ] 第二个用户可加入并获得 Member 身份。
+- [ ] 错误令牌和已关闭房间返回明确错误码。
+
+### T007 实现 WebSocket 房间连接与广播
+
+**依赖：** T006
+
+- [ ] 实现 `/ws/rooms/{roomId}?token=JOIN_TOKEN&userId=USER_ID`。
+- [ ] 连接时校验房间、用户和令牌。
+- [ ] 实现 `ROOM_JOINED`、`MEMBER_JOINED`、`MEMBER_LEFT`、`ERROR`。
+- [ ] 管理房间连接集合、心跳、断开清理和异常日志。
+- [ ] 新连接收到完整房间快照，现有连接收到成员增减广播。
+
+**验证：**
+
+```powershell
+cd backend
+npm test -- websocket
+```
+
+**验收：**
+
+- [ ] 两个 WebSocket 客户端加入同一房间后能实时看到成员变化。
+- [ ] 无效身份无法建立连接。
+
+### T008 实现播放列表与并发顺序分配
+
+**依赖：** T006、T007
+
+- [ ] 实现 `GET /api/rooms/{roomId}/playlist`。
+- [ ] 由服务器在事务中分配连续、唯一的 `orderIndex`。
+- [ ] 实现 `TRACK_ADDED`、`TRACK_READY`、`PLAYLIST_UPDATED` 广播。
+- [ ] 为并发添加歌曲建立集成测试，确认不会出现重复顺序。
+
+**验证：**
+
+```powershell
+cd backend
+npm test -- playlist
+```
+
+**验收：**
+
+- [ ] 播放列表按 `orderIndex` 稳定排序。
+- [ ] 并发添加不会覆盖或丢失歌曲。
+
+### T009 实现音频上传、秒传与下载
+
+**依赖：** T008
+
+- [ ] 实现 `POST /api/rooms/{roomId}/tracks` multipart 上传。
+- [ ] 仅接受 MP3/FLAC，并限制可配置的最大文件大小。
+- [ ] 校验客户端 SHA-256；服务器重新计算并拒绝不一致文件。
+- [ ] 相同 hash 已存在时复用文件并直接创建 READY Track。
+- [ ] 新文件先写临时目录，校验成功后原子移动到正式目录。
+- [ ] 实现 `GET /api/tracks/{trackId}/download`，支持流式下载和正确文件名。
+- [ ] 实现失败上传清理和过期房间文件清理任务。
+
+**验证：**
+
+```powershell
+cd backend
+npm test -- tracks
+npm test -- cleanup
+```
+
+**验收：**
+
+- [ ] 上传成功后所有房间成员收到歌曲更新。
+- [ ] 相同 hash 不重复保存物理文件。
+- [ ] 下载文件 hash 与上传文件一致。
+
+### T010 实现播放控制与服务器同步
+
+**依赖：** T007、T008
+
+- [ ] 实现 `GET /api/time`，返回服务器时间。
+- [ ] 实现 Host 专用的 play、pause、seek、next API。
+- [ ] PLAY、SEEK、NEXT 使用服务器当前时间加固定缓冲生成 `executeAtServerTimeMs`。
+- [ ] PAUSE 保存准确的服务端播放状态。
+- [ ] 服务端持续保存可恢复的 PlaybackState。
+- [ ] 播放期间定期广播 `SYNC`。
+- [ ] 拒绝 Member 发出的播放控制请求。
+
+**验证：**
+
+```powershell
+cd backend
+npm test -- playback
+npm test -- sync
+```
+
+**验收：**
+
+- [ ] 多个客户端收到相同执行时间。
+- [ ] Member 控制请求返回权限错误。
+- [ ] 新连接可获得当前播放状态。
+
+---
+
+## 3. 阶段三：Android 房间功能（P0）
+
+**阶段依赖：** 阶段二  
+**阶段完成条件：** 两个模拟器可加入同一房间并实时看到成员变化。
+
+### T011 实现 Android API、身份与设置层
+
+**依赖：** T005、T006
+
+- [ ] 使用 Retrofit 实现房间、播放列表、时间和播放控制 API。
+- [ ] 使用 DataStore 保存临时 `userId`、昵称和服务器地址。
+- [ ] 实现统一 API 错误解析、超时和日志。
+- [ ] 实现可切换服务器地址的 Debug 设置入口。
+- [ ] 为 Repository 建立 Fake API 单元测试。
+
+**验证：**
+
+```powershell
+cd android-app
+.\gradlew.bat testDebugUnitTest --tests "*Repository*"
+```
+
+**验收：**
+
+- [ ] 重启 App 后保留用户身份和服务器地址。
+- [ ] 网络错误在 UI 层可读。
+
+### T012 实现首页、创建房间与手动加入
+
+**依赖：** T011
+
+- [ ] 实现首页和临时昵称输入。
+- [ ] 实现创建房间流程，成功后进入房间页。
+- [ ] 实现手动房间码加入流程。
+- [ ] 实现加载、错误和重试状态。
+- [ ] 保证重复点击不会创建或加入多次。
+
+**验证：**
+
+```powershell
+cd android-app
+.\gradlew.bat testDebugUnitTest --tests "*Home*"
+.\gradlew.bat assembleDebug
+```
+
+**验收：**
+
+- [ ] 模拟器 A 可创建房间。
+- [ ] 模拟器 B 可通过房间码加入。
+
+### T013 实现 Android WebSocket 客户端与状态恢复
+
+**依赖：** T007、T011
+
+- [ ] 使用 OkHttp WebSocket 建立房间连接。
+- [ ] 将连接状态暴露为 Flow：连接中、已连接、重连中、已断开、失败。
+- [ ] 实现指数退避重连和生命周期管理。
+- [ ] 解析所有 P0 房间、播放列表和播放事件。
+- [ ] 重连后通过房间快照恢复成员、播放列表和播放状态。
+- [ ] 记录连接、断开、重连和消息解析错误日志。
+
+**验证：**
+
+```powershell
+cd android-app
+.\gradlew.bat testDebugUnitTest --tests "*WebSocket*"
+```
+
+**验收：**
+
+- [ ] 两个模拟器实时看到成员加入和离开。
+- [ ] 短暂断网后能自动重连并恢复房间状态。
+
+### T014 实现房间页与状态展示
+
+**依赖：** T012、T013
+
+- [ ] 展示房间名、房间码、当前角色、连接状态和成员列表。
+- [ ] 展示共享播放列表、歌曲 READY/UPLOADING/FAILED 状态。
+- [ ] 为上传、播放器、邀请和设置提供导航入口。
+- [ ] Host 离开后显示房间已关闭并返回首页。
+
+**验证：**
+
+```powershell
+cd android-app
+.\gradlew.bat testDebugUnitTest --tests "*Room*"
+.\gradlew.bat lintDebug
+```
+
+**验收：**
+
+- [ ] 成员和播放列表更新无需手动刷新。
+- [ ] 角色和连接状态清晰可见。
+
+---
+
+## 4. 阶段四：上传、下载与缓存（P0）
+
+**阶段依赖：** 阶段三  
+**阶段完成条件：** A 上传后 B 自动下载、校验并建立缓存索引。
+
+### T015 实现本地音频选择、元信息与 hash
+
+**依赖：** T004
+
+- [ ] 使用系统文件选择器选择 MP3/FLAC，不依赖广泛存储权限。
+- [ ] 读取文件名、大小、格式、标题、艺术家和时长。
+- [ ] 流式计算 SHA-256，避免一次加载整个文件。
+- [ ] 实现不支持格式、无法读取和取消选择状态。
+- [ ] 为 hash 和格式校验建立单元测试。
+
+**验证：**
+
+```powershell
+cd android-app
+.\gradlew.bat testDebugUnitTest --tests "*FileHash*"
+.\gradlew.bat testDebugUnitTest --tests "*AudioMetadata*"
+```
+
+**验收：**
+
+- [ ] MP3 和 FLAC 元信息可展示。
+- [ ] Android 计算结果与后端 SHA-256 一致。
+
+### T016 实现上传管理器与上传 UI
+
+**依赖：** T009、T015
+
+- [ ] 实现 multipart 上传与进度回调。
+- [ ] 显示文件信息、上传进度、成功、秒传、失败和重试状态。
+- [ ] 上传完成后依赖 WebSocket 更新播放列表。
+- [ ] 防止重复提交相同上传任务。
+- [ ] 记录上传开始、进度、失败和完成日志。
+
+**验证：**
+
+```powershell
+cd android-app
+.\gradlew.bat testDebugUnitTest --tests "*Upload*"
+```
+
+**验收：**
+
+- [ ] A 上传后 A、B 均看到新歌曲。
+- [ ] 失败上传可重试。
+
+### T017 建立 Room 缓存索引
+
+**依赖：** T004、T015
+
+- [ ] 建立缓存实体，包含 `trackId`、`fileHash`、`localPath`、`fileName`、`fileSize`、`durationMs`、`cachedAt`、`verifyStatus`、`roomId`。
+- [ ] 以 `fileHash` 作为物理文件去重依据。
+- [ ] 支持跨房间复用同一缓存文件。
+- [ ] 实现缓存查询、写入、校验状态更新和安全删除 DAO。
+- [ ] 为迁移、去重和查询建立 Room 测试。
+
+**验证：**
+
+```powershell
+cd android-app
+.\gradlew.bat testDebugUnitTest --tests "*Cache*"
+```
+
+**验收：**
+
+- [ ] 相同 hash 不产生重复缓存文件。
+- [ ] 索引可标识已缓存、未缓存和校验失败。
+
+### T018 实现优先级下载队列
+
+**依赖：** T009、T013、T017
+
+- [ ] 使用 WorkManager 实现持久化下载任务。
+- [ ] 定义优先级：当前曲目 0、下一首 1、其他曲目 2。
+- [ ] 播放期间限制并发；首期最大并发为 1，空闲时可调整为 2。
+- [ ] 下载到临时文件，完成后校验 SHA-256，再原子移动并写入缓存索引。
+- [ ] hash 失败时删除文件并按限制重试。
+- [ ] WebSocket 收到 TRACK_READY/PLAYLIST_UPDATED 后自动补充队列。
+- [ ] 显示下载进度、队列长度、缓存状态和 hash 校验结果。
+
+**验证：**
+
+```powershell
+cd android-app
+.\gradlew.bat testDebugUnitTest --tests "*Download*"
+.\gradlew.bat testDebugUnitTest --tests "*QueuePriority*"
+```
+
+**验收：**
+
+- [ ] B 自动下载 A 上传的歌曲。
+- [ ] 当前和下一首歌曲优先于后续歌曲。
+- [ ] 校验失败文件不会进入可播放状态。
+
+### T019 实现缓存清理
+
+**依赖：** T017、T018
+
+- [ ] 实现缓存列表和占用空间展示。
+- [ ] 支持清理单首和清理全部非播放文件。
+- [ ] 当前播放文件不可删除。
+- [ ] 删除物理文件后同步删除或修正缓存索引。
+
+**验证：**
+
+```powershell
+cd android-app
+.\gradlew.bat testDebugUnitTest --tests "*CacheCleanup*"
+```
+
+**验收：**
+
+- [ ] 清理不会中断当前播放。
+- [ ] 清理后索引与磁盘状态一致。
+
+---
+
+## 5. 阶段五：本地播放与基础同步（P0）
+
+**阶段依赖：** 阶段四  
+**阶段完成条件：** 两个模拟器从本地缓存大致同步播放，并同步控制操作。
+
+### T020 实现 Media3 本地播放器
+
+**依赖：** T017、T018
+
+- [ ] 封装 `PlayerController`，只接受已校验本地缓存路径。
+- [ ] 实现准备、播放、暂停、seek、切歌、结束和错误状态。
+- [ ] 当前曲目未缓存时显示等待缓存，不启动网络流播放。
+- [ ] 暴露播放位置、时长、播放器状态和当前 track Flow。
+- [ ] 记录播放器状态和本地进度日志。
+
+**验证：**
+
+```powershell
+cd android-app
+.\gradlew.bat testDebugUnitTest --tests "*PlayerController*"
+```
+
+**验收：**
+
+- [ ] 已缓存 MP3/FLAC 可本地播放。
+- [ ] 未缓存歌曲不会直接播放。
+
+### T021 实现服务器时间偏移估算
+
+**依赖：** T010、T011
+
+- [ ] 多次请求 `/api/time`，记录请求开始、响应结束、RTT 和服务器时间。
+- [ ] 使用低 RTT 样本估算 `serverOffsetMs`。
+- [ ] 周期刷新偏移，并暴露 `estimatedServerNowMs`。
+- [ ] 为延迟、时钟偏移和异常响应建立单元测试。
+
+**验证：**
+
+```powershell
+cd android-app
+.\gradlew.bat testDebugUnitTest --tests "*ServerClock*"
+```
+
+**验收：**
+
+- [ ] UI 可显示 `serverOffsetMs` 和 `rttMs`。
+- [ ] 固定测试时钟下偏移计算准确。
+
+### T022 实现 P0 播放同步管理器
+
+**依赖：** T010、T013、T020、T021
+
+- [ ] 封装 `PlaybackSyncManager` 处理 PLAY、PAUSE、SEEK、NEXT、SYNC。
+- [ ] PLAY/SEEK/NEXT 等待到 `executeAtServerTimeMs` 再执行。
+- [ ] 根据同步消息计算 `expectedPositionMs` 和 `syncErrorMs`。
+- [ ] `abs(error) <= 300ms` 时不修正；大于 300ms 时 seek 到期望位置。
+- [ ] 预留播放速度修正接口，但 P0 不启用。
+- [ ] WebSocket 断线时继续当前播放并显示同步断开。
+- [ ] 重连后按服务器状态重新校准。
+
+**验证：**
+
+```powershell
+cd android-app
+.\gradlew.bat testDebugUnitTest --tests "*PlaybackSync*"
+```
+
+**验收：**
+
+- [ ] 两端收到相同事件后在计划时间播放。
+- [ ] 人工制造明显偏移后自动 seek 修正。
+- [ ] 断线重连后恢复服务器播放状态。
+
+### T023 实现播放器与同步调试 UI
+
+**依赖：** T014、T020、T022
+
+- [ ] 展示当前歌曲、播放状态、进度条和缓存状态。
+- [ ] Host 显示播放、暂停、seek、next 控件；Member 控件禁用或隐藏。
+- [ ] 展示 `serverOffsetMs`、`rttMs`、`localPositionMs`、`expectedPositionMs`、`syncErrorMs`、`webSocketStatus`、`downloadQueueSize`。
+- [ ] 展示同步断开、等待缓存和播放错误。
+
+**验证：**
+
+```powershell
+cd android-app
+.\gradlew.bat testDebugUnitTest --tests "*Player*"
+.\gradlew.bat lintDebug
+.\gradlew.bat assembleDebug
+```
+
+**验收：**
+
+- [ ] Host 控制可同步影响 Member。
+- [ ] Member 无法发出控制请求。
+- [ ] 同步误差和连接状态可见。
+
+---
+
+## 6. 阶段六：二维码与深链（P0）
+
+**阶段依赖：** 阶段三  
+**阶段完成条件：** B 扫描 A 展示的二维码后成功加入。
+
+### T024 定义加入链接与深链解析
+
+**依赖：** T006、T011
+
+- [ ] 固定链接格式：`synclisten://join?roomId=...&token=...&server=...`。
+- [ ] 实现严格解析、URL 编解码和字段校验。
+- [ ] 在 Android Manifest 注册深链。
+- [ ] App 冷启动和运行中接收深链均进入加入确认流程。
+- [ ] 为有效、缺字段、非法 server 和错误 scheme 建立测试。
+
+**验证：**
+
+```powershell
+cd android-app
+.\gradlew.bat testDebugUnitTest --tests "*JoinLink*"
+adb shell am start -a android.intent.action.VIEW -d "synclisten://join?roomId=test&token=test&server=http%3A%2F%2F10.0.2.2%3A3000"
+```
+
+**验收：**
+
+- [ ] 有效深链可进入加入流程。
+- [ ] 非法链接不会导致崩溃或静默加入。
+
+### T025 实现二维码展示与扫描
+
+**依赖：** T024
+
+- [ ] 创建房间后根据加入链接生成二维码。
+- [ ] 房间页提供邀请二维码入口。
+- [ ] 使用相机扫描二维码并复用深链解析流程。
+- [ ] 按 Android 版本正确请求和处理 CAMERA 权限。
+- [ ] 保留手动房间码入口，不因相机权限失败阻塞加入。
+
+**验证：**
+
+```powershell
+cd android-app
+.\gradlew.bat lintDebug
+.\gradlew.bat assembleDebug
+```
+
+**验收：**
+
+- [ ] B 扫描 A 二维码后可加入房间。
+- [ ] 拒绝相机权限后仍可手动加入。
+
+---
+
+## 7. 阶段七：P0 完整闭环验收
+
+**阶段依赖：** 阶段二至阶段六  
+**阶段完成条件：** 以下全部验收项通过并记录结果。
+
+### T026 执行自动化验证
+
+- [ ] 后端 lint、类型检查、测试和构建全部通过。
+- [ ] Android 单元测试、lint 和 Debug 构建全部通过。
+- [ ] 清理安装后重新执行一次 Android 构建，排除本地缓存偶然成功。
+
+**验证：**
+
+```powershell
+cd C:\Users\15224\Desktop\工程\sync-listen\backend
+npm run lint
+npm run typecheck
+npm test
+npm run build
+
+cd ..\android-app
+.\gradlew.bat clean testDebugUnitTest lintDebug assembleDebug
+```
+
+### T027 执行双设备端到端验收
+
+- [ ] A 创建房间。
+- [ ] B 扫码加入房间。
+- [ ] A、B 均能看到成员状态。
+- [ ] A 上传 MP3，B 自动下载并通过 hash 校验。
+- [ ] B 上传 FLAC，A 自动下载并通过 hash 校验。
+- [ ] Host 播放后 A、B 从本地缓存开始播放。
+- [ ] 暂停、继续、seek、next 可同步。
+- [ ] 当前播放期间后台下载不导致明显播放中断。
+- [ ] B 断网时继续当前播放并显示同步断开。
+- [ ] B 恢复网络后重连、恢复房间状态并重新校准。
+- [ ] 上传、下载、缓存、WebSocket 和同步状态均可见。
+- [ ] 将测试设备、网络环境、同步误差范围和失败项记录到 `docs/test-report.md`。
+
+---
+
+## 8. 阶段八：P1 增强功能
+
+**阶段依赖：** P0 完整闭环验收通过  
+**阶段完成条件：** 每个启用的 P1 功能均有独立自动化测试或双设备验证记录。
+
+### T101 实现播放速度微调弱同步
+
+- [ ] 将同步阈值固定为：小于 80ms 不处理，80-300ms 使用 0.98x/1.02x，大于 300ms seek，大于 1000ms 强制重新同步。
+- [ ] 误差进入正常范围后恢复 1.0x。
+- [ ] 防止频繁抖动切换播放速度。
+- [ ] 在调试 UI 和日志中展示速度修正。
+- [ ] 使用假时钟和假播放器测试正负误差修正。
+
+**验收：**
+
+- [ ] 小误差可逐步收敛且没有明显听感跳跃。
+
+### T102 完善并发添加歌曲冲突处理
+
+- [ ] 扩展后端高并发上传和秒传测试。
+- [ ] 确认同一文件并发上传只保留一份物理文件。
+- [ ] 确认多个 Track 的 `orderIndex` 唯一且连续。
+- [ ] 客户端收到重复/乱序事件时以服务器快照收敛。
+
+**验收：**
+
+- [ ] 并发添加不会产生重复顺序、丢曲或重复物理文件。
+
+### T103 完善下载队列与下一首预下载
+
+- [ ] 播放状态变化后立即重新计算队列优先级。
+- [ ] 当前曲目 READY 时优先下载，下一首次优先。
+- [ ] 当前播放稳定后自动预下载下一首。
+- [ ] 网络失败和任务取消后可恢复队列。
+- [ ] 增加优先级变化和持久化恢复测试。
+
+**验收：**
+
+- [ ] 切歌前下一首通常已缓存；队列顺序与 UI 一致。
+
+### T104 完善角色权限
+
+- [ ] 后端对所有控制类操作统一执行 Host 权限校验。
+- [ ] Android 明确展示 Host/Member 角色与可用操作。
+- [ ] Member 的控制操作在 UI 和 API 两层均被阻止。
+- [ ] 增加权限绕过测试。
+
+**验收：**
+
+- [ ] Member 无法通过手工 HTTP 请求绕过权限。
+
+### T105 实现 BLE 房间邀请发现
+
+- [ ] 定义 `BleRoomDiscovery` 接口和状态模型。
+- [ ] Host 广播不含令牌的短房间码，例如 `SyncListen:ROOM_CODE`。
+- [ ] Member 扫描附近房间，选择后通过互联网加入。
+- [ ] 按 Android 版本处理 BLUETOOTH_SCAN、ADVERTISE、CONNECT 权限。
+- [ ] BLE 不传输音频、加入令牌或其他敏感数据。
+- [ ] 无 BLE 或权限被拒绝时不影响 P0 加入方式。
+
+**验收：**
+
+- [ ] 两台支持 BLE 的设备可发现房间，并通过互联网完成加入。
+
+### T106 实现 NFC 加入链接读取
+
+- [ ] 定义 `NfcJoinManager` 接口和状态模型。
+- [ ] 支持读取包含 `synclisten://join` 的 NFC Tag。
+- [ ] 复用统一深链解析和加入确认流程。
+- [ ] 无 NFC 或 NFC 关闭时提供清晰提示。
+- [ ] NFC 不用于传输音频文件。
+
+**验收：**
+
+- [ ] 读取有效 NFC Tag 后可加入房间。
+
+### T107 执行 P1 回归验收
+
+- [ ] 重跑全部 P0 自动化测试和双设备验收。
+- [ ] 验证 BLE/NFC 不影响二维码、深链和手动加入。
+- [ ] 验证速度微调不导致播放器异常或不可恢复速度。
+- [ ] 更新 `docs/test-report.md`。
+
+---
+
+## 9. 文档与最终交付
+
+**阶段依赖：** P0；P1 完成后再次更新  
+**阶段完成条件：** 新开发者可仅根据文档启动并完成双设备测试。
+
+### T201 完善 README
+
+- [ ] 项目简介与功能列表。
+- [ ] 架构说明与目录结构。
+- [ ] Android 和后端运行方法。
+- [ ] 局域网、公网和模拟器测试方法。
+- [ ] 创建、加入、上传、下载和同步播放使用说明。
+- [ ] 常见问题与故障排查入口。
+
+### T202 完善技术文档
+
+- [ ] `docs/api.md`：REST 接口、请求、响应、错误码。
+- [ ] `docs/websocket.md`：事件、payload、时序和重连恢复。
+- [ ] `docs/architecture.md`：组件、数据流、缓存和同步策略。
+- [ ] `docs/debugging.md`：日志位置、关键指标和常见故障。
+- [ ] `docs/known-issues.md`：已知问题、限制和规避方法。
+- [ ] `docs/test-report.md`：自动化与双设备验收结果。
+
+### T203 最终交付检查
+
+- [ ] Android App 可构建、安装和运行。
+- [ ] 后端服务可安装依赖、迁移数据库并启动。
+- [ ] 环境示例、运行命令和接口文档与实际实现一致。
+- [ ] P0 验收标准全部通过。
+- [ ] 已实现 P1 功能有测试记录，未实现 P1 明确标记。
+- [ ] 已知问题和后续扩展建议已记录。
+
+---
+
+## 10. P2 Backlog：暂不实现
+
+以下任务仅保留方向，不得在 P0/P1 完成前实施：
+
+- [ ] 完全离线房间模式。
+- [ ] Wi-Fi Direct 文件分发。
+- [ ] Nearby Connections P2P 文件分发。
+- [ ] 多主机与 Host 迁移。
+- [ ] 真正 Mesh 网络。
+- [ ] 实时音频流。
+- [ ] 第三方音乐 App 音频捕获。
+- [ ] iOS 客户端。
+- [ ] 商业账号、收费、社交和版权校验。
+
+---
+
+## 11. 执行纪律
+
+- [ ] 开始任务前确认所有依赖任务已完成。
+- [ ] 每个任务先补测试或验收脚本，再实现功能。
+- [ ] 每完成一个任务，运行该任务列出的验证命令。
+- [ ] 每完成一个阶段，执行阶段级验收后再勾选完成。
+- [ ] 构建或测试失败时立即修复，不跳过、不带病进入下一阶段。
+- [ ] 任何协议变更同步更新后端、Android、测试和文档。
+- [ ] 不引入实时推流、Mesh、账号系统等非当前优先级功能。
+- [ ] 对未完成或受阻任务记录原因、复现步骤和下一步。
+
+## 12. 进度摘要
+
+| 阶段 | 优先级 | 状态 |
+|---|---|---|
+| 阶段一：准备与工程骨架 | P0 | 进行中（缺模拟器启动验证） |
+| 阶段二：共享协议与后端核心 | P0 | 未开始 |
+| 阶段三：Android 房间功能 | P0 | 未开始 |
+| 阶段四：上传、下载与缓存 | P0 | 未开始 |
+| 阶段五：本地播放与基础同步 | P0 | 未开始 |
+| 阶段六：二维码与深链 | P0 | 未开始 |
+| 阶段七：P0 完整闭环验收 | P0 | 未开始 |
+| 阶段八：P1 增强功能 | P1 | 未开始 |
+| 文档与最终交付 | P0/P1 | 未开始 |
+| P2 Backlog | P2 | 暂缓 |
