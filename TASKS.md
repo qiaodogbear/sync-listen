@@ -162,12 +162,12 @@ cd android-app
 
 **依赖：** T002、T003、T004
 
-- [ ] 定义 Room、Member、Track、PlaybackState、TransferStatus 数据结构。
-- [ ] 固定 Track 字段：`trackId`、`roomId`、`title`、`artist`、`durationMs`、`fileName`、`fileSize`、`fileHash`、`uploaderId`、`uploaderName`、`orderIndex`、`status`、`createdAt`。
-- [ ] 固定 REST 成功响应和错误响应格式。
-- [ ] 固定 WebSocket 信封和事件 payload。
-- [ ] 在 `docs/api.md` 与 `docs/websocket.md` 中记录协议。
-- [ ] Android 与后端分别建立与文档一致的模型和序列化测试。
+- [x] 定义 Room、Member、Track、PlaybackState、TransferStatus 数据结构。
+- [x] 固定 Track 字段：`trackId`、`roomId`、`title`、`artist`、`durationMs`、`fileName`、`fileSize`、`fileHash`、`uploaderId`、`uploaderName`、`orderIndex`、`status`、`createdAt`。
+- [x] 固定 REST 成功响应和错误响应格式。
+- [x] 固定 WebSocket 信封和事件 payload。
+- [x] 在 `docs/api.md` 与 `docs/websocket.md` 中记录协议。
+- [x] Android 与后端分别建立与文档一致的模型和序列化测试。
 
 **验证：**
 
@@ -180,18 +180,18 @@ cd ..\android-app
 
 **验收：**
 
-- [ ] Android 与后端字段名称、空值规则和枚举值一致。
-- [ ] 协议文档包含请求、响应和错误示例。
+- [x] Android 与后端字段名称、空值规则和枚举值一致。
+- [x] 协议文档包含请求、响应和错误示例。
 
 ### T006 实现房间与成员 REST API
 
 **依赖：** T005
 
-- [ ] 实现 `POST /api/rooms`，创建 Host、房间码和加入令牌。
-- [ ] 实现 `POST /api/rooms/{roomId}/join`，通过令牌或房间码加入。
-- [ ] 实现 `GET /api/rooms/{roomId}`，返回房间、成员和播放状态快照。
-- [ ] 实现 Host 离开关闭房间的逻辑。
-- [ ] 校验昵称、房间码、令牌和不存在/已关闭房间错误。
+- [x] 实现 `POST /api/rooms`，创建 Host、房间码和加入令牌。
+- [x] 实现 `POST /api/rooms/{roomId}/join`，通过令牌或房间码加入。
+- [x] 实现 `GET /api/rooms/{roomId}`，返回房间、成员和播放状态快照。
+- [x] 实现 Host 离开关闭房间的逻辑。
+- [x] 校验昵称、房间码、令牌和不存在/已关闭房间错误。
 
 **验证：**
 
@@ -202,9 +202,9 @@ npm test -- rooms
 
 **验收：**
 
-- [ ] 创建者获得 Host 身份。
-- [ ] 第二个用户可加入并获得 Member 身份。
-- [ ] 错误令牌和已关闭房间返回明确错误码。
+- [x] 创建者获得 Host 身份。
+- [x] 第二个用户可加入并获得 Member 身份。
+- [x] 错误令牌和已关闭房间返回明确错误码。
 
 ### T007 实现 WebSocket 房间连接与广播
 
@@ -865,7 +865,7 @@ cd ..\android-app
 | 阶段 | 优先级 | 状态 |
 |---|---|---|
 | 阶段一：准备与工程骨架 | P0 | 进行中（缺模拟器启动验证） |
-| 阶段二：共享协议与后端核心 | P0 | 未开始 |
+| 阶段二：共享协议与后端核心 | P0 | 进行中（T005-T006 完成） |
 | 阶段三：Android 房间功能 | P0 | 未开始 |
 | 阶段四：上传、下载与缓存 | P0 | 未开始 |
 | 阶段五：本地播放与基础同步 | P0 | 未开始 |

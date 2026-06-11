@@ -1,0 +1,240 @@
+import { randomBytes, randomUUID } from "node:crypto";
+import type { DatabaseSync } from "node:sqlite";
+
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+
+import { AppError } from "../errors.js";
+
+type RoomRow = {
+  room_id: string;
+  room_code: string;
+  join_token: string;
+  name: string;
+  host_user_id: string;
+  status: "ACTIVE" | "CLOSED";
+  created_at: number;
+};
+
+type MemberRow = {
+  user_id: string;
+  display_name: string;
+  role: "HOST" | "MEMBER";
+  connected: number;
+  joined_at: number;
+};
+
+type PlaybackRow = {
+  track_id: string | null;
+  position_ms: number;
+  is_playing: number;
+  server_time_ms: number;
+  execute_at_server_time_ms: number | null;
+};
+
+const createRoomBodySchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  userId: z.string().trim().min(1).max(128),
+  displayName: z.string().trim().min(1).max(40),
+});
+
+const joinRoomBodySchema = z
+  .object({
+    userId: z.string().trim().min(1).max(128),
+    displayName: z.string().trim().min(1).max(40),
+    joinToken: z.string().trim().min(1).optional(),
+    roomCode: z.string().trim().min(1).optional(),
+  })
+  .refine(({ joinToken, roomCode }) => joinToken !== undefined || roomCode !== undefined, {
+    message: "joinToken or roomCode is required",
+  });
+
+function generateRoomCode(): string {
+  return randomBytes(4).toString("hex").slice(0, 6).toUpperCase();
+}
+
+function toRoom(row: RoomRow) {
+  return {
+    roomId: row.room_id,
+    roomCode: row.room_code,
+    name: row.name,
+    hostUserId: row.host_user_id,
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
+
+function toMember(row: MemberRow) {
+  return {
+    userId: row.user_id,
+    displayName: row.display_name,
+    role: row.role,
+    connected: row.connected === 1,
+    joinedAt: row.joined_at,
+  };
+}
+
+function toPlaybackState(row: PlaybackRow) {
+  return {
+    trackId: row.track_id,
+    positionMs: row.position_ms,
+    isPlaying: row.is_playing === 1,
+    serverTimeMs: row.server_time_ms,
+    executeAtServerTimeMs: row.execute_at_server_time_ms,
+  };
+}
+
+function findRoom(database: DatabaseSync, roomId: string): RoomRow {
+  const room = database
+    .prepare("SELECT * FROM rooms WHERE room_id = ?")
+    .get(roomId) as RoomRow | undefined;
+
+  if (room === undefined) {
+    throw new AppError(404, "ROOM_NOT_FOUND", "Room does not exist");
+  }
+  if (room.status === "CLOSED") {
+    throw new AppError(410, "ROOM_CLOSED", "Room is closed");
+  }
+
+  return room;
+}
+
+export async function registerRoomRoutes(
+  app: FastifyInstance,
+  database: DatabaseSync,
+): Promise<void> {
+  app.post("/api/rooms", async (request, reply) => {
+    const body = createRoomBodySchema.parse(request.body);
+    const roomId = randomUUID();
+    const joinToken = randomUUID();
+    const roomCode = generateRoomCode();
+    const now = Date.now();
+
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      database
+        .prepare(
+          `INSERT INTO rooms
+           (room_id, room_code, join_token, name, host_user_id, status, created_at)
+           VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?)`,
+        )
+        .run(roomId, roomCode, joinToken, body.name, body.userId, now);
+      database
+        .prepare(
+          `INSERT INTO members
+           (room_id, user_id, display_name, role, connected, joined_at, last_seen_at)
+           VALUES (?, ?, ?, 'HOST', 0, ?, ?)`,
+        )
+        .run(roomId, body.userId, body.displayName, now, now);
+      database
+        .prepare(
+          `INSERT INTO playback_states
+           (room_id, track_id, position_ms, is_playing, server_time_ms, execute_at_server_time_ms)
+           VALUES (?, NULL, 0, 0, ?, NULL)`,
+        )
+        .run(roomId, now);
+      database.exec("COMMIT");
+    } catch (error) {
+      database.exec("ROLLBACK");
+      throw error;
+    }
+
+    return reply.status(201).send({
+      room: {
+        roomId,
+        roomCode,
+        name: body.name,
+        hostUserId: body.userId,
+        status: "ACTIVE",
+        createdAt: now,
+      },
+      member: {
+        userId: body.userId,
+        displayName: body.displayName,
+        role: "HOST",
+        connected: false,
+        joinedAt: now,
+      },
+      joinToken,
+    });
+  });
+
+  app.post<{ Params: { roomId: string } }>(
+    "/api/rooms/:roomId/join",
+    async (request) => {
+      const body = joinRoomBodySchema.parse(request.body);
+      const room = findRoom(database, request.params.roomId);
+
+      if (
+        body.joinToken !== room.join_token &&
+        body.roomCode?.toUpperCase() !== room.room_code
+      ) {
+        throw new AppError(403, "INVALID_JOIN_TOKEN", "Join credentials are invalid");
+      }
+
+      const now = Date.now();
+      database
+        .prepare(
+          `INSERT INTO members
+           (room_id, user_id, display_name, role, connected, joined_at, last_seen_at)
+           VALUES (?, ?, ?, 'MEMBER', 0, ?, ?)
+           ON CONFLICT(room_id, user_id) DO UPDATE SET
+             display_name = excluded.display_name,
+             last_seen_at = excluded.last_seen_at`,
+        )
+        .run(room.room_id, body.userId, body.displayName, now, now);
+
+      return {
+        room: toRoom(room),
+        member: {
+          userId: body.userId,
+          displayName: body.displayName,
+          role: "MEMBER",
+          connected: false,
+          joinedAt: now,
+        },
+      };
+    },
+  );
+
+  app.get<{ Params: { roomId: string } }>(
+    "/api/rooms/:roomId",
+    async (request) => {
+      const room = findRoom(database, request.params.roomId);
+      const members = database
+        .prepare("SELECT * FROM members WHERE room_id = ? ORDER BY joined_at")
+        .all(room.room_id) as MemberRow[];
+      const playback = database
+        .prepare("SELECT * FROM playback_states WHERE room_id = ?")
+        .get(room.room_id) as PlaybackRow;
+
+      return {
+        room: toRoom(room),
+        members: members.map(toMember),
+        playlist: [],
+        playbackState: toPlaybackState(playback),
+      };
+    },
+  );
+
+  app.delete<{ Params: { roomId: string; userId: string } }>(
+    "/api/rooms/:roomId/members/:userId",
+    async (request, reply) => {
+      const room = findRoom(database, request.params.roomId);
+      if (room.host_user_id === request.params.userId) {
+        database
+          .prepare(
+            "UPDATE rooms SET status = 'CLOSED', closed_at = ? WHERE room_id = ?",
+          )
+          .run(Date.now(), room.room_id);
+      } else {
+        database
+          .prepare("DELETE FROM members WHERE room_id = ? AND user_id = ?")
+          .run(room.room_id, request.params.userId);
+      }
+
+      return reply.status(204).send();
+    },
+  );
+}
+
