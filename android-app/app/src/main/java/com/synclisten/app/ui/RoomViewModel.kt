@@ -7,10 +7,12 @@ import com.synclisten.app.data.RoomRepository
 import com.synclisten.app.data.RoomSnapshot
 import com.synclisten.app.data.RoomWebSocketClient
 import com.synclisten.app.data.SettingsStore
+import com.synclisten.app.transfer.DownloadQueueManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -19,9 +21,11 @@ class RoomViewModel @Inject constructor(
     private val settingsStore: SettingsStore,
     private val socketClient: RoomWebSocketClient,
     private val repository: RoomRepository,
+    private val downloadQueueManager: DownloadQueueManager,
 ) : ViewModel() {
     val connection: StateFlow<RoomConnectionState> = socketClient.connection
     val snapshot: StateFlow<RoomSnapshot?> = socketClient.snapshot
+    val downloads = downloadQueueManager.state
 
     init {
         viewModelScope.launch {
@@ -33,6 +37,9 @@ class RoomViewModel @Inject constructor(
                 userId = session.member.userId,
                 token = session.joinToken ?: return@launch,
             )
+            socketClient.snapshot.filterNotNull().collect {
+                downloadQueueManager.sync(it, settings.serverUrl)
+            }
         }
     }
 

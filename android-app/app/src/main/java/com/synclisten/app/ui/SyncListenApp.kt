@@ -198,6 +198,7 @@ private fun RoomResultScreen(
     val state by homeViewModel.state.collectAsState()
     val connection by roomViewModel.connection.collectAsState()
     val snapshot by roomViewModel.snapshot.collectAsState()
+    val downloads by roomViewModel.downloads.collectAsState()
     val room = state as? HomeState.InRoom
 
     Column(
@@ -214,6 +215,7 @@ private fun RoomResultScreen(
             Text("${member.displayName} · ${member.role.name} · ${if (member.connected) "在线" else "离线"}")
         }
         Text(text = "播放列表")
+        Text(text = "下载队列：${downloads.queued} · ${downloads.lastStatus}")
         snapshot?.playlist?.forEach { track ->
             Text("${track.title} · ${track.status.name}")
         }
