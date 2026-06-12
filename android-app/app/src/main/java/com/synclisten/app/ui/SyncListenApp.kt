@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +29,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.synclisten.app.data.RoomConnectionState
 import com.synclisten.app.transfer.UploadState
+import com.synclisten.app.playback.PlayerStatus
 
 private const val HOME_ROUTE = "home"
 private const val SETTINGS_ROUTE = "settings"
@@ -200,10 +203,11 @@ private fun RoomResultScreen(
     val snapshot by roomViewModel.snapshot.collectAsState()
     val downloads by roomViewModel.downloads.collectAsState()
     val cacheSummary by roomViewModel.cacheSummary.collectAsState()
+    val player by roomViewModel.player.collectAsState()
     val room = state as? HomeState.InRoom
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -220,7 +224,17 @@ private fun RoomResultScreen(
         Text(text = "缓存：${cacheSummary.entries} 首 · ${cacheSummary.physicalBytes} bytes")
         snapshot?.playlist?.forEach { track ->
             Text("${track.title} · ${track.status.name}")
+            Button(onClick = { roomViewModel.prepareLocal(track.trackId) }) {
+                Text("本地准备")
+            }
         }
+        Text("本地播放器：${player.status.name}")
+        Text("位置：${player.positionMs} / ${player.durationMs} ms")
+        if (player.status == PlayerStatus.WAITING_FOR_CACHE) Text("等待缓存完成")
+        player.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        Button(onClick = roomViewModel::playLocal) { Text("本地播放") }
+        Button(onClick = roomViewModel::pauseLocal) { Text("本地暂停") }
+        Button(onClick = { roomViewModel.seekLocal(player.positionMs + 5_000) }) { Text("前进 5 秒") }
         Button(onClick = onOpenUpload) { Text("上传歌曲") }
         Button(onClick = roomViewModel::refreshCache) { Text("刷新缓存") }
         Button(onClick = roomViewModel::clearCache) { Text("清理非播放缓存") }

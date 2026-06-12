@@ -19,6 +19,8 @@ import androidx.room.Room
 import com.synclisten.app.cache.CacheDao
 import com.synclisten.app.cache.SyncListenDatabase
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.synclisten.app.playback.Media3PlayerEngine
+import com.synclisten.app.playback.PlayerEngine
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -31,6 +33,9 @@ abstract class DataBindingsModule {
 
     @Binds
     abstract fun bindUploadTransport(transport: OkHttpUploadTransport): UploadTransport
+
+    @Binds
+    abstract fun bindPlayerEngine(engine: Media3PlayerEngine): PlayerEngine
 }
 
 @Module

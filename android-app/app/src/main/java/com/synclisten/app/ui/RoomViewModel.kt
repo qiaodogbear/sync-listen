@@ -10,6 +10,7 @@ import com.synclisten.app.data.RoomSnapshot
 import com.synclisten.app.data.RoomWebSocketClient
 import com.synclisten.app.data.SettingsStore
 import com.synclisten.app.transfer.DownloadQueueManager
+import com.synclisten.app.playback.PlayerController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.StateFlow
@@ -26,10 +27,12 @@ class RoomViewModel @Inject constructor(
     private val repository: RoomRepository,
     private val downloadQueueManager: DownloadQueueManager,
     private val cacheCleanup: CacheCleanup,
+    private val playerController: PlayerController,
 ) : ViewModel() {
     val connection: StateFlow<RoomConnectionState> = socketClient.connection
     val snapshot: StateFlow<RoomSnapshot?> = socketClient.snapshot
     val downloads = downloadQueueManager.state
+    val player = playerController.state
     private val mutableCacheSummary = MutableStateFlow(CacheSummary())
     val cacheSummary: StateFlow<CacheSummary> = mutableCacheSummary
 
@@ -56,10 +59,20 @@ class RoomViewModel @Inject constructor(
 
     fun clearCache() {
         viewModelScope.launch {
-            cacheCleanup.clearAllExcept(snapshot.value?.playbackState?.trackId)
+            cacheCleanup.clearAllExcept(player.value.trackId)
             mutableCacheSummary.value = cacheCleanup.summary()
         }
     }
+
+    fun prepareLocal(trackId: String) {
+        viewModelScope.launch { playerController.prepare(trackId) }
+    }
+
+    fun playLocal() = playerController.play()
+
+    fun pauseLocal() = playerController.pause()
+
+    fun seekLocal(positionMs: Long) = playerController.seekTo(positionMs)
 
     fun leave(onComplete: () -> Unit) {
         viewModelScope.launch {
@@ -75,5 +88,6 @@ class RoomViewModel @Inject constructor(
 
     override fun onCleared() {
         socketClient.disconnect()
+        playerController.release()
     }
 }
