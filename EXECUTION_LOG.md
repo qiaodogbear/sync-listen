@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-12
-- Active task: T017 建立 Room 缓存索引
+- Active task: T018 实现优先级下载队列
 - Status: in progress
-- Next: 建立缓存实体、DAO、数据库和去重查询测试。
+- Next: 建立下载优先级与 hash 校验测试，再实现 WorkManager 下载任务和自动补队列。
 
 ## Decisions
 
@@ -48,9 +48,11 @@
 - T014：房间实时状态展示、功能导航入口和离房/Host 关闭房间返回首页流程完成；阶段三已完成。
 - T015：系统文件选择器、MP3/FLAC 元信息读取、流式 SHA-256 和选择错误状态完成；hash/格式测试、lint、assemble 通过。
 - T016：流式 multipart 上传、进度、失败重试、重复提交保护和秒传提示完成；双模拟器实时播放列表更新验收通过。
+- T017：Room 缓存实体/DAO/数据库、跨房间 hash 路径复用、校验状态和安全删除引用完成；Cache 测试、lint、assemble 通过。
 
 ## Blockers
 
 - Node 24 的内置 `node:sqlite` 当前会输出 ExperimentalWarning；功能验证通过，后续升级 Node 时需回归。
 - Android 项目路径包含中文；已通过 `android.overridePathCheck=true` 允许 AGP 在用户指定目录构建，需持续关注 Windows 工具链兼容性。
 - Gradle Windows 单测无法从中文真实路径加载测试类；使用 `subst S: C:\Users\15224\Desktop\工程\sync-listen` 后测试通过。
+- Robolectric 在当前环境下载运行时 Android artifact 时持续挂起；Room schema/DAO 由 KSP 构建验证，缓存策略使用纯 JVM Fake DAO 测试。

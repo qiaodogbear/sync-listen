@@ -454,11 +454,11 @@ cd android-app
 
 **依赖：** T004、T015
 
-- [ ] 建立缓存实体，包含 `trackId`、`fileHash`、`localPath`、`fileName`、`fileSize`、`durationMs`、`cachedAt`、`verifyStatus`、`roomId`。
-- [ ] 以 `fileHash` 作为物理文件去重依据。
-- [ ] 支持跨房间复用同一缓存文件。
-- [ ] 实现缓存查询、写入、校验状态更新和安全删除 DAO。
-- [ ] 为迁移、去重和查询建立 Room 测试。
+- [x] 建立缓存实体，包含 `trackId`、`fileHash`、`localPath`、`fileName`、`fileSize`、`durationMs`、`cachedAt`、`verifyStatus`、`roomId`。
+- [x] 以 `fileHash` 作为物理文件去重依据。
+- [x] 支持跨房间复用同一缓存文件。
+- [x] 实现缓存查询、写入、校验状态更新和安全删除 DAO。
+- [x] 为迁移、去重和查询建立 Room 测试。
 
 **验证：**
 
@@ -469,8 +469,8 @@ cd android-app
 
 **验收：**
 
-- [ ] 相同 hash 不产生重复缓存文件。
-- [ ] 索引可标识已缓存、未缓存和校验失败。
+- [x] 相同 hash 不产生重复缓存文件。
+- [x] 索引可标识已缓存、未缓存和校验失败。
 
 ### T018 实现优先级下载队列
 
@@ -867,7 +867,7 @@ cd ..\android-app
 | 阶段一：准备与工程骨架 | P0 | 已完成 |
 | 阶段二：共享协议与后端核心 | P0 | 已完成 |
 | 阶段三：Android 房间功能 | P0 | 已完成 |
-| 阶段四：上传、下载与缓存 | P0 | 进行中（T015-T016 完成） |
+| 阶段四：上传、下载与缓存 | P0 | 进行中（T015-T017 完成） |
 | 阶段五：本地播放与基础同步 | P0 | 未开始 |
 | 阶段六：二维码与深链 | P0 | 未开始 |
 | 阶段七：P0 完整闭环验收 | P0 | 未开始 |

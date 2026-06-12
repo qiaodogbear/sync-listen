@@ -14,6 +14,11 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import com.synclisten.app.transfer.OkHttpUploadTransport
 import com.synclisten.app.transfer.UploadTransport
+import android.content.Context
+import androidx.room.Room
+import com.synclisten.app.cache.CacheDao
+import com.synclisten.app.cache.SyncListenDatabase
+import dagger.hilt.android.qualifiers.ApplicationContext
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -31,6 +36,14 @@ abstract class DataBindingsModule {
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
+    @Provides
+    @Singleton
+    fun provideDatabase(@ApplicationContext context: Context): SyncListenDatabase =
+        Room.databaseBuilder(context, SyncListenDatabase::class.java, "sync-listen.db").build()
+
+    @Provides
+    fun provideCacheDao(database: SyncListenDatabase): CacheDao = database.cacheDao()
+
     @Provides
     @Singleton
     fun provideJson(): Json = Json { ignoreUnknownKeys = true }
