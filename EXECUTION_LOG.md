@@ -22,6 +22,8 @@
 - T002：`npm test` 1/1 通过；lint、typecheck、build 通过；实际启动后 `/health` 返回 200。
 - T003：数据库测试 1/1 通过；`npm run db:migrate` 创建 SQLite、audio、tmp；lint、typecheck、build 通过。
 - T004：通过 `S:` ASCII 驱动器路径运行，Android 单测 1/1、lintDebug、assembleDebug 均通过；APK 约 15.8 MB。
+- T004 启动验收：安装 Emulator 36.6.11 和 API 35 Google APIs x86_64；创建 `SyncListen_A`、`SyncListen_B` Pixel 6 AVD；A 启动为 Android 15/API 35，APK 安装与 MainActivity 冷启动成功，首页和调试设置页视觉检查通过。
+- 阶段一已完成。
 - 阶段一回归：后端 lint/typecheck/2 tests/build 通过；Android test/lint/assemble 通过。
 - Git checkpoint：`035987c chore: scaffold sync listen monorepo`，分支 `feat/mvp`。
 - Git checkpoint：`081ff99 feat: define protocol and room APIs`。
@@ -34,4 +36,3 @@
 - Node 24 的内置 `node:sqlite` 当前会输出 ExperimentalWarning；功能验证通过，后续升级 Node 时需回归。
 - Android 项目路径包含中文；已通过 `android.overridePathCheck=true` 允许 AGP 在用户指定目录构建，需持续关注 Windows 工具链兼容性。
 - Gradle Windows 单测无法从中文真实路径加载测试类；使用 `subst S: C:\Users\15224\Desktop\工程\sync-listen` 后测试通过。
-- 本机 SDK 未安装 Android Emulator，且当前无连接设备；T004 的 App 启动验收待补。
