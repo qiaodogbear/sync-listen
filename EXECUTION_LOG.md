@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-12
-- Active task: T011 实现 Android API、身份与设置层
+- Active task: T012 实现首页、创建房间与手动加入
 - Status: in progress
-- Next: 建立 Android API、身份与设置层的单元测试，再实现 Repository 和 DataStore。
+- Next: 为 HomeViewModel 建立创建/加入/防重复提交测试，再实现首页流程。
 
 ## Decisions
 
@@ -29,6 +29,7 @@
 - Git checkpoint：`035987c chore: scaffold sync listen monorepo`，分支 `feat/mvp`。
 - Git checkpoint：`081ff99 feat: define protocol and room APIs`。
 - Git checkpoint：`9284856 test: complete android emulator launch acceptance`。
+- Git checkpoint：`60571ce feat: complete backend room sync core`。
 - T005：后端协议测试 3/3、Android 协议测试 2/2 通过；API 与 WebSocket 文档已建立。
 - T006：创建/加入/查询/关闭房间 API 完成；后端完整回归 10/10 测试、lint、typecheck、build 通过。
 - T007：WebSocket 快照、认证、心跳、成员加入/离开广播完成；2/2 WebSocket 测试通过。
@@ -36,6 +37,7 @@
 - T009：流式上传、SHA-256 校验、秒传复用、下载和临时文件清理完成；4/4 文件测试通过。
 - T010：Host 播放控制、统一执行时间、可恢复状态、权限校验和周期 SYNC 完成；播放与同步测试 3/3 通过。
 - 阶段二已完成；后端完整回归 21/21 测试、lint、typecheck、build 通过。
+- T011：Retrofit P0 API、Repository 错误映射、DataStore 身份设置和可编辑调试设置页完成；Repository/Identity 测试、lint、assemble 通过，模拟器运行时设置页检查通过。
 
 ## Blockers
 
