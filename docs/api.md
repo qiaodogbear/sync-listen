@@ -136,13 +136,29 @@ Returns the authoritative `{ room, members, playlist, playbackState }` snapshot.
 
 Leaves a room. If the user is the Host, the room is closed. Returns HTTP 204.
 
-## Planned P0 endpoints
+### `GET /api/rooms/{roomId}/playlist`
 
-- `GET /api/rooms/{roomId}/playlist`
-- `POST /api/rooms/{roomId}/tracks`
-- `GET /api/tracks/{trackId}/download`
+Returns `{ playlist }` ordered by the server-assigned `orderIndex`.
+
+### `POST /api/rooms/{roomId}/tracks`
+
+Accepts a multipart upload with metadata fields before the `file` field. The server streams the file, verifies its SHA-256 hash, deduplicates physical storage, and returns HTTP 201 with `{ track }`.
+
+### `GET /api/tracks/{trackId}/download`
+
+Downloads a ready track from server storage.
+
+### Playback control
+
+Host-only endpoints:
+
 - `POST /api/rooms/{roomId}/playback/play`
 - `POST /api/rooms/{roomId}/playback/pause`
 - `POST /api/rooms/{roomId}/playback/seek`
 - `POST /api/rooms/{roomId}/playback/next`
-- `GET /api/time`
+
+PLAY, SEEK, and NEXT responses include a shared future `executeAtServerTimeMs`. Member requests return HTTP 403 with code `HOST_REQUIRED`.
+
+### `GET /api/time`
+
+Returns `{ serverTimeMs }` for client clock offset estimation.

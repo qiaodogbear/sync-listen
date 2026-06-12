@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-12
-- Active task: T007 实现 WebSocket 房间连接与广播
-- Status: not started
-- Next: 先建立多客户端 WebSocket 失败测试，再实现认证、快照和成员广播。
+- Active task: T011 实现 Android API、身份与设置层
+- Status: in progress
+- Next: 建立 Android API、身份与设置层的单元测试，再实现 Repository 和 DataStore。
 
 ## Decisions
 
@@ -15,6 +15,7 @@
 - 后端使用 Node.js + TypeScript + Fastify + SQLite。
 - Android 使用 Kotlin + Compose，`minSdk 26`、`compileSdk/targetSdk 35`。
 - 恢复日志保持轻量；详细任务状态以 `TASKS.md` 为准。
+- 后端 Vitest 限制为 4 个 worker；Windows 上默认高并发启动 Fastify/SQLite 会导致 5 秒测试超时。
 
 ## Verified
 
@@ -30,7 +31,11 @@
 - Git checkpoint：`9284856 test: complete android emulator launch acceptance`。
 - T005：后端协议测试 3/3、Android 协议测试 2/2 通过；API 与 WebSocket 文档已建立。
 - T006：创建/加入/查询/关闭房间 API 完成；后端完整回归 10/10 测试、lint、typecheck、build 通过。
-- 当前批次回归：Android test/lint/assemble 通过；后端 10/10 tests、lint、typecheck、build 通过。
+- T007：WebSocket 快照、认证、心跳、成员加入/离开广播完成；2/2 WebSocket 测试通过。
+- T008：播放列表查询、服务端事务顺序分配和更新广播完成；2/2 播放列表测试通过。
+- T009：流式上传、SHA-256 校验、秒传复用、下载和临时文件清理完成；4/4 文件测试通过。
+- T010：Host 播放控制、统一执行时间、可恢复状态、权限校验和周期 SYNC 完成；播放与同步测试 3/3 通过。
+- 阶段二已完成；后端完整回归 21/21 测试、lint、typecheck、build 通过。
 
 ## Blockers
 

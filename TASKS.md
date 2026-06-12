@@ -210,11 +210,11 @@ npm test -- rooms
 
 **依赖：** T006
 
-- [ ] 实现 `/ws/rooms/{roomId}?token=JOIN_TOKEN&userId=USER_ID`。
-- [ ] 连接时校验房间、用户和令牌。
-- [ ] 实现 `ROOM_JOINED`、`MEMBER_JOINED`、`MEMBER_LEFT`、`ERROR`。
-- [ ] 管理房间连接集合、心跳、断开清理和异常日志。
-- [ ] 新连接收到完整房间快照，现有连接收到成员增减广播。
+- [x] 实现 `/ws/rooms/{roomId}?token=JOIN_TOKEN&userId=USER_ID`。
+- [x] 连接时校验房间、用户和令牌。
+- [x] 实现 `ROOM_JOINED`、`MEMBER_JOINED`、`MEMBER_LEFT`、`ERROR`。
+- [x] 管理房间连接集合、心跳、断开清理和异常日志。
+- [x] 新连接收到完整房间快照，现有连接收到成员增减广播。
 
 **验证：**
 
@@ -225,17 +225,17 @@ npm test -- websocket
 
 **验收：**
 
-- [ ] 两个 WebSocket 客户端加入同一房间后能实时看到成员变化。
-- [ ] 无效身份无法建立连接。
+- [x] 两个 WebSocket 客户端加入同一房间后能实时看到成员变化。
+- [x] 无效身份无法建立连接。
 
 ### T008 实现播放列表与并发顺序分配
 
 **依赖：** T006、T007
 
-- [ ] 实现 `GET /api/rooms/{roomId}/playlist`。
-- [ ] 由服务器在事务中分配连续、唯一的 `orderIndex`。
-- [ ] 实现 `TRACK_ADDED`、`TRACK_READY`、`PLAYLIST_UPDATED` 广播。
-- [ ] 为并发添加歌曲建立集成测试，确认不会出现重复顺序。
+- [x] 实现 `GET /api/rooms/{roomId}/playlist`。
+- [x] 由服务器在事务中分配连续、唯一的 `orderIndex`。
+- [x] 实现 `TRACK_ADDED`、`TRACK_READY`、`PLAYLIST_UPDATED` 广播。
+- [x] 为并发添加歌曲建立集成测试，确认不会出现重复顺序。
 
 **验证：**
 
@@ -246,20 +246,20 @@ npm test -- playlist
 
 **验收：**
 
-- [ ] 播放列表按 `orderIndex` 稳定排序。
-- [ ] 并发添加不会覆盖或丢失歌曲。
+- [x] 播放列表按 `orderIndex` 稳定排序。
+- [x] 并发添加不会覆盖或丢失歌曲。
 
 ### T009 实现音频上传、秒传与下载
 
 **依赖：** T008
 
-- [ ] 实现 `POST /api/rooms/{roomId}/tracks` multipart 上传。
-- [ ] 仅接受 MP3/FLAC，并限制可配置的最大文件大小。
-- [ ] 校验客户端 SHA-256；服务器重新计算并拒绝不一致文件。
-- [ ] 相同 hash 已存在时复用文件并直接创建 READY Track。
-- [ ] 新文件先写临时目录，校验成功后原子移动到正式目录。
-- [ ] 实现 `GET /api/tracks/{trackId}/download`，支持流式下载和正确文件名。
-- [ ] 实现失败上传清理和过期房间文件清理任务。
+- [x] 实现 `POST /api/rooms/{roomId}/tracks` multipart 上传。
+- [x] 仅接受 MP3/FLAC，并限制可配置的最大文件大小。
+- [x] 校验客户端 SHA-256；服务器重新计算并拒绝不一致文件。
+- [x] 相同 hash 已存在时复用文件并直接创建 READY Track。
+- [x] 新文件先写临时目录，校验成功后原子移动到正式目录。
+- [x] 实现 `GET /api/tracks/{trackId}/download`，支持流式下载和正确文件名。
+- [x] 实现失败上传清理和过期房间文件清理任务。
 
 **验证：**
 
@@ -271,21 +271,21 @@ npm test -- cleanup
 
 **验收：**
 
-- [ ] 上传成功后所有房间成员收到歌曲更新。
-- [ ] 相同 hash 不重复保存物理文件。
-- [ ] 下载文件 hash 与上传文件一致。
+- [x] 上传成功后所有房间成员收到歌曲更新。
+- [x] 相同 hash 不重复保存物理文件。
+- [x] 下载文件 hash 与上传文件一致。
 
 ### T010 实现播放控制与服务器同步
 
 **依赖：** T007、T008
 
-- [ ] 实现 `GET /api/time`，返回服务器时间。
-- [ ] 实现 Host 专用的 play、pause、seek、next API。
-- [ ] PLAY、SEEK、NEXT 使用服务器当前时间加固定缓冲生成 `executeAtServerTimeMs`。
-- [ ] PAUSE 保存准确的服务端播放状态。
-- [ ] 服务端持续保存可恢复的 PlaybackState。
-- [ ] 播放期间定期广播 `SYNC`。
-- [ ] 拒绝 Member 发出的播放控制请求。
+- [x] 实现 `GET /api/time`，返回服务器时间。
+- [x] 实现 Host 专用的 play、pause、seek、next API。
+- [x] PLAY、SEEK、NEXT 使用服务器当前时间加固定缓冲生成 `executeAtServerTimeMs`。
+- [x] PAUSE 保存准确的服务端播放状态。
+- [x] 服务端持续保存可恢复的 PlaybackState。
+- [x] 播放期间定期广播 `SYNC`。
+- [x] 拒绝 Member 发出的播放控制请求。
 
 **验证：**
 
@@ -297,9 +297,9 @@ npm test -- sync
 
 **验收：**
 
-- [ ] 多个客户端收到相同执行时间。
-- [ ] Member 控制请求返回权限错误。
-- [ ] 新连接可获得当前播放状态。
+- [x] 多个客户端收到相同执行时间。
+- [x] Member 控制请求返回权限错误。
+- [x] 新连接可获得当前播放状态。
 
 ---
 
@@ -865,7 +865,7 @@ cd ..\android-app
 | 阶段 | 优先级 | 状态 |
 |---|---|---|
 | 阶段一：准备与工程骨架 | P0 | 已完成 |
-| 阶段二：共享协议与后端核心 | P0 | 进行中（T005-T006 完成） |
+| 阶段二：共享协议与后端核心 | P0 | 已完成 |
 | 阶段三：Android 房间功能 | P0 | 未开始 |
 | 阶段四：上传、下载与缓存 | P0 | 未开始 |
 | 阶段五：本地播放与基础同步 | P0 | 未开始 |

@@ -5,32 +5,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import { AppError } from "../errors.js";
-
-type RoomRow = {
-  room_id: string;
-  room_code: string;
-  join_token: string;
-  name: string;
-  host_user_id: string;
-  status: "ACTIVE" | "CLOSED";
-  created_at: number;
-};
-
-type MemberRow = {
-  user_id: string;
-  display_name: string;
-  role: "HOST" | "MEMBER";
-  connected: number;
-  joined_at: number;
-};
-
-type PlaybackRow = {
-  track_id: string | null;
-  position_ms: number;
-  is_playing: number;
-  server_time_ms: number;
-  execute_at_server_time_ms: number | null;
-};
+import { findActiveRoom, getRoomSnapshot, toRoom } from "./snapshot.js";
 
 const createRoomBodySchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -51,52 +26,6 @@ const joinRoomBodySchema = z
 
 function generateRoomCode(): string {
   return randomBytes(4).toString("hex").slice(0, 6).toUpperCase();
-}
-
-function toRoom(row: RoomRow) {
-  return {
-    roomId: row.room_id,
-    roomCode: row.room_code,
-    name: row.name,
-    hostUserId: row.host_user_id,
-    status: row.status,
-    createdAt: row.created_at,
-  };
-}
-
-function toMember(row: MemberRow) {
-  return {
-    userId: row.user_id,
-    displayName: row.display_name,
-    role: row.role,
-    connected: row.connected === 1,
-    joinedAt: row.joined_at,
-  };
-}
-
-function toPlaybackState(row: PlaybackRow) {
-  return {
-    trackId: row.track_id,
-    positionMs: row.position_ms,
-    isPlaying: row.is_playing === 1,
-    serverTimeMs: row.server_time_ms,
-    executeAtServerTimeMs: row.execute_at_server_time_ms,
-  };
-}
-
-function findRoom(database: DatabaseSync, roomId: string): RoomRow {
-  const room = database
-    .prepare("SELECT * FROM rooms WHERE room_id = ?")
-    .get(roomId) as RoomRow | undefined;
-
-  if (room === undefined) {
-    throw new AppError(404, "ROOM_NOT_FOUND", "Room does not exist");
-  }
-  if (room.status === "CLOSED") {
-    throw new AppError(410, "ROOM_CLOSED", "Room is closed");
-  }
-
-  return room;
 }
 
 export async function registerRoomRoutes(
@@ -163,7 +92,7 @@ export async function registerRoomRoutes(
     "/api/rooms/:roomId/join",
     async (request) => {
       const body = joinRoomBodySchema.parse(request.body);
-      const room = findRoom(database, request.params.roomId);
+      const room = findActiveRoom(database, request.params.roomId);
 
       if (
         body.joinToken !== room.join_token &&
@@ -200,27 +129,14 @@ export async function registerRoomRoutes(
   app.get<{ Params: { roomId: string } }>(
     "/api/rooms/:roomId",
     async (request) => {
-      const room = findRoom(database, request.params.roomId);
-      const members = database
-        .prepare("SELECT * FROM members WHERE room_id = ? ORDER BY joined_at")
-        .all(room.room_id) as MemberRow[];
-      const playback = database
-        .prepare("SELECT * FROM playback_states WHERE room_id = ?")
-        .get(room.room_id) as PlaybackRow;
-
-      return {
-        room: toRoom(room),
-        members: members.map(toMember),
-        playlist: [],
-        playbackState: toPlaybackState(playback),
-      };
+      return getRoomSnapshot(database, request.params.roomId);
     },
   );
 
   app.delete<{ Params: { roomId: string; userId: string } }>(
     "/api/rooms/:roomId/members/:userId",
     async (request, reply) => {
-      const room = findRoom(database, request.params.roomId);
+      const room = findActiveRoom(database, request.params.roomId);
       if (room.host_user_id === request.params.userId) {
         database
           .prepare(
@@ -237,4 +153,3 @@ export async function registerRoomRoutes(
     },
   );
 }
-

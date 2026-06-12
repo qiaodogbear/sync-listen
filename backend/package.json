@@ -13,19 +13,24 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "db:migrate": "tsx src/db/migrate.ts",
-    "test": "vitest run",
+    "test": "vitest run --maxWorkers=4",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@fastify/multipart": "^10.0.0",
     "@fastify/sensible": "^6.0.3",
+    "@fastify/websocket": "^11.2.0",
     "dotenv": "^16.6.1",
     "fastify": "^5.6.1",
     "zod": "^4.1.11"
   },
   "devDependencies": {
     "@eslint/js": "^9.37.0",
+    "@types/form-data": "^2.2.1",
     "@types/node": "^24.7.2",
+    "@types/ws": "^8.18.1",
     "eslint": "^9.37.0",
+    "form-data": "^4.0.5",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.1",

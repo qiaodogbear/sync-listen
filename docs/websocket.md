@@ -2,7 +2,7 @@
 
 ## Connection
 
-Planned P0 endpoint:
+Endpoint:
 
 ```text
 /ws/rooms/{roomId}?token=JOIN_TOKEN&userId=USER_ID
@@ -94,4 +94,3 @@ ERROR:
 ## Reconnection rule
 
 After reconnecting, the server sends `ROOM_JOINED` with the authoritative room, member, playlist, and playback snapshot. Clients replace local room state with this snapshot before applying later events.
-
