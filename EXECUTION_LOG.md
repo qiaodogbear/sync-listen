@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-12
-- Active task: T021 实现服务器时间偏移估算
+- Active task: T022 实现 P0 播放同步管理器
 - Status: in progress
-- Next: 先建立服务器时钟低 RTT 样本与异常响应测试，再接入 `/api/time` 周期校准。
+- Next: 用测试定义计划执行、期望位置和大误差 seek 规则，再连接 WebSocket 播放事件。
 
 ## Decisions
 
@@ -54,6 +54,8 @@
 - 阶段四回归：Android 单测、lint、debug 构建通过；后端测试使用独立临时 SQLite，消除并行测试锁竞争，22/22 测试、lint、typecheck、build 通过。
 - Git checkpoint：`6b2189d feat: complete android transfer cache flow`。
 - T020：`PlayerController` 缓存门禁与状态机、Media3 本地引擎、位置采样和房间页控制完成；模拟器从 VERIFIED MP3 进入 READY、PLAYING、ENDED，单测、lint、assemble 通过。
+- Git checkpoint：`1d606ed feat: add verified local media playback`。
+- T021：低 RTT 服务器时钟采样、异常样本过滤、30 秒周期刷新和调试 UI 完成；固定时钟单测通过，模拟器显示 offset 464ms、RTT 15ms。
 
 ## Blockers
 

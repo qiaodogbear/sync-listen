@@ -21,6 +21,7 @@ import com.synclisten.app.cache.SyncListenDatabase
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.synclisten.app.playback.Media3PlayerEngine
 import com.synclisten.app.playback.PlayerEngine
+import com.synclisten.app.playback.LocalClock
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -52,6 +53,10 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideJson(): Json = Json { ignoreUnknownKeys = true }
+
+    @Provides
+    @Singleton
+    fun provideLocalClock(): LocalClock = LocalClock(System::currentTimeMillis)
 
     @Provides
     @Singleton

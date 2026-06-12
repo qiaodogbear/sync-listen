@@ -204,6 +204,7 @@ private fun RoomResultScreen(
     val downloads by roomViewModel.downloads.collectAsState()
     val cacheSummary by roomViewModel.cacheSummary.collectAsState()
     val player by roomViewModel.player.collectAsState()
+    val clock by roomViewModel.clock.collectAsState()
     val room = state as? HomeState.InRoom
 
     Column(
@@ -230,6 +231,8 @@ private fun RoomResultScreen(
         }
         Text("本地播放器：${player.status.name}")
         Text("位置：${player.positionMs} / ${player.durationMs} ms")
+        Text("serverOffsetMs：${clock.serverOffsetMs} · rttMs：${clock.rttMs}")
+        clock.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         if (player.status == PlayerStatus.WAITING_FOR_CACHE) Text("等待缓存完成")
         player.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Button(onClick = roomViewModel::playLocal) { Text("本地播放") }

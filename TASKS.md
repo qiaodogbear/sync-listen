@@ -552,10 +552,10 @@ cd android-app
 
 **依赖：** T010、T011
 
-- [ ] 多次请求 `/api/time`，记录请求开始、响应结束、RTT 和服务器时间。
-- [ ] 使用低 RTT 样本估算 `serverOffsetMs`。
-- [ ] 周期刷新偏移，并暴露 `estimatedServerNowMs`。
-- [ ] 为延迟、时钟偏移和异常响应建立单元测试。
+- [x] 多次请求 `/api/time`，记录请求开始、响应结束、RTT 和服务器时间。
+- [x] 使用低 RTT 样本估算 `serverOffsetMs`。
+- [x] 周期刷新偏移，并暴露 `estimatedServerNowMs`。
+- [x] 为延迟、时钟偏移和异常响应建立单元测试。
 
 **验证：**
 
@@ -566,8 +566,8 @@ cd android-app
 
 **验收：**
 
-- [ ] UI 可显示 `serverOffsetMs` 和 `rttMs`。
-- [ ] 固定测试时钟下偏移计算准确。
+- [x] UI 可显示 `serverOffsetMs` 和 `rttMs`。
+- [x] 固定测试时钟下偏移计算准确。
 
 ### T022 实现 P0 播放同步管理器
 
