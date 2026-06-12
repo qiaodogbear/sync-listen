@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-12
-- Active task: T014 实现房间页与状态展示
+- Active task: T015 实现本地音频选择、元信息与 hash
 - Status: in progress
-- Next: 完成房间页功能入口和 Host 关闭房间返回首页行为，再进入 T015。
+- Next: 建立流式 SHA-256 与音频格式校验测试，再实现系统文件选择器流程。
 
 ## Decisions
 
@@ -31,6 +31,8 @@
 - Git checkpoint：`9284856 test: complete android emulator launch acceptance`。
 - Git checkpoint：`60571ce feat: complete backend room sync core`。
 - Git checkpoint：`afe5ae7 feat: add android data and settings layer`。
+- Git checkpoint：`2cacf95 feat: add android room entry flow`。
+- Git checkpoint：`7ca958b feat: add android room websocket state`。
 - T005：后端协议测试 3/3、Android 协议测试 2/2 通过；API 与 WebSocket 文档已建立。
 - T006：创建/加入/查询/关闭房间 API 完成；后端完整回归 10/10 测试、lint、typecheck、build 通过。
 - T007：WebSocket 快照、认证、心跳、成员加入/离开广播完成；2/2 WebSocket 测试通过。
@@ -41,7 +43,7 @@
 - T011：Retrofit P0 API、Repository 错误映射、DataStore 身份设置和可编辑调试设置页完成；Repository/Identity 测试、lint、assemble 通过，模拟器运行时设置页检查通过。
 - T012：补充仅凭房间码加入的后端入口；首页创建/加入、加载错误和防重复提交完成；双模拟器创建 HOST 与房间码加入 MEMBER 验收通过。
 - T013：加入响应补充 WebSocket joinToken；OkHttp WebSocket、事件 reducer、连接状态 Flow 和指数退避重连完成；双模拟器实时成员更新与断网恢复验收通过。
-- T014 部分完成：房间名、房间码、角色、连接状态、成员和播放列表实时展示已完成；功能入口与 Host 关闭房间流程待完成。
+- T014：房间实时状态展示、功能导航入口和离房/Host 关闭房间返回首页流程完成；阶段三已完成。
 
 ## Blockers
 

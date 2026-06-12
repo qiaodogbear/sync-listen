@@ -3,6 +3,7 @@ package com.synclisten.app.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.synclisten.app.data.RoomConnectionState
+import com.synclisten.app.data.RoomRepository
 import com.synclisten.app.data.RoomSnapshot
 import com.synclisten.app.data.RoomWebSocketClient
 import com.synclisten.app.data.SettingsStore
@@ -17,6 +18,7 @@ class RoomViewModel @Inject constructor(
     private val homeController: HomeController,
     private val settingsStore: SettingsStore,
     private val socketClient: RoomWebSocketClient,
+    private val repository: RoomRepository,
 ) : ViewModel() {
     val connection: StateFlow<RoomConnectionState> = socketClient.connection
     val snapshot: StateFlow<RoomSnapshot?> = socketClient.snapshot
@@ -34,9 +36,16 @@ class RoomViewModel @Inject constructor(
         }
     }
 
-    fun leave() {
-        socketClient.disconnect()
-        homeController.reset()
+    fun leave(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            val session = homeController.state.value as? HomeState.InRoom
+            if (session != null) {
+                repository.leaveRoom(session.room.roomId, session.member.userId)
+            }
+            socketClient.disconnect()
+            homeController.reset()
+            onComplete()
+        }
     }
 
     override fun onCleared() {

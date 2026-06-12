@@ -11,6 +11,7 @@ interface RoomRemoteDataSource {
     suspend fun createRoom(request: CreateRoomRequest): CreateRoomResponse = unsupported()
     suspend fun joinRoom(request: JoinRoomRequest): JoinRoomResponse = unsupported()
     suspend fun getRoom(roomId: String): RoomSnapshot = unsupported()
+    suspend fun leaveRoom(roomId: String, userId: String): Unit = unsupported()
     suspend fun getPlaylist(roomId: String): PlaylistResponse = unsupported()
     suspend fun getServerTime(): ServerTimeResponse = unsupported()
     suspend fun play(roomId: String, command: TrackPlaybackCommand): PlaybackResponse = unsupported()
@@ -40,6 +41,9 @@ class RoomRepository @Inject constructor(
     }
 
     suspend fun getRoom(roomId: String): RepositoryResult<RoomSnapshot> = request { remote.getRoom(roomId) }
+
+    suspend fun leaveRoom(roomId: String, userId: String): RepositoryResult<Unit> =
+        request { remote.leaveRoom(roomId, userId) }
 
     suspend fun getPlaylist(roomId: String): RepositoryResult<PlaylistResponse> =
         request { remote.getPlaylist(roomId) }

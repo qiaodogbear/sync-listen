@@ -1,6 +1,7 @@
 package com.synclisten.app.data
 
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
@@ -17,6 +18,9 @@ interface SyncListenApi {
 
     @GET("api/rooms/{roomId}")
     suspend fun getRoom(@Path("roomId") roomId: String): RoomSnapshot
+
+    @DELETE("api/rooms/{roomId}/members/{userId}")
+    suspend fun leaveRoom(@Path("roomId") roomId: String, @Path("userId") userId: String)
 
     @GET("api/rooms/{roomId}/playlist")
     suspend fun getPlaylist(@Path("roomId") roomId: String): PlaylistResponse

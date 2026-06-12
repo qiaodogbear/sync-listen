@@ -37,6 +37,10 @@ class RetrofitRoomRemoteDataSource @Inject constructor(
 
     override suspend fun getRoom(roomId: String): RoomSnapshot = api().getRoom(roomId)
 
+    override suspend fun leaveRoom(roomId: String, userId: String) {
+        api().leaveRoom(roomId, userId)
+    }
+
     override suspend fun getPlaylist(roomId: String): PlaylistResponse = api().getPlaylist(roomId)
 
     override suspend fun getServerTime(): ServerTimeResponse = api().getServerTime()

@@ -67,6 +67,23 @@ class RoomRepositoryTest {
         )
     }
 
+    @Test
+    fun leaveRoomCallsRemoteWithRoomAndUser() = runBlocking {
+        var captured: Pair<String, String>? = null
+        val repository = RoomRepository(
+            remote = object : RoomRemoteDataSource {
+                override suspend fun leaveRoom(roomId: String, userId: String) {
+                    captured = roomId to userId
+                }
+            },
+        )
+
+        val result = repository.leaveRoom("room-1", "user-1")
+
+        assertTrue(result is RepositoryResult.Success)
+        assertEquals("room-1" to "user-1", captured)
+    }
+
     private fun room() = Room(
         roomId = "room-1",
         roomCode = "ABC123",

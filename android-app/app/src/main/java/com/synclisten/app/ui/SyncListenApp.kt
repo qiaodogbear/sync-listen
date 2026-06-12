@@ -28,6 +28,9 @@ import com.synclisten.app.data.RoomConnectionState
 private const val HOME_ROUTE = "home"
 private const val SETTINGS_ROUTE = "settings"
 private const val ROOM_ROUTE = "room"
+private const val UPLOAD_ROUTE = "upload"
+private const val PLAYER_ROUTE = "player"
+private const val INVITE_ROUTE = "invite"
 
 @Composable
 fun SyncListenApp() {
@@ -50,7 +53,20 @@ fun SyncListenApp() {
                 onLeave = {
                     navController.popBackStack(HOME_ROUTE, inclusive = false)
                 },
+                onOpenSettings = { navController.navigate(SETTINGS_ROUTE) },
+                onOpenUpload = { navController.navigate(UPLOAD_ROUTE) },
+                onOpenPlayer = { navController.navigate(PLAYER_ROUTE) },
+                onOpenInvite = { navController.navigate(INVITE_ROUTE) },
             )
+        }
+        composable(UPLOAD_ROUTE) {
+            PlaceholderScreen("上传歌曲", "将在阶段四实现", "返回") { navController.popBackStack() }
+        }
+        composable(PLAYER_ROUTE) {
+            PlaceholderScreen("播放器", "将在阶段五实现", "返回") { navController.popBackStack() }
+        }
+        composable(INVITE_ROUTE) {
+            PlaceholderScreen("邀请成员", "将在阶段六实现", "返回") { navController.popBackStack() }
         }
     }
 }
@@ -120,6 +136,10 @@ private fun HomeScreen(
 @Composable
 private fun RoomResultScreen(
     onLeave: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenUpload: () -> Unit,
+    onOpenPlayer: () -> Unit,
+    onOpenInvite: () -> Unit,
     homeViewModel: HomeViewModel = hiltViewModel(),
     roomViewModel: RoomViewModel = hiltViewModel(),
 ) {
@@ -145,9 +165,12 @@ private fun RoomResultScreen(
         snapshot?.playlist?.forEach { track ->
             Text("${track.title} · ${track.status.name}")
         }
+        Button(onClick = onOpenUpload) { Text("上传歌曲") }
+        Button(onClick = onOpenPlayer) { Text("播放器") }
+        Button(onClick = onOpenInvite) { Text("邀请") }
+        Button(onClick = onOpenSettings) { Text("设置") }
         Button(onClick = {
-            roomViewModel.leave()
-            onLeave()
+            roomViewModel.leave(onLeave)
         }) {
             Text("返回首页")
         }
