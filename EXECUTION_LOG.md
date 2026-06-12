@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-12
-- Active task: T019 实现缓存清理
+- Active task: T020 实现 Media3 本地播放器
 - Status: in progress
-- Next: 建立当前播放保护与共享物理文件安全清理测试，再实现缓存列表和清理入口。
+- Next: 建立播放器状态机测试，再实现仅播放 VERIFIED 本地缓存文件的 Media3 控制层。
 
 ## Decisions
 
@@ -50,6 +50,8 @@
 - T016：流式 multipart 上传、进度、失败重试、重复提交保护和秒传提示完成；双模拟器实时播放列表更新验收通过。
 - T017：Room 缓存实体/DAO/数据库、跨房间 hash 路径复用、校验状态和安全删除引用完成；Cache 测试、lint、assemble 通过。
 - T018：WorkManager 单链下载、当前/下一首优先级、临时文件、SHA-256 校验、原子移动和自动补队列完成；双模拟器自动缓存落盘验收通过。
+- T019：缓存占用展示、当前播放保护、清理非播放缓存和共享物理文件安全删除完成；阶段四已完成。
+- 阶段四回归：Android 单测、lint、debug 构建通过；后端测试使用独立临时 SQLite，消除并行测试锁竞争，22/22 测试、lint、typecheck、build 通过。
 
 ## Blockers
 

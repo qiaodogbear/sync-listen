@@ -48,6 +48,7 @@ private class FakeCacheDao : CacheDao {
     override suspend fun findByHash(fileHash: String) = entries.values.filter { it.fileHash == fileHash }
 
     override suspend fun findByRoom(roomId: String) = entries.values.filter { it.roomId == roomId }
+    override suspend fun all() = entries.values.toList()
 
     override suspend fun updateVerifyStatus(trackId: String, status: VerifyStatus) {
         entries[trackId]?.let { entries[trackId] = it.copy(verifyStatus = status) }

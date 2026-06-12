@@ -48,6 +48,9 @@ interface CacheDao {
     @Query("SELECT * FROM cache_entries WHERE roomId = :roomId ORDER BY cachedAt")
     suspend fun findByRoom(roomId: String): List<CacheEntity>
 
+    @Query("SELECT * FROM cache_entries ORDER BY cachedAt")
+    suspend fun all(): List<CacheEntity>
+
     @Query("UPDATE cache_entries SET verifyStatus = :status WHERE trackId = :trackId")
     suspend fun updateVerifyStatus(trackId: String, status: VerifyStatus)
 

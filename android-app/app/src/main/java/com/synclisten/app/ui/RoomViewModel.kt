@@ -3,6 +3,8 @@ package com.synclisten.app.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.synclisten.app.data.RoomConnectionState
+import com.synclisten.app.cache.CacheCleanup
+import com.synclisten.app.cache.CacheSummary
 import com.synclisten.app.data.RoomRepository
 import com.synclisten.app.data.RoomSnapshot
 import com.synclisten.app.data.RoomWebSocketClient
@@ -11,6 +13,7 @@ import com.synclisten.app.transfer.DownloadQueueManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -22,10 +25,13 @@ class RoomViewModel @Inject constructor(
     private val socketClient: RoomWebSocketClient,
     private val repository: RoomRepository,
     private val downloadQueueManager: DownloadQueueManager,
+    private val cacheCleanup: CacheCleanup,
 ) : ViewModel() {
     val connection: StateFlow<RoomConnectionState> = socketClient.connection
     val snapshot: StateFlow<RoomSnapshot?> = socketClient.snapshot
     val downloads = downloadQueueManager.state
+    private val mutableCacheSummary = MutableStateFlow(CacheSummary())
+    val cacheSummary: StateFlow<CacheSummary> = mutableCacheSummary
 
     init {
         viewModelScope.launch {
@@ -39,7 +45,19 @@ class RoomViewModel @Inject constructor(
             )
             socketClient.snapshot.filterNotNull().collect {
                 downloadQueueManager.sync(it, settings.serverUrl)
+                refreshCache()
             }
+        }
+    }
+
+    fun refreshCache() {
+        viewModelScope.launch { mutableCacheSummary.value = cacheCleanup.summary() }
+    }
+
+    fun clearCache() {
+        viewModelScope.launch {
+            cacheCleanup.clearAllExcept(snapshot.value?.playbackState?.trackId)
+            mutableCacheSummary.value = cacheCleanup.summary()
         }
     }
 

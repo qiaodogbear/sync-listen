@@ -31,7 +31,7 @@ afterEach(async () => {
 
 describe("room API", () => {
   it("joins an active room using only its room code", async () => {
-    const app = await buildApp();
+    const app = await createTestApp();
     const created = await app.inject({
       method: "POST",
       url: "/api/rooms",

@@ -199,6 +199,7 @@ private fun RoomResultScreen(
     val connection by roomViewModel.connection.collectAsState()
     val snapshot by roomViewModel.snapshot.collectAsState()
     val downloads by roomViewModel.downloads.collectAsState()
+    val cacheSummary by roomViewModel.cacheSummary.collectAsState()
     val room = state as? HomeState.InRoom
 
     Column(
@@ -216,10 +217,13 @@ private fun RoomResultScreen(
         }
         Text(text = "播放列表")
         Text(text = "下载队列：${downloads.queued} · ${downloads.lastStatus}")
+        Text(text = "缓存：${cacheSummary.entries} 首 · ${cacheSummary.physicalBytes} bytes")
         snapshot?.playlist?.forEach { track ->
             Text("${track.title} · ${track.status.name}")
         }
         Button(onClick = onOpenUpload) { Text("上传歌曲") }
+        Button(onClick = roomViewModel::refreshCache) { Text("刷新缓存") }
+        Button(onClick = roomViewModel::clearCache) { Text("清理非播放缓存") }
         Button(onClick = onOpenPlayer) { Text("播放器") }
         Button(onClick = onOpenInvite) { Text("邀请") }
         Button(onClick = onOpenSettings) { Text("设置") }
