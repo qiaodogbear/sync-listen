@@ -13,7 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 data class LocalAudioFile(
-    val uri: Uri,
+    val uri: Uri?,
     val fileName: String,
     val fileSize: Long,
     val mimeType: String?,

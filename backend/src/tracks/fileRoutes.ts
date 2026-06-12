@@ -106,7 +106,7 @@ export async function registerTrackFileRoutes(
           uploaderId: metadata.uploaderId,
           uploaderName: metadata.uploaderName,
         });
-        return reply.status(201).send({ track });
+        return reply.status(201).send({ track, deduplicated: existing !== undefined });
       } finally {
         if (tempPath !== undefined) {
           await rm(tempPath, { force: true });
@@ -133,4 +133,3 @@ export async function registerTrackFileRoutes(
     },
   );
 }
-

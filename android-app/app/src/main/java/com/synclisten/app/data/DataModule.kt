@@ -12,6 +12,8 @@ import javax.inject.Singleton
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
+import com.synclisten.app.transfer.OkHttpUploadTransport
+import com.synclisten.app.transfer.UploadTransport
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -21,6 +23,9 @@ abstract class DataBindingsModule {
 
     @Binds
     abstract fun bindRoomRemoteDataSource(source: RetrofitRoomRemoteDataSource): RoomRemoteDataSource
+
+    @Binds
+    abstract fun bindUploadTransport(transport: OkHttpUploadTransport): UploadTransport
 }
 
 @Module

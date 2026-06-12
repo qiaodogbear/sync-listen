@@ -91,6 +91,7 @@ describe("track upload and download", () => {
         payload: form.getBuffer(),
       });
       expect(response.statusCode).toBe(201);
+      expect(response.json()).toMatchObject({ deduplicated: index === 1 });
     }
 
     expect((await readdir(paths.audioStoragePath)).length).toBe(1);
@@ -115,4 +116,3 @@ describe("track upload and download", () => {
     await app.close();
   });
 });
-

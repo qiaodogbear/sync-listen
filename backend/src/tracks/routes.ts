@@ -9,8 +9,7 @@ export async function registerPlaylistRoutes(
   app.get<{ Params: { roomId: string } }>(
     "/api/rooms/:roomId/playlist",
     async (request) => ({
-      tracks: playlistService.getPlaylist(request.params.roomId),
+      playlist: playlistService.getPlaylist(request.params.roomId),
     }),
   );
 }
-

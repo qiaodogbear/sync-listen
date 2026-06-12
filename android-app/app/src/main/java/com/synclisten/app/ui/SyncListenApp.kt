@@ -26,6 +26,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.synclisten.app.data.RoomConnectionState
+import com.synclisten.app.transfer.UploadState
 
 private const val HOME_ROUTE = "home"
 private const val SETTINGS_ROUTE = "settings"
@@ -79,6 +80,7 @@ private fun UploadScreen(
     viewModel: UploadViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val upload by viewModel.upload.collectAsState()
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {
         viewModel.select(it)
     }
@@ -102,7 +104,20 @@ private fun UploadScreen(
                 Text(file.artist ?: "未知艺术家")
                 Text("${file.fileName} · ${file.fileSize} bytes · ${file.durationMs} ms")
                 Text("SHA-256：${file.sha256}")
+                Button(
+                    onClick = viewModel::upload,
+                    enabled = upload.state !is UploadState.Uploading,
+                ) {
+                    Text(if (upload.state is UploadState.Failed) "重试上传" else "上传")
+                }
             }
+        }
+        when (val current = upload.state) {
+            UploadState.Idle -> Unit
+            UploadState.Uploading -> Text("上传进度：${upload.progress}%")
+            UploadState.AlreadyRunning -> Text("相同文件正在上传")
+            is UploadState.Success -> Text(if (current.result.deduplicated) "秒传完成" else "上传完成")
+            is UploadState.Failed -> Text(current.message, color = MaterialTheme.colorScheme.error)
         }
         Button(onClick = onBack) { Text("返回") }
     }

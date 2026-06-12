@@ -85,9 +85,8 @@ describe("playlist", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
-      tracks: [{ title: "Track", orderIndex: 0, status: "READY" }],
+      playlist: [{ title: "Track", orderIndex: 0, status: "READY" }],
     });
     await app.close();
   });
 });
-

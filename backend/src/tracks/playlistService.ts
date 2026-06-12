@@ -68,7 +68,7 @@ export class PlaylistService {
     this.roomHub?.broadcast(input.roomId, "TRACK_ADDED", { track });
     this.roomHub?.broadcast(input.roomId, "TRACK_READY", { track });
     this.roomHub?.broadcast(input.roomId, "PLAYLIST_UPDATED", {
-      tracks: this.getPlaylist(input.roomId),
+      playlist: this.getPlaylist(input.roomId),
     });
     return track;
   }
@@ -89,4 +89,3 @@ export class PlaylistService {
     return toTrack(row);
   }
 }
-
