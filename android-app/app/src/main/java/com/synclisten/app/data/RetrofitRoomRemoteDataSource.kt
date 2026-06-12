@@ -32,8 +32,8 @@ class RetrofitRoomRemoteDataSource @Inject constructor(
     override suspend fun createRoom(request: CreateRoomRequest): CreateRoomResponse =
         api().createRoom(request)
 
-    override suspend fun joinRoom(roomId: String, request: JoinRoomRequest): JoinRoomResponse =
-        api().joinRoom(roomId, request)
+    override suspend fun joinRoom(request: JoinRoomRequest): JoinRoomResponse =
+        api().joinRoomByCode(request)
 
     override suspend fun getRoom(roomId: String): RoomSnapshot = api().getRoom(roomId)
 

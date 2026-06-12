@@ -51,14 +51,14 @@ class RoomRepositoryTest {
         val expected = JoinRoomResponse(room(), member().copy(role = MemberRole.MEMBER))
         val repository = RoomRepository(
             remote = object : RoomRemoteDataSource {
-                override suspend fun joinRoom(roomId: String, request: JoinRoomRequest): JoinRoomResponse {
+                override suspend fun joinRoom(request: JoinRoomRequest): JoinRoomResponse {
                     captured = request
                     return expected
                 }
             },
         )
 
-        val result = repository.joinRoom("room-1", "ABC123", "user-2", "Bob")
+        val result = repository.joinRoom("ABC123", "user-2", "Bob")
 
         assertEquals(expected, (result as RepositoryResult.Success).value)
         assertEquals(

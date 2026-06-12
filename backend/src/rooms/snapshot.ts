@@ -3,7 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { AppError } from "../errors.js";
 import { toTrack, type TrackRow } from "../tracks/model.js";
 
-type RoomRow = {
+export type RoomRow = {
   room_id: string;
   room_code: string;
   join_token: string;
@@ -33,6 +33,19 @@ export function findActiveRoom(database: DatabaseSync, roomId: string): RoomRow 
   const room = database
     .prepare("SELECT * FROM rooms WHERE room_id = ?")
     .get(roomId) as RoomRow | undefined;
+  if (room === undefined) {
+    throw new AppError(404, "ROOM_NOT_FOUND", "Room does not exist");
+  }
+  if (room.status === "CLOSED") {
+    throw new AppError(410, "ROOM_CLOSED", "Room is closed");
+  }
+  return room;
+}
+
+export function findActiveRoomByCode(database: DatabaseSync, roomCode: string): RoomRow {
+  const room = database
+    .prepare("SELECT * FROM rooms WHERE room_code = ?")
+    .get(roomCode.toUpperCase()) as RoomRow | undefined;
   if (room === undefined) {
     throw new AppError(404, "ROOM_NOT_FOUND", "Room does not exist");
   }

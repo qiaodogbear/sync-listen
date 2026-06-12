@@ -5,7 +5,13 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import { AppError } from "../errors.js";
-import { findActiveRoom, getRoomSnapshot, toRoom } from "./snapshot.js";
+import {
+  findActiveRoom,
+  findActiveRoomByCode,
+  getRoomSnapshot,
+  toRoom,
+  type RoomRow,
+} from "./snapshot.js";
 
 const createRoomBodySchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -26,6 +32,42 @@ const joinRoomBodySchema = z
 
 function generateRoomCode(): string {
   return randomBytes(4).toString("hex").slice(0, 6).toUpperCase();
+}
+
+function joinRoom(
+  database: DatabaseSync,
+  room: RoomRow,
+  body: z.infer<typeof joinRoomBodySchema>,
+) {
+  if (
+    body.joinToken !== room.join_token &&
+    body.roomCode?.toUpperCase() !== room.room_code
+  ) {
+    throw new AppError(403, "INVALID_JOIN_TOKEN", "Join credentials are invalid");
+  }
+
+  const now = Date.now();
+  database
+    .prepare(
+      `INSERT INTO members
+       (room_id, user_id, display_name, role, connected, joined_at, last_seen_at)
+       VALUES (?, ?, ?, 'MEMBER', 0, ?, ?)
+       ON CONFLICT(room_id, user_id) DO UPDATE SET
+         display_name = excluded.display_name,
+         last_seen_at = excluded.last_seen_at`,
+    )
+    .run(room.room_id, body.userId, body.displayName, now, now);
+
+  return {
+    room: toRoom(room),
+    member: {
+      userId: body.userId,
+      displayName: body.displayName,
+      role: "MEMBER",
+      connected: false,
+      joinedAt: now,
+    },
+  };
 }
 
 export async function registerRoomRoutes(
@@ -93,38 +135,17 @@ export async function registerRoomRoutes(
     async (request) => {
       const body = joinRoomBodySchema.parse(request.body);
       const room = findActiveRoom(database, request.params.roomId);
-
-      if (
-        body.joinToken !== room.join_token &&
-        body.roomCode?.toUpperCase() !== room.room_code
-      ) {
-        throw new AppError(403, "INVALID_JOIN_TOKEN", "Join credentials are invalid");
-      }
-
-      const now = Date.now();
-      database
-        .prepare(
-          `INSERT INTO members
-           (room_id, user_id, display_name, role, connected, joined_at, last_seen_at)
-           VALUES (?, ?, ?, 'MEMBER', 0, ?, ?)
-           ON CONFLICT(room_id, user_id) DO UPDATE SET
-             display_name = excluded.display_name,
-             last_seen_at = excluded.last_seen_at`,
-        )
-        .run(room.room_id, body.userId, body.displayName, now, now);
-
-      return {
-        room: toRoom(room),
-        member: {
-          userId: body.userId,
-          displayName: body.displayName,
-          role: "MEMBER",
-          connected: false,
-          joinedAt: now,
-        },
-      };
+      return joinRoom(database, room, body);
     },
   );
+
+  app.post("/api/rooms/join", async (request) => {
+    const body = joinRoomBodySchema.parse(request.body);
+    if (body.roomCode === undefined) {
+      throw new AppError(400, "ROOM_CODE_REQUIRED", "Room code is required");
+    }
+    return joinRoom(database, findActiveRoomByCode(database, body.roomCode), body);
+  });
 
   app.get<{ Params: { roomId: string } }>(
     "/api/rooms/:roomId",

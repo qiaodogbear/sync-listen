@@ -12,6 +12,9 @@ interface SyncListenApi {
     @POST("api/rooms/{roomId}/join")
     suspend fun joinRoom(@Path("roomId") roomId: String, @Body request: JoinRoomRequest): JoinRoomResponse
 
+    @POST("api/rooms/join")
+    suspend fun joinRoomByCode(@Body request: JoinRoomRequest): JoinRoomResponse
+
     @GET("api/rooms/{roomId}")
     suspend fun getRoom(@Path("roomId") roomId: String): RoomSnapshot
 

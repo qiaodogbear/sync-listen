@@ -30,6 +30,29 @@ afterEach(async () => {
 });
 
 describe("room API", () => {
+  it("joins an active room using only its room code", async () => {
+    const app = await buildApp();
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/rooms",
+      payload: { name: "Room", userId: "host", displayName: "Alice" },
+    });
+    const { room } = created.json<{ room: { roomId: string; roomCode: string } }>();
+
+    const joined = await app.inject({
+      method: "POST",
+      url: "/api/rooms/join",
+      payload: { userId: "member", displayName: "Bob", roomCode: room.roomCode },
+    });
+
+    expect(joined.statusCode).toBe(200);
+    expect(joined.json()).toMatchObject({
+      room: { roomId: room.roomId },
+      member: { userId: "member", role: "MEMBER" },
+    });
+    await app.close();
+  });
+
   it("creates a room with the creator as host", async () => {
     const app = await createTestApp();
 

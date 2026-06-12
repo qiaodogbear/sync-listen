@@ -9,7 +9,7 @@ import retrofit2.HttpException
 
 interface RoomRemoteDataSource {
     suspend fun createRoom(request: CreateRoomRequest): CreateRoomResponse = unsupported()
-    suspend fun joinRoom(roomId: String, request: JoinRoomRequest): JoinRoomResponse = unsupported()
+    suspend fun joinRoom(request: JoinRoomRequest): JoinRoomResponse = unsupported()
     suspend fun getRoom(roomId: String): RoomSnapshot = unsupported()
     suspend fun getPlaylist(roomId: String): PlaylistResponse = unsupported()
     suspend fun getServerTime(): ServerTimeResponse = unsupported()
@@ -34,13 +34,9 @@ class RoomRepository @Inject constructor(
     suspend fun createRoom(name: String, userId: String, displayName: String): RepositoryResult<CreateRoomResponse> =
         request { remote.createRoom(CreateRoomRequest(name, userId, displayName)) }
 
-    suspend fun joinRoom(
-        roomId: String,
-        roomCode: String,
-        userId: String,
-        displayName: String,
-    ): RepositoryResult<JoinRoomResponse> = request {
-        remote.joinRoom(roomId, JoinRoomRequest(userId, displayName, roomCode = roomCode))
+    suspend fun joinRoom(roomCode: String, userId: String, displayName: String): RepositoryResult<JoinRoomResponse> =
+        request {
+            remote.joinRoom(JoinRoomRequest(userId, displayName, roomCode = roomCode))
     }
 
     suspend fun getRoom(roomId: String): RepositoryResult<RoomSnapshot> = request { remote.getRoom(roomId) }

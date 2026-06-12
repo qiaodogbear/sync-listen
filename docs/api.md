@@ -128,6 +128,10 @@ Joins using either `joinToken` or `roomCode`.
 
 Returns `{ room, member }`.
 
+### `POST /api/rooms/join`
+
+Joins an active room using only `userId`, `displayName`, and `roomCode`. This is the manual-code entry point used before a client knows the room ID.
+
 ### `GET /api/rooms/{roomId}`
 
 Returns the authoritative `{ room, members, playlist, playbackState }` snapshot. Closed rooms return HTTP 410 with code `ROOM_CLOSED`.
