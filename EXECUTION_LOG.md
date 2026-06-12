@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-12
-- Active task: T015 实现本地音频选择、元信息与 hash
+- Active task: T016 实现上传管理器与上传 UI
 - Status: in progress
-- Next: 建立流式 SHA-256 与音频格式校验测试，再实现系统文件选择器流程。
+- Next: 建立 multipart 上传、进度、重试和秒传响应测试，再接上传页面。
 
 ## Decisions
 
@@ -33,6 +33,7 @@
 - Git checkpoint：`afe5ae7 feat: add android data and settings layer`。
 - Git checkpoint：`2cacf95 feat: add android room entry flow`。
 - Git checkpoint：`7ca958b feat: add android room websocket state`。
+- Git checkpoint：`3967168 feat: complete android room experience`。
 - T005：后端协议测试 3/3、Android 协议测试 2/2 通过；API 与 WebSocket 文档已建立。
 - T006：创建/加入/查询/关闭房间 API 完成；后端完整回归 10/10 测试、lint、typecheck、build 通过。
 - T007：WebSocket 快照、认证、心跳、成员加入/离开广播完成；2/2 WebSocket 测试通过。
@@ -44,6 +45,7 @@
 - T012：补充仅凭房间码加入的后端入口；首页创建/加入、加载错误和防重复提交完成；双模拟器创建 HOST 与房间码加入 MEMBER 验收通过。
 - T013：加入响应补充 WebSocket joinToken；OkHttp WebSocket、事件 reducer、连接状态 Flow 和指数退避重连完成；双模拟器实时成员更新与断网恢复验收通过。
 - T014：房间实时状态展示、功能导航入口和离房/Host 关闭房间返回首页流程完成；阶段三已完成。
+- T015：系统文件选择器、MP3/FLAC 元信息读取、流式 SHA-256 和选择错误状态完成；hash/格式测试、lint、assemble 通过。
 
 ## Blockers
 

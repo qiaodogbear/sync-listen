@@ -19,6 +19,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -60,7 +62,7 @@ fun SyncListenApp() {
             )
         }
         composable(UPLOAD_ROUTE) {
-            PlaceholderScreen("上传歌曲", "将在阶段四实现", "返回") { navController.popBackStack() }
+            UploadScreen(onBack = { navController.popBackStack() })
         }
         composable(PLAYER_ROUTE) {
             PlaceholderScreen("播放器", "将在阶段五实现", "返回") { navController.popBackStack() }
@@ -68,6 +70,41 @@ fun SyncListenApp() {
         composable(INVITE_ROUTE) {
             PlaceholderScreen("邀请成员", "将在阶段六实现", "返回") { navController.popBackStack() }
         }
+    }
+}
+
+@Composable
+private fun UploadScreen(
+    onBack: () -> Unit,
+    viewModel: UploadViewModel = hiltViewModel(),
+) {
+    val state by viewModel.state.collectAsState()
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {
+        viewModel.select(it)
+    }
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("选择本地音频", style = MaterialTheme.typography.headlineMedium)
+        Button(onClick = { launcher.launch(arrayOf("audio/mpeg", "audio/flac", "audio/x-flac")) }) {
+            Text("选择 MP3 / FLAC")
+        }
+        when (val current = state) {
+            UploadSelectionState.Empty -> Text("尚未选择文件")
+            UploadSelectionState.Reading -> CircularProgressIndicator()
+            UploadSelectionState.Cancelled -> Text("已取消选择")
+            is UploadSelectionState.Error -> Text(current.message, color = MaterialTheme.colorScheme.error)
+            is UploadSelectionState.Ready -> {
+                val file = current.result.file
+                Text(file.title)
+                Text(file.artist ?: "未知艺术家")
+                Text("${file.fileName} · ${file.fileSize} bytes · ${file.durationMs} ms")
+                Text("SHA-256：${file.sha256}")
+            }
+        }
+        Button(onClick = onBack) { Text("返回") }
     }
 }
 
