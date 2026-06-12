@@ -48,7 +48,7 @@ class RoomRepositoryTest {
     @Test
     fun joinRoomPassesManualRoomCodeAndIdentity() = runBlocking {
         var captured: JoinRoomRequest? = null
-        val expected = JoinRoomResponse(room(), member().copy(role = MemberRole.MEMBER))
+        val expected = JoinRoomResponse(room(), member().copy(role = MemberRole.MEMBER), "join-token")
         val repository = RoomRepository(
             remote = object : RoomRemoteDataSource {
                 override suspend fun joinRoom(request: JoinRoomRequest): JoinRoomResponse {

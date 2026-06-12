@@ -130,7 +130,7 @@ Returns `{ room, member }`.
 
 ### `POST /api/rooms/join`
 
-Joins an active room using only `userId`, `displayName`, and `roomCode`. This is the manual-code entry point used before a client knows the room ID.
+Joins an active room using only `userId`, `displayName`, and `roomCode`. This is the manual-code entry point used before a client knows the room ID. Returns `{ room, member, joinToken }` so the client can authenticate its WebSocket connection.
 
 ### `GET /api/rooms/{roomId}`
 

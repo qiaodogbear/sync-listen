@@ -69,5 +69,5 @@ class HomeController @Inject constructor(
         settingsStore.update(displayName = displayName.trim()).let { identityManager.ensureIdentity() }
 
     private fun CreateRoomResponse.toHomeState() = HomeState.InRoom(room, member, joinToken)
-    private fun JoinRoomResponse.toHomeState() = HomeState.InRoom(room, member, null)
+    private fun JoinRoomResponse.toHomeState() = HomeState.InRoom(room, member, joinToken)
 }

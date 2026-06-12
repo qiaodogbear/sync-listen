@@ -67,6 +67,7 @@ function joinRoom(
       connected: false,
       joinedAt: now,
     },
+    joinToken: room.join_token,
   };
 }
 

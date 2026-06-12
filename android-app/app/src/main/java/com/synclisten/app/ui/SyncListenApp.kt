@@ -23,6 +23,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.synclisten.app.data.RoomConnectionState
 
 private const val HOME_ROUTE = "home"
 private const val SETTINGS_ROUTE = "settings"
@@ -119,9 +120,12 @@ private fun HomeScreen(
 @Composable
 private fun RoomResultScreen(
     onLeave: () -> Unit,
-    viewModel: HomeViewModel = hiltViewModel(),
+    homeViewModel: HomeViewModel = hiltViewModel(),
+    roomViewModel: RoomViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by homeViewModel.state.collectAsState()
+    val connection by roomViewModel.connection.collectAsState()
+    val snapshot by roomViewModel.snapshot.collectAsState()
     val room = state as? HomeState.InRoom
 
     Column(
@@ -132,13 +136,30 @@ private fun RoomResultScreen(
         Text(text = room?.room?.name ?: "房间不可用", style = MaterialTheme.typography.headlineMedium)
         Text(text = "房间码：${room?.room?.roomCode.orEmpty()}")
         Text(text = "角色：${room?.member?.role?.name.orEmpty()}")
+        Text(text = "连接：${connection.label()}")
+        Text(text = "成员")
+        snapshot?.members?.forEach { member ->
+            Text("${member.displayName} · ${member.role.name} · ${if (member.connected) "在线" else "离线"}")
+        }
+        Text(text = "播放列表")
+        snapshot?.playlist?.forEach { track ->
+            Text("${track.title} · ${track.status.name}")
+        }
         Button(onClick = {
-            viewModel.reset()
+            roomViewModel.leave()
             onLeave()
         }) {
             Text("返回首页")
         }
     }
+}
+
+private fun RoomConnectionState.label(): String = when (this) {
+    RoomConnectionState.Disconnected -> "已断开"
+    RoomConnectionState.Connecting -> "连接中"
+    RoomConnectionState.Connected -> "已连接"
+    is RoomConnectionState.Reconnecting -> "重连中（第 $attempt 次）"
+    is RoomConnectionState.Failed -> "失败：$message"
 }
 
 @Composable

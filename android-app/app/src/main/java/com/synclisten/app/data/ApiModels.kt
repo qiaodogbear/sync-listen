@@ -21,7 +21,7 @@ data class JoinRoomRequest(
 )
 
 @Serializable
-data class JoinRoomResponse(val room: Room, val member: Member)
+data class JoinRoomResponse(val room: Room, val member: Member, val joinToken: String)
 
 @Serializable
 data class RoomSnapshot(

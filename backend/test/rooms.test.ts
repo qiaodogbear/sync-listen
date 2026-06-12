@@ -49,6 +49,7 @@ describe("room API", () => {
     expect(joined.json()).toMatchObject({
       room: { roomId: room.roomId },
       member: { userId: "member", role: "MEMBER" },
+      joinToken: expect.any(String),
     });
     await app.close();
   });
