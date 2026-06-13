@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-13
-- Active task: T101 播放速度微调弱同步
+- Active task: T102 并发添加歌曲冲突处理
 - Status: in progress
-- Next: 为速度微调阈值、恢复与防抖补测试并实现；随后继续 T102-T107。
+- Next: 扩展并发上传/秒传、顺序唯一连续和客户端乱序收敛测试。
 
 ## Decisions
 
@@ -67,6 +67,8 @@
 - T026：后端 lint/typecheck/22 tests/build 通过；Android test/lint/assemble 通过；停止 daemon 后 clean test/lint/assemble 无缓存构建通过。
 - T027：两个 API 35 Pixel 6 模拟器完成创建、二维码加入、双向 MP3/FLAC App UI 上传、自动下载/hash 校验、本地同步播放、控制、后台传输和断线重连；稳态误差约 30-71ms，结果记录于 `docs/test-report.md`。
 - P0 阶段七已完成；验收期间发现的重复并发播放事件已增加互斥串行化修复与回归测试。
+- Git checkpoint：`5761b6c test: complete p0 end-to-end acceptance`。
+- T101：80-300ms 正负误差分别使用 1.02x/0.98x，正常范围恢复 1.0x，大误差 seek，强制重同步、速度命令去重、调试 UI/日志和假播放器测试完成；Android 全量 test/lint/assemble 通过。
 
 ## Blockers
 

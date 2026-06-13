@@ -15,8 +15,13 @@ fun MemberRole.canControlPlayback(): Boolean = this == MemberRole.HOST
 data class PlaybackSyncState(
     val expectedPositionMs: Long = 0,
     val syncErrorMs: Long = 0,
+    val playbackSpeed: Float = NORMAL_SPEED,
     val connected: Boolean = true,
-)
+) {
+    companion object {
+        const val NORMAL_SPEED = 1.0f
+    }
+}
 
 class PlaybackSyncManager(
     private val player: PlaybackPort,
@@ -29,11 +34,13 @@ class PlaybackSyncManager(
 
     suspend fun apply(authoritative: PlaybackState) = applyMutex.withLock {
         val trackId = authoritative.trackId ?: run {
+            setSpeed(PlaybackSyncState.NORMAL_SPEED)
             player.pause()
             return@withLock
         }
         if (player.state.value.trackId != trackId) player.prepare(trackId)
         if (!authoritative.isPlaying) {
+            setSpeed(PlaybackSyncState.NORMAL_SPEED)
             player.seekTo(authoritative.positionMs)
             player.pause()
             update(authoritative.positionMs)
@@ -42,6 +49,7 @@ class PlaybackSyncManager(
         val executeAt = authoritative.executeAtServerTimeMs
         if (executeAt != null) {
             wait((executeAt - clock.estimatedServerNowMs()).coerceAtLeast(0))
+            setSpeed(PlaybackSyncState.NORMAL_SPEED)
             player.seekTo(authoritative.positionMs)
             player.play()
             update(authoritative.positionMs)
@@ -62,7 +70,19 @@ class PlaybackSyncManager(
             update(expected, error)
             return@withLock
         }
-        if (abs(error) > SEEK_THRESHOLD_MS) player.seekTo(expected)
+        when {
+            abs(error) > FORCE_RESYNC_THRESHOLD_MS -> {
+                AppLogger.debug("PlaybackSync", "forcing resync error=$error")
+                setSpeed(PlaybackSyncState.NORMAL_SPEED)
+                player.seekTo(expected)
+            }
+            abs(error) > SEEK_THRESHOLD_MS -> {
+                setSpeed(PlaybackSyncState.NORMAL_SPEED)
+                player.seekTo(expected)
+            }
+            abs(error) >= SPEED_THRESHOLD_MS -> setSpeed(if (error > 0) CATCH_UP_SPEED else SLOW_DOWN_SPEED)
+            else -> setSpeed(PlaybackSyncState.NORMAL_SPEED)
+        }
         player.play()
         update(expected, error)
     }
@@ -76,10 +96,23 @@ class PlaybackSyncManager(
             expectedPositionMs = expected,
             syncErrorMs = error,
         )
-        AppLogger.debug("PlaybackSync", "expected=$expected error=$error connected=${mutableState.value.connected}")
+        AppLogger.debug(
+            "PlaybackSync",
+            "expected=$expected error=$error speed=${mutableState.value.playbackSpeed} connected=${mutableState.value.connected}",
+        )
+    }
+
+    private fun setSpeed(speed: Float) {
+        if (mutableState.value.playbackSpeed == speed) return
+        player.setPlaybackSpeed(speed)
+        mutableState.value = mutableState.value.copy(playbackSpeed = speed)
     }
 
     companion object {
+        const val SPEED_THRESHOLD_MS = 80L
         const val SEEK_THRESHOLD_MS = 300L
+        const val FORCE_RESYNC_THRESHOLD_MS = 1_000L
+        const val CATCH_UP_SPEED = 1.02f
+        const val SLOW_DOWN_SPEED = 0.98f
     }
 }

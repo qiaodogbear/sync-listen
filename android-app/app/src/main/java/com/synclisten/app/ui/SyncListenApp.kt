@@ -317,7 +317,10 @@ private fun RoomResultScreen(
             },
         )
         Text("serverOffsetMs：${clock.serverOffsetMs} · rttMs：${clock.rttMs}")
-        Text("expectedPositionMs：${sync.expectedPositionMs} · syncErrorMs：${sync.syncErrorMs}")
+        Text(
+            "expectedPositionMs：${sync.expectedPositionMs} · syncErrorMs：${sync.syncErrorMs} · " +
+                "playbackSpeed：${sync.playbackSpeed}x",
+        )
         if (!sync.connected) Text("同步断开，本地继续播放", color = MaterialTheme.colorScheme.error)
         clock.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         if (player.status == PlayerStatus.WAITING_FOR_CACHE) Text("等待缓存完成")

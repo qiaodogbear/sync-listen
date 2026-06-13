@@ -35,7 +35,7 @@ class PlaybackSyncManagerTest {
         player.commands.clear()
         player.mutableState.value = player.mutableState.value.copy(positionMs = 1_350)
         manager.apply(state(trackId = "track", positionMs = 1_000, isPlaying = true, serverTime = 2_000))
-        assertEquals(listOf("play"), player.commands)
+        assertEquals(listOf("speed:1.02", "play"), player.commands)
     }
 
     @Test
@@ -83,6 +83,49 @@ class PlaybackSyncManagerTest {
         second.await()
 
         assertEquals(1, player.prepareCalls)
+    }
+
+    @Test
+    fun usesPlaybackSpeedToCorrectPositiveAndNegativeSmallDrift() = runBlocking {
+        val player = FakePlaybackPort(positionMs = 1_000)
+        val manager = PlaybackSyncManager(player, FixedServerTime(2_000)) {}
+
+        manager.apply(state(trackId = "track", positionMs = 1_150, isPlaying = true, serverTime = 2_000))
+        assertEquals(listOf("speed:1.02", "play"), player.commands)
+        assertEquals(1.02f, manager.state.value.playbackSpeed)
+
+        player.commands.clear()
+        manager.apply(state(trackId = "track", positionMs = 850, isPlaying = true, serverTime = 2_000))
+        assertEquals(listOf("speed:0.98", "play"), player.commands)
+        assertEquals(0.98f, manager.state.value.playbackSpeed)
+    }
+
+    @Test
+    fun restoresNormalSpeedInsideToleranceWithoutRepeatedCommands() = runBlocking {
+        val player = FakePlaybackPort(positionMs = 1_000)
+        val manager = PlaybackSyncManager(player, FixedServerTime(2_000)) {}
+
+        manager.apply(state(trackId = "track", positionMs = 1_150, isPlaying = true, serverTime = 2_000))
+        player.commands.clear()
+        manager.apply(state(trackId = "track", positionMs = 1_050, isPlaying = true, serverTime = 2_000))
+        assertEquals(listOf("speed:1.0", "play"), player.commands)
+
+        player.commands.clear()
+        manager.apply(state(trackId = "track", positionMs = 1_050, isPlaying = true, serverTime = 2_000))
+        assertEquals(listOf("play"), player.commands)
+    }
+
+    @Test
+    fun largeDriftSeeksAndRestoresNormalSpeed() = runBlocking {
+        val player = FakePlaybackPort(positionMs = 1_000)
+        val manager = PlaybackSyncManager(player, FixedServerTime(2_000)) {}
+
+        manager.apply(state(trackId = "track", positionMs = 1_150, isPlaying = true, serverTime = 2_000))
+        player.commands.clear()
+        manager.apply(state(trackId = "track", positionMs = 2_500, isPlaying = true, serverTime = 2_000))
+
+        assertEquals(listOf("speed:1.0", "seek:2500", "play"), player.commands)
+        assertEquals(1.0f, manager.state.value.playbackSpeed)
     }
 
     private fun state(

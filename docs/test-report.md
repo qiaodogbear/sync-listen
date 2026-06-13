@@ -58,3 +58,8 @@
 - Node.js 24 的内置 `node:sqlite` 会输出 ExperimentalWarning。
 - Windows 中文真实路径下 Gradle 单测类路径存在编码问题，使用 `S:` ASCII 映射运行。
 - Robolectric 运行时 Android artifact 在当前网络环境下载挂起；缓存策略使用纯 JVM Fake DAO 测试，Room schema/DAO 由 KSP 构建验证。
+
+## 2026-06-13 P1 增强验收
+
+- T101 播放速度微调：假时钟/假播放器覆盖正负 80-300ms 误差、恢复
+  1.0x、重复命令抑制和大误差 seek；Android 全量单测、lint 与 Debug 构建通过。
