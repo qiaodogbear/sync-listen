@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-13
-- Active task: T107 最终双设备闭环与 T203 最终交付检查
-- Status: in progress
-- Next: 在当前版本重跑双模拟器上传、下载、同步控制与断线闭环；完成最终交付审计。
+- Active task: T107/T203 最终交付完成
+- Status: complete；仅剩外部 BLE 真机硬件验收
+- Next: 使用两台支持 BLE 的 Android 真机补验房间发现；P2 backlog 按需另行启动。
 
 ## Decisions
 
@@ -83,6 +83,11 @@
 - T107 发现并修复同一用户短时多 WebSocket 时旧连接关闭错误标记离线的问题；新增多连接在线回归测试，后端 24/24 测试通过，运行时重启后 ManualMember/DeepMember 均保持在线。
 - Git checkpoint：`cd2e021 fix: preserve online state across duplicate sockets`。
 - T201/T202：README、REST、WebSocket、架构、调试、已知问题与测试报告已更新；环境示例移除后端未读取的变量。
+- T107 最终双模拟器闭环：Host/Member 创建与加入、MP3/FLAC 秒传、双端自动下载与本地缓存、播放、暂停、seek、next、断线继续播放、重连和房间状态恢复通过；并行采样位置误差为 1-21ms，速度恢复 1.0x。
+- T107 回归中修复计划播放准备竞态：`PlayerController.prepare` 等待 Media3 Ready，错过计划时刻时按迟到量补偿 seek；补充回归测试。
+- T107 回归中修复播放中重复 Ready 覆盖 PLAYING 导致暂停失效的问题；补充状态机回归测试，双端暂停位置均为 3447ms。
+- T203：后端 `npm ci`、`db:migrate`、lint、typecheck、24/24 tests、build、运行时 `/health` 通过；Android `clean testDebugUnitTest lintDebug assembleDebug`、APK 覆盖安装、进程启动通过。
+- T203：`npm audit --omit=dev --audit-level=high` 为 0 漏洞；完整开发依赖安装报告 5 个 high severity 漏洞，需后续在不破坏工具链的前提下升级。
 
 ## Blockers
 
@@ -91,3 +96,5 @@
 - Gradle Windows 单测无法从中文真实路径加载测试类；使用 `subst S: C:\Users\15224\Desktop\工程\sync-listen` 后测试通过。
 - Robolectric 在当前环境下载运行时 Android artifact 时持续挂起；Room schema/DAO 由 KSP 构建验证，缓存策略使用纯 JVM Fake DAO 测试。
 - 模拟器可访问 `10.0.2.2` 但系统不标记 VALIDATED internet；下载 Worker 不使用 `NetworkType.CONNECTED` 约束，实际请求失败时按限制重试。
+- 两台支持 BLE 的 Android 真机发现验收仍受外部硬件条件限制；实现、权限、payload 和回退测试均已通过。
+- `npm ci` 当前对开发依赖报告 5 个 high severity 漏洞；生产依赖审计为 0，升级需单独回归构建与测试工具链。

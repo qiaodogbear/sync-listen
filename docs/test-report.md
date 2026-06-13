@@ -77,3 +77,34 @@
 - T107 中间回归：后端 lint/typecheck/24 tests/build、Android 无缓存 clean
   test/lint/assemble 通过；两个模拟器分别通过手动房间码与深链加入同一房间。
   回归中修复同一用户多 WebSocket 时旧连接关闭导致在线状态误报的问题。
+
+## 2026-06-13 最终交付回归
+
+### 双模拟器闭环
+
+- 当前版本在 `SyncListen_A` 与 `SyncListen_B` 上重新完成创建房间、手动加入、MP3/FLAC
+  上传、秒传、双端自动下载、缓存校验、播放、暂停、seek、next、断线与重连。
+- 双端缓存包含相同的 MP3 与 FLAC，文件名使用预期 SHA-256；UI 均显示本地缓存可用。
+- 播放中并行采样：短曲结束位置分别为 `11993ms` 与 `11994ms`，误差 `1ms`；
+  seek 后位置分别为 `11836ms` 与 `11844ms`，误差 `8ms`；断线继续播放采样误差 `21ms`。
+- 暂停后双端位置均为 `3447ms`，服务端重启期间均显示重连中并继续本地播放；
+  服务恢复后两端自动变为已连接并恢复成员、列表和当前曲目。
+- 速度修正曾显示 `1.02x`，收敛后恢复 `1.0x`。
+
+### 回归中修复
+
+- Media3 异步准备此前可能让设备按各自准备完成时间启动。现在 `prepare` 等待 Ready，
+  且错过计划执行时间时按迟到量补偿 seek。
+- 播放中重复 Ready 事件此前会覆盖 PLAYING 状态并导致暂停命令被忽略。状态机现保留
+  PLAYING，回归测试覆盖重复 Ready 后暂停。
+
+### 最终自动化与交付检查
+
+- 后端：`npm ci`、`npm run db:migrate`、lint、typecheck、24/24 tests、build 与运行时
+  `/health` 全部通过。
+- Android：`clean testDebugUnitTest lintDebug assembleDebug --no-daemon` 通过；干净 APK
+  已覆盖安装并启动，应用进程持续运行。
+- `npm audit --omit=dev --audit-level=high` 为 0；完整开发依赖审计报告 5 个 high severity
+  漏洞，后续升级时需回归测试工具链。
+- 唯一未完成的外部硬件验收是两台 BLE 真机互相发现；BLE 实现、权限、payload、解析和
+  无 BLE/拒绝权限回退均已有测试。

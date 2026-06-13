@@ -6,6 +6,7 @@ import com.synclisten.app.util.AppLogger
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -61,6 +62,7 @@ class PlayerController @Inject constructor(
 ) : PlaybackPort {
     private val mutableState = MutableStateFlow(PlayerControllerState())
     override val state: StateFlow<PlayerControllerState> = mutableState
+    private var pendingReady: CompletableDeferred<Unit>? = null
 
     init {
         engine.setEventListener(::onEngineEvent)
@@ -75,7 +77,11 @@ class PlayerController @Inject constructor(
         }
         mutableState.value = PlayerControllerState(trackId, PlayerStatus.PREPARING)
         AppLogger.debug("Player", "prepare track=$trackId path=${cache.localPath}")
+        val ready = CompletableDeferred<Unit>()
+        pendingReady?.cancel()
+        pendingReady = ready
         engine.load(cache.localPath)
+        ready.await()
     }
 
     override fun play() {
@@ -102,23 +108,37 @@ class PlayerController @Inject constructor(
     }
 
     fun release() {
+        pendingReady?.cancel()
+        pendingReady = null
         engine.release()
         mutableState.value = PlayerControllerState()
     }
 
     private fun onEngineEvent(event: PlayerEngineEvent) {
         when (event) {
-            is PlayerEngineEvent.Ready -> update(
-                status = PlayerStatus.READY,
-                durationMs = event.durationMs,
-                error = null,
-            )
+            is PlayerEngineEvent.Ready -> {
+                update(
+                    status = if (mutableState.value.status == PlayerStatus.PLAYING) {
+                        PlayerStatus.PLAYING
+                    } else {
+                        PlayerStatus.READY
+                    },
+                    durationMs = event.durationMs,
+                    error = null,
+                )
+                pendingReady?.complete(Unit)
+                pendingReady = null
+            }
             is PlayerEngineEvent.Position -> update(
                 positionMs = event.positionMs,
                 durationMs = event.durationMs,
             )
             PlayerEngineEvent.Ended -> update(status = PlayerStatus.ENDED)
-            is PlayerEngineEvent.Error -> update(status = PlayerStatus.ERROR, error = event.message)
+            is PlayerEngineEvent.Error -> {
+                update(status = PlayerStatus.ERROR, error = event.message)
+                pendingReady?.complete(Unit)
+                pendingReady = null
+            }
         }
     }
 

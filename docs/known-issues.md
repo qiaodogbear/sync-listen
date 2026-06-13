@@ -8,6 +8,8 @@
 - Android Emulator 无法完成两台真实 BLE/NFC 硬件的射频交互；BLE 真机互相发现仍需补验。
 - 无头模拟器无法让一个虚拟相机物理对准另一个屏幕；二维码通过真实编码/解码和统一加入链路验收。
 - Node.js 24 的 `node:sqlite` 会输出 ExperimentalWarning。
+- `npm ci` 当前对开发工具依赖报告 5 个 high severity 漏洞；生产依赖
+  `npm audit --omit=dev --audit-level=high` 为 0。升级开发工具依赖时需完整回归。
 - Windows 中文路径下 Gradle 单测类路径可能异常，使用 ASCII `subst` 映射。
 - 当前网络环境下 Robolectric runtime artifact 下载挂起；Room schema 由 KSP 构建验证，
   缓存策略使用纯 JVM Fake DAO 测试。

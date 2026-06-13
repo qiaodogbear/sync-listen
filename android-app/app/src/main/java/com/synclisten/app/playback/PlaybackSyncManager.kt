@@ -49,10 +49,15 @@ class PlaybackSyncManager(
         val executeAt = authoritative.executeAtServerTimeMs
         if (executeAt != null) {
             wait((executeAt - clock.estimatedServerNowMs()).coerceAtLeast(0))
+            val lateBy = (clock.estimatedServerNowMs() - executeAt).coerceAtLeast(0)
+            val target = (authoritative.positionMs + lateBy).let { position ->
+                val duration = player.state.value.durationMs
+                if (duration > 0) position.coerceAtMost(duration) else position
+            }
             setSpeed(PlaybackSyncState.NORMAL_SPEED)
-            player.seekTo(authoritative.positionMs)
+            player.seekTo(target)
             player.play()
-            update(authoritative.positionMs)
+            update(target)
             return@withLock
         }
         val rawExpected = (

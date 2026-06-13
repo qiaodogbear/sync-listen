@@ -24,6 +24,16 @@ class PlaybackSyncManagerTest {
     }
 
     @Test
+    fun catchesUpWhenScheduledPlaybackIsAlreadyLate() = runBlocking {
+        val player = FakePlaybackPort()
+        val manager = PlaybackSyncManager(player, FixedServerTime(1_800)) {}
+
+        manager.apply(state(trackId = "track", positionMs = 250, isPlaying = true, executeAt = 1_500))
+
+        assertEquals(listOf("prepare:track", "seek:550", "play"), player.commands)
+    }
+
+    @Test
     fun seeksOnlyWhenSyncErrorExceedsThreshold() = runBlocking {
         val player = FakePlaybackPort(positionMs = 1_000)
         val manager = PlaybackSyncManager(player, FixedServerTime(2_500)) {}

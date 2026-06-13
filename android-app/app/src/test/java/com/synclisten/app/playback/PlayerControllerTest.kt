@@ -4,6 +4,8 @@ import com.synclisten.app.cache.CacheDao
 import com.synclisten.app.cache.CacheEntity
 import com.synclisten.app.cache.VerifyStatus
 import java.nio.file.Files
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -26,9 +28,30 @@ class PlayerControllerTest {
         assertEquals(PlayerStatus.WAITING_FOR_CACHE, controller.state.value.status)
         assertNull(engine.loadedPath)
 
-        controller.prepare("verified")
+        val preparing = async { controller.prepare("verified") }
+        delay(10)
+        engine.emit(PlayerEngineEvent.Ready(durationMs = 5_000))
+        preparing.await()
         assertEquals(file.path, engine.loadedPath)
         assertEquals("verified", controller.state.value.trackId)
+    }
+
+    @Test
+    fun prepareWaitsUntilEngineIsReady() = runBlocking {
+        val file = Files.createTempFile("player", ".mp3").toFile()
+        val engine = FakePlayerEngine()
+        val controller = PlayerController(
+            PlayerFakeCacheDao(mutableListOf(cache("track", file.path, VerifyStatus.VERIFIED))),
+            engine,
+        )
+
+        val preparing = async { controller.prepare("track") }
+        delay(10)
+        assertEquals(false, preparing.isCompleted)
+
+        engine.emit(PlayerEngineEvent.Ready(durationMs = 5_000))
+        preparing.await()
+        assertEquals(PlayerStatus.READY, controller.state.value.status)
     }
 
     @Test
@@ -40,8 +63,10 @@ class PlayerControllerTest {
             engine,
         )
 
-        controller.prepare("track")
+        val preparing = async { controller.prepare("track") }
+        delay(10)
         engine.emit(PlayerEngineEvent.Ready(durationMs = 5_000))
+        preparing.await()
         controller.play()
         controller.seekTo(1_250)
         controller.pause()
@@ -59,7 +84,28 @@ class PlayerControllerTest {
     }
 
     @Test
-    fun queuesPlayWhileMediaIsPreparing() = runBlocking {
+    fun repeatedReadyEventDoesNotLosePlayingState() = runBlocking {
+        val file = Files.createTempFile("player", ".flac").toFile()
+        val engine = FakePlayerEngine()
+        val controller = PlayerController(
+            PlayerFakeCacheDao(mutableListOf(cache("track", file.path, VerifyStatus.VERIFIED))),
+            engine,
+        )
+        val preparing = async { controller.prepare("track") }
+        delay(10)
+        engine.emit(PlayerEngineEvent.Ready(durationMs = 5_000))
+        preparing.await()
+        controller.play()
+
+        engine.emit(PlayerEngineEvent.Ready(durationMs = 5_000))
+        controller.pause()
+
+        assertEquals(listOf("play", "pause"), engine.commands)
+        assertEquals(PlayerStatus.PAUSED, controller.state.value.status)
+    }
+
+    @Test
+    fun playStartsAfterMediaIsPrepared() = runBlocking {
         val file = Files.createTempFile("player", ".mp3").toFile()
         val engine = FakePlayerEngine()
         val controller = PlayerController(
@@ -67,7 +113,10 @@ class PlayerControllerTest {
             engine,
         )
 
-        controller.prepare("track")
+        val preparing = async { controller.prepare("track") }
+        delay(10)
+        engine.emit(PlayerEngineEvent.Ready(durationMs = 5_000))
+        preparing.await()
         controller.play()
 
         assertEquals(listOf("play"), engine.commands)
