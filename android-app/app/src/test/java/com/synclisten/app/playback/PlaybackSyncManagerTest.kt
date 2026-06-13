@@ -4,6 +4,8 @@ import com.synclisten.app.domain.model.PlaybackState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -67,6 +69,22 @@ class PlaybackSyncManagerTest {
         assertEquals(0, manager.state.value.syncErrorMs)
     }
 
+    @Test
+    fun serializesDuplicateEventsWhileTrackIsPreparing() = runBlocking {
+        val player = BlockingPreparePort()
+        val manager = PlaybackSyncManager(player, FixedServerTime(1_000)) {}
+        val event = state(trackId = "track", positionMs = 0, isPlaying = true, executeAt = 1_000)
+
+        val first = async { manager.apply(event) }
+        player.entered.await()
+        val second = async { manager.apply(event) }
+        player.release.complete(Unit)
+        first.await()
+        second.await()
+
+        assertEquals(1, player.prepareCalls)
+    }
+
     private fun state(
         trackId: String,
         positionMs: Long,
@@ -74,6 +92,24 @@ class PlaybackSyncManagerTest {
         serverTime: Long = 1_000,
         executeAt: Long? = null,
     ) = PlaybackState(trackId, positionMs, isPlaying, serverTime, executeAt)
+}
+
+private class BlockingPreparePort : PlaybackPort {
+    val entered = CompletableDeferred<Unit>()
+    val release = CompletableDeferred<Unit>()
+    var prepareCalls = 0
+    private val mutableState = MutableStateFlow(PlayerControllerState())
+    override val state: StateFlow<PlayerControllerState> = mutableState
+    override suspend fun prepare(trackId: String) {
+        prepareCalls += 1
+        entered.complete(Unit)
+        release.await()
+        mutableState.value = mutableState.value.copy(trackId = trackId)
+    }
+    override fun play() = Unit
+    override fun pause() = Unit
+    override fun seekTo(positionMs: Long) = Unit
+    override fun setPlaybackSpeed(speed: Float) = Unit
 }
 
 private class FixedServerTime(private val now: Long) : ServerTimeProvider {

@@ -7,6 +7,8 @@ import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 fun MemberRole.canControlPlayback(): Boolean = this == MemberRole.HOST
 
@@ -21,20 +23,21 @@ class PlaybackSyncManager(
     private val clock: ServerTimeProvider,
     private val wait: suspend (Long) -> Unit = { delay(it) },
 ) {
+    private val applyMutex = Mutex()
     private val mutableState = MutableStateFlow(PlaybackSyncState())
     val state: StateFlow<PlaybackSyncState> = mutableState
 
-    suspend fun apply(authoritative: PlaybackState) {
+    suspend fun apply(authoritative: PlaybackState) = applyMutex.withLock {
         val trackId = authoritative.trackId ?: run {
             player.pause()
-            return
+            return@withLock
         }
         if (player.state.value.trackId != trackId) player.prepare(trackId)
         if (!authoritative.isPlaying) {
             player.seekTo(authoritative.positionMs)
             player.pause()
             update(authoritative.positionMs)
-            return
+            return@withLock
         }
         val executeAt = authoritative.executeAtServerTimeMs
         if (executeAt != null) {
@@ -42,7 +45,7 @@ class PlaybackSyncManager(
             player.seekTo(authoritative.positionMs)
             player.play()
             update(authoritative.positionMs)
-            return
+            return@withLock
         }
         val rawExpected = (
             authoritative.positionMs +
@@ -57,7 +60,7 @@ class PlaybackSyncManager(
         val error = expected - playerState.positionMs
         if (playerState.status == PlayerStatus.ENDED && expected >= playerState.durationMs) {
             update(expected, error)
-            return
+            return@withLock
         }
         if (abs(error) > SEEK_THRESHOLD_MS) player.seekTo(expected)
         player.play()

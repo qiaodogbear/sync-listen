@@ -4,10 +4,10 @@
 
 ## Current
 
-- Updated: 2026-06-12
-- Active task: 阶段七 P0 完整闭环验收
+- Updated: 2026-06-13
+- Active task: T101 播放速度微调弱同步
 - Status: in progress
-- Next: 按 T026-T029 执行完整双设备闭环、自动化回归、性能与健壮性验收并修复发现的问题。
+- Next: 为速度微调阈值、恢复与防抖补测试并实现；随后继续 T102-T107。
 
 ## Decisions
 
@@ -61,8 +61,12 @@
 - T023：Host 控制、Member 隐藏控制、当前歌曲/进度/缓存/时钟/WebSocket/下载队列调试字段完成；真实断线显示同步断开，后端恢复后自动重连。
 - WebSocket 重连并发回调风暴已修复：只允许一个待调度重连并忽略过期 socket 回调；真实断线 6 秒仍为第 1 次重连。
 - Git checkpoint：`052491b feat: complete synchronized playback flow`。
+- Git checkpoint：`183d0f1 feat: complete qr invite flow`。
 - T024：严格加入链接编解码、token 加入、Manifest 深链和加入确认流程完成；模拟器冷启动与运行中链接均进入确认，非法 server 链接不崩溃且不静默加入。
 - T025：邀请页 QR、相机扫描 Activity、CAMERA 权限拒绝回退和手动房间码保留完成；A 二维码截图被 OpenCV 实际解码，B 复用扫描结果确认后以 MEMBER 加入并连接成功，阶段六完成。
+- T026：后端 lint/typecheck/22 tests/build 通过；Android test/lint/assemble 通过；停止 daemon 后 clean test/lint/assemble 无缓存构建通过。
+- T027：两个 API 35 Pixel 6 模拟器完成创建、二维码加入、双向 MP3/FLAC App UI 上传、自动下载/hash 校验、本地同步播放、控制、后台传输和断线重连；稳态误差约 30-71ms，结果记录于 `docs/test-report.md`。
+- P0 阶段七已完成；验收期间发现的重复并发播放事件已增加互斥串行化修复与回归测试。
 
 ## Blockers
 
