@@ -573,13 +573,13 @@ cd android-app
 
 **依赖：** T010、T013、T020、T021
 
-- [ ] 封装 `PlaybackSyncManager` 处理 PLAY、PAUSE、SEEK、NEXT、SYNC。
-- [ ] PLAY/SEEK/NEXT 等待到 `executeAtServerTimeMs` 再执行。
-- [ ] 根据同步消息计算 `expectedPositionMs` 和 `syncErrorMs`。
-- [ ] `abs(error) <= 300ms` 时不修正；大于 300ms 时 seek 到期望位置。
-- [ ] 预留播放速度修正接口，但 P0 不启用。
-- [ ] WebSocket 断线时继续当前播放并显示同步断开。
-- [ ] 重连后按服务器状态重新校准。
+- [x] 封装 `PlaybackSyncManager` 处理 PLAY、PAUSE、SEEK、NEXT、SYNC。
+- [x] PLAY/SEEK/NEXT 等待到 `executeAtServerTimeMs` 再执行。
+- [x] 根据同步消息计算 `expectedPositionMs` 和 `syncErrorMs`。
+- [x] `abs(error) <= 300ms` 时不修正；大于 300ms 时 seek 到期望位置。
+- [x] 预留播放速度修正接口，但 P0 不启用。
+- [x] WebSocket 断线时继续当前播放并显示同步断开。
+- [x] 重连后按服务器状态重新校准。
 
 **验证：**
 
@@ -590,18 +590,18 @@ cd android-app
 
 **验收：**
 
-- [ ] 两端收到相同事件后在计划时间播放。
-- [ ] 人工制造明显偏移后自动 seek 修正。
-- [ ] 断线重连后恢复服务器播放状态。
+- [x] 两端收到相同事件后在计划时间播放。
+- [x] 人工制造明显偏移后自动 seek 修正。
+- [x] 断线重连后恢复服务器播放状态。
 
 ### T023 实现播放器与同步调试 UI
 
 **依赖：** T014、T020、T022
 
-- [ ] 展示当前歌曲、播放状态、进度条和缓存状态。
-- [ ] Host 显示播放、暂停、seek、next 控件；Member 控件禁用或隐藏。
-- [ ] 展示 `serverOffsetMs`、`rttMs`、`localPositionMs`、`expectedPositionMs`、`syncErrorMs`、`webSocketStatus`、`downloadQueueSize`。
-- [ ] 展示同步断开、等待缓存和播放错误。
+- [x] 展示当前歌曲、播放状态、进度条和缓存状态。
+- [x] Host 显示播放、暂停、seek、next 控件；Member 控件禁用或隐藏。
+- [x] 展示 `serverOffsetMs`、`rttMs`、`localPositionMs`、`expectedPositionMs`、`syncErrorMs`、`webSocketStatus`、`downloadQueueSize`。
+- [x] 展示同步断开、等待缓存和播放错误。
 
 **验证：**
 
@@ -614,9 +614,9 @@ cd android-app
 
 **验收：**
 
-- [ ] Host 控制可同步影响 Member。
-- [ ] Member 无法发出控制请求。
-- [ ] 同步误差和连接状态可见。
+- [x] Host 控制可同步影响 Member。
+- [x] Member 无法发出控制请求。
+- [x] 同步误差和连接状态可见。
 
 ---
 
@@ -868,7 +868,7 @@ cd ..\android-app
 | 阶段二：共享协议与后端核心 | P0 | 已完成 |
 | 阶段三：Android 房间功能 | P0 | 已完成 |
 | 阶段四：上传、下载与缓存 | P0 | 已完成 |
-| 阶段五：本地播放与基础同步 | P0 | 未开始 |
+| 阶段五：本地播放与基础同步 | P0 | 已完成 |
 | 阶段六：二维码与深链 | P0 | 未开始 |
 | 阶段七：P0 完整闭环验收 | P0 | 未开始 |
 | 阶段八：P1 增强功能 | P1 | 未开始 |

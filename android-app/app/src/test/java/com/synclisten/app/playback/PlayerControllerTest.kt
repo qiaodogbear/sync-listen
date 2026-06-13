@@ -58,6 +58,32 @@ class PlayerControllerTest {
         assertEquals("decode failed", controller.state.value.error)
     }
 
+    @Test
+    fun queuesPlayWhileMediaIsPreparing() = runBlocking {
+        val file = Files.createTempFile("player", ".mp3").toFile()
+        val engine = FakePlayerEngine()
+        val controller = PlayerController(
+            PlayerFakeCacheDao(mutableListOf(cache("track", file.path, VerifyStatus.VERIFIED))),
+            engine,
+        )
+
+        controller.prepare("track")
+        controller.play()
+
+        assertEquals(listOf("play"), engine.commands)
+        assertEquals(PlayerStatus.PLAYING, controller.state.value.status)
+    }
+
+    @Test
+    fun exposesPlaybackSpeedHookForLaterDriftCorrection() {
+        val engine = FakePlayerEngine()
+        val controller = PlayerController(PlayerFakeCacheDao(mutableListOf()), engine)
+
+        controller.setPlaybackSpeed(1.02f)
+
+        assertEquals(listOf("speed:1.02"), engine.commands)
+    }
+
     private fun cache(trackId: String, path: String, status: VerifyStatus) = CacheEntity(
         trackId, "hash-$trackId", path, "$trackId.mp3", 1, 5_000, 1, status, "room",
     )
@@ -86,6 +112,10 @@ private class FakePlayerEngine : PlayerEngine {
 
     override fun seekTo(positionMs: Long) {
         commands += "seek:$positionMs"
+    }
+
+    override fun setPlaybackSpeed(speed: Float) {
+        commands += "speed:$speed"
     }
 
     override fun release() = Unit

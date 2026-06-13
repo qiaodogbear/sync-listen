@@ -42,4 +42,27 @@ class RoomWebSocketTest {
         assertEquals("/ws/rooms/room-1", url.encodedPath)
         assertEquals("token", url.queryParameter("token"))
     }
+
+    @Test
+    fun syncMessageAllowsMissingScheduledExecutionTime() {
+        val event = RoomEventParser(json).parse(
+            """
+            {"type":"SYNC","payload":{
+              "trackId":"track","positionMs":500,"isPlaying":true,"serverTimeMs":1000
+            },"serverTimeMs":1000}
+            """.trimIndent(),
+        )
+
+        assertEquals(500, (event as RoomEvent.Playback).value.positionMs)
+    }
+
+    @Test
+    fun reconnectGateAllowsOnlyOnePendingReconnect() {
+        val gate = ReconnectGate()
+
+        assertEquals(1, gate.trySchedule())
+        assertEquals(null, gate.trySchedule())
+        gate.complete()
+        assertEquals(2, gate.trySchedule())
+    }
 }

@@ -12,6 +12,10 @@ fun interface LocalClock {
     fun nowMs(): Long
 }
 
+interface ServerTimeProvider {
+    fun estimatedServerNowMs(): Long
+}
+
 data class ServerClockState(
     val serverOffsetMs: Long = 0,
     val rttMs: Long = 0,
@@ -29,7 +33,7 @@ private data class ClockSample(
 class ServerClock @Inject constructor(
     private val repository: RoomRepository,
     private val localClock: LocalClock,
-) {
+) : ServerTimeProvider {
     private val mutableState = MutableStateFlow(ServerClockState())
     val state: StateFlow<ServerClockState> = mutableState
 
@@ -57,7 +61,7 @@ class ServerClock @Inject constructor(
         AppLogger.debug("ServerClock", "offset=${best.offsetMs} rtt=${best.rttMs}")
     }
 
-    fun estimatedServerNowMs(): Long = localClock.nowMs() + mutableState.value.serverOffsetMs
+    override fun estimatedServerNowMs(): Long = localClock.nowMs() + mutableState.value.serverOffsetMs
 
     private companion object {
         const val DEFAULT_SAMPLE_COUNT = 5

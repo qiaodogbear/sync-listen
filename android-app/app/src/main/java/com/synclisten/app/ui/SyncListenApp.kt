@@ -8,6 +8,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -30,6 +31,8 @@ import androidx.navigation.compose.rememberNavController
 import com.synclisten.app.data.RoomConnectionState
 import com.synclisten.app.transfer.UploadState
 import com.synclisten.app.playback.PlayerStatus
+import com.synclisten.app.playback.canControlPlayback
+import com.synclisten.app.domain.model.TrackStatus
 
 private const val HOME_ROUTE = "home"
 private const val SETTINGS_ROUTE = "settings"
@@ -205,7 +208,13 @@ private fun RoomResultScreen(
     val cacheSummary by roomViewModel.cacheSummary.collectAsState()
     val player by roomViewModel.player.collectAsState()
     val clock by roomViewModel.clock.collectAsState()
+    val sync by roomViewModel.sync.collectAsState()
+    val controlError by roomViewModel.controlError.collectAsState()
     val room = state as? HomeState.InRoom
+    val canControl = room?.member?.role?.canControlPlayback() == true
+    val currentTrack = snapshot?.playlist?.firstOrNull {
+        it.trackId == (player.trackId ?: snapshot?.playbackState?.trackId)
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -215,29 +224,49 @@ private fun RoomResultScreen(
         Text(text = room?.room?.name ?: "房间不可用", style = MaterialTheme.typography.headlineMedium)
         Text(text = "房间码：${room?.room?.roomCode.orEmpty()}")
         Text(text = "角色：${room?.member?.role?.name.orEmpty()}")
-        Text(text = "连接：${connection.label()}")
+        Text(text = "webSocketStatus：${connection.label()}")
         Text(text = "成员")
         snapshot?.members?.forEach { member ->
             Text("${member.displayName} · ${member.role.name} · ${if (member.connected) "在线" else "离线"}")
         }
         Text(text = "播放列表")
-        Text(text = "下载队列：${downloads.queued} · ${downloads.lastStatus}")
+        Text(text = "downloadQueueSize：${downloads.queued} · ${downloads.lastStatus}")
         Text(text = "缓存：${cacheSummary.entries} 首 · ${cacheSummary.physicalBytes} bytes")
         snapshot?.playlist?.forEach { track ->
             Text("${track.title} · ${track.status.name}")
-            Button(onClick = { roomViewModel.prepareLocal(track.trackId) }) {
-                Text("本地准备")
+            if (canControl) {
+                Button(
+                    onClick = { roomViewModel.hostPlay(track.trackId) },
+                    enabled = track.status == TrackStatus.READY,
+                ) {
+                    Text("播放此曲")
+                }
             }
         }
-        Text("本地播放器：${player.status.name}")
-        Text("位置：${player.positionMs} / ${player.durationMs} ms")
+        Text("当前歌曲：${currentTrack?.title ?: "无"}")
+        Text("本地播放器：${player.status.name} · 缓存：${if (player.status == PlayerStatus.WAITING_FOR_CACHE) "等待中" else "可用"}")
+        Text("localPositionMs：${player.positionMs} / durationMs：${player.durationMs}")
+        LinearProgressIndicator(
+            progress = {
+                if (player.durationMs > 0) {
+                    (player.positionMs.toFloat() / player.durationMs).coerceIn(0f, 1f)
+                } else {
+                    0f
+                }
+            },
+        )
         Text("serverOffsetMs：${clock.serverOffsetMs} · rttMs：${clock.rttMs}")
+        Text("expectedPositionMs：${sync.expectedPositionMs} · syncErrorMs：${sync.syncErrorMs}")
+        if (!sync.connected) Text("同步断开，本地继续播放", color = MaterialTheme.colorScheme.error)
         clock.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         if (player.status == PlayerStatus.WAITING_FOR_CACHE) Text("等待缓存完成")
         player.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        Button(onClick = roomViewModel::playLocal) { Text("本地播放") }
-        Button(onClick = roomViewModel::pauseLocal) { Text("本地暂停") }
-        Button(onClick = { roomViewModel.seekLocal(player.positionMs + 5_000) }) { Text("前进 5 秒") }
+        controlError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (canControl) {
+            Button(onClick = roomViewModel::hostPause) { Text("暂停") }
+            Button(onClick = { roomViewModel.hostSeek(player.positionMs + 5_000) }) { Text("前进 5 秒") }
+            Button(onClick = roomViewModel::hostNext) { Text("下一首") }
+        }
         Button(onClick = onOpenUpload) { Text("上传歌曲") }
         Button(onClick = roomViewModel::refreshCache) { Text("刷新缓存") }
         Button(onClick = roomViewModel::clearCache) { Text("清理非播放缓存") }

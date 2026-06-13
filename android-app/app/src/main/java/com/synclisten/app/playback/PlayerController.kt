@@ -41,22 +41,32 @@ interface PlayerEngine {
     fun play()
     fun pause()
     fun seekTo(positionMs: Long)
+    fun setPlaybackSpeed(speed: Float)
     fun release()
+}
+
+interface PlaybackPort {
+    val state: StateFlow<PlayerControllerState>
+    suspend fun prepare(trackId: String)
+    fun play()
+    fun pause()
+    fun seekTo(positionMs: Long)
+    fun setPlaybackSpeed(speed: Float)
 }
 
 @Singleton
 class PlayerController @Inject constructor(
     private val cacheDao: CacheDao,
     private val engine: PlayerEngine,
-) {
+) : PlaybackPort {
     private val mutableState = MutableStateFlow(PlayerControllerState())
-    val state: StateFlow<PlayerControllerState> = mutableState
+    override val state: StateFlow<PlayerControllerState> = mutableState
 
     init {
         engine.setEventListener(::onEngineEvent)
     }
 
-    suspend fun prepare(trackId: String) {
+    override suspend fun prepare(trackId: String) {
         val cache = cacheDao.findByTrackId(trackId)
         if (cache?.verifyStatus != VerifyStatus.VERIFIED || !File(cache.localPath).isFile) {
             mutableState.value = PlayerControllerState(trackId, PlayerStatus.WAITING_FOR_CACHE)
@@ -68,23 +78,27 @@ class PlayerController @Inject constructor(
         engine.load(cache.localPath)
     }
 
-    fun play() {
+    override fun play() {
         if (mutableState.value.status !in playableStatuses) return
         engine.play()
         update(status = PlayerStatus.PLAYING)
     }
 
-    fun pause() {
+    override fun pause() {
         if (mutableState.value.status != PlayerStatus.PLAYING) return
         engine.pause()
         update(status = PlayerStatus.PAUSED)
     }
 
-    fun seekTo(positionMs: Long) {
+    override fun seekTo(positionMs: Long) {
         if (mutableState.value.trackId == null) return
         val target = positionMs.coerceIn(0, mutableState.value.durationMs.coerceAtLeast(positionMs))
         engine.seekTo(target)
         update(positionMs = target)
+    }
+
+    override fun setPlaybackSpeed(speed: Float) {
+        engine.setPlaybackSpeed(speed)
     }
 
     fun release() {
@@ -124,6 +138,11 @@ class PlayerController @Inject constructor(
     }
 
     private companion object {
-        val playableStatuses = setOf(PlayerStatus.READY, PlayerStatus.PAUSED, PlayerStatus.ENDED)
+        val playableStatuses = setOf(
+            PlayerStatus.PREPARING,
+            PlayerStatus.READY,
+            PlayerStatus.PAUSED,
+            PlayerStatus.ENDED,
+        )
     }
 }

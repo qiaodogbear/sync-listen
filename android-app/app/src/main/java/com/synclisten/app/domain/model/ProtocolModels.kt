@@ -74,7 +74,7 @@ data class PlaybackState(
     val positionMs: Long,
     val isPlaying: Boolean,
     val serverTimeMs: Long,
-    val executeAtServerTimeMs: Long?,
+    val executeAtServerTimeMs: Long? = null,
 )
 
 @Serializable

@@ -22,6 +22,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import com.synclisten.app.playback.Media3PlayerEngine
 import com.synclisten.app.playback.PlayerEngine
 import com.synclisten.app.playback.LocalClock
+import com.synclisten.app.playback.PlaybackSyncManager
+import com.synclisten.app.playback.PlayerController
+import com.synclisten.app.playback.ServerClock
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -57,6 +60,13 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideLocalClock(): LocalClock = LocalClock(System::currentTimeMillis)
+
+    @Provides
+    @Singleton
+    fun providePlaybackSyncManager(
+        playerController: PlayerController,
+        serverClock: ServerClock,
+    ): PlaybackSyncManager = PlaybackSyncManager(playerController, serverClock)
 
     @Provides
     @Singleton

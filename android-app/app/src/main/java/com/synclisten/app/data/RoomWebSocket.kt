@@ -91,6 +91,34 @@ sealed interface RoomConnectionState {
 
 fun reconnectDelayMs(attempt: Int): Long = min(30_000L, 1_000L shl attempt.coerceAtMost(5))
 
+class ReconnectGate {
+    private var pending = false
+    private var attempt = 0
+
+    @Synchronized
+    fun trySchedule(): Int? {
+        if (pending) return null
+        pending = true
+        attempt = (attempt + 1).coerceAtMost(MAX_ATTEMPT)
+        return attempt
+    }
+
+    @Synchronized
+    fun complete() {
+        pending = false
+    }
+
+    @Synchronized
+    fun reset() {
+        pending = false
+        attempt = 0
+    }
+
+    private companion object {
+        const val MAX_ATTEMPT = 1_000
+    }
+}
+
 fun buildWebSocketUrl(serverUrl: String, roomId: String, userId: String, token: String) =
     "${normalizeServerUrl(serverUrl)}/ws/rooms/$roomId"
         .toHttpUrl()
@@ -113,7 +141,7 @@ class RoomWebSocketClient @Inject constructor(
     private var target: Target? = null
     private var socket: WebSocket? = null
     private var reconnectJob: Job? = null
-    private var attempt = 0
+    private val reconnectGate = ReconnectGate()
 
     private val mutableConnection = MutableStateFlow<RoomConnectionState>(RoomConnectionState.Disconnected)
     val connection: StateFlow<RoomConnectionState> = mutableConnection
@@ -126,7 +154,7 @@ class RoomWebSocketClient @Inject constructor(
         disconnect()
         target = Target(serverUrl, roomId, userId, token)
         shouldReconnect.set(true)
-        attempt = 0
+        reconnectGate.reset()
         open()
     }
 
@@ -134,6 +162,7 @@ class RoomWebSocketClient @Inject constructor(
         shouldReconnect.set(false)
         reconnectJob?.cancel()
         reconnectJob = null
+        reconnectGate.reset()
         target = null
         socket?.close(1000, "Client disconnect")
         socket = null
@@ -142,10 +171,10 @@ class RoomWebSocketClient @Inject constructor(
 
     private fun open() {
         val current = target ?: return
-        mutableConnection.value = if (attempt == 0) {
+        mutableConnection.value = if (mutableConnection.value == RoomConnectionState.Disconnected) {
             RoomConnectionState.Connecting
         } else {
-            RoomConnectionState.Reconnecting(attempt)
+            mutableConnection.value
         }
         val httpUrl = buildWebSocketUrl(current.serverUrl, current.roomId, current.userId, current.token)
         socket = client.newWebSocket(Request.Builder().url(httpUrl).build(), listener)
@@ -153,12 +182,14 @@ class RoomWebSocketClient @Inject constructor(
 
     private val listener = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
-            attempt = 0
+            if (webSocket !== socket) return
+            reconnectGate.reset()
             mutableConnection.value = RoomConnectionState.Connected
             AppLogger.debug("WebSocket", "Connected")
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
+            if (webSocket !== socket) return
             runCatching { parser.parse(text) }
                 .onSuccess {
                     mutableLastEvent.value = it
@@ -168,21 +199,24 @@ class RoomWebSocketClient @Inject constructor(
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            if (webSocket !== socket) return
             scheduleReconnect("Closed: $code $reason")
         }
 
         override fun onFailure(webSocket: WebSocket, error: Throwable, response: Response?) {
+            if (webSocket !== socket) return
             AppLogger.error("WebSocket", "Connection failed", error)
             scheduleReconnect(error.message ?: "WebSocket connection failed")
         }
     }
 
     private fun scheduleReconnect(message: String) {
-        if (!shouldReconnect.get() || reconnectJob?.isActive == true) return
-        attempt += 1
+        if (!shouldReconnect.get()) return
+        val attempt = reconnectGate.trySchedule() ?: return
         mutableConnection.value = RoomConnectionState.Reconnecting(attempt)
         reconnectJob = scope.launch {
             delay(reconnectDelayMs(attempt - 1))
+            reconnectGate.complete()
             if (shouldReconnect.get()) open() else mutableConnection.value = RoomConnectionState.Failed(message)
         }
     }

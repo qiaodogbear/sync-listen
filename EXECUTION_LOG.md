@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-12
-- Active task: T022 实现 P0 播放同步管理器
+- Active task: T024 定义加入链接与深链解析
 - Status: in progress
-- Next: 用测试定义计划执行、期望位置和大误差 seek 规则，再连接 WebSocket 播放事件。
+- Next: 用测试定义严格加入链接编解码，再注册 Manifest 深链与冷/热启动确认流程。
 
 ## Decisions
 
@@ -56,6 +56,10 @@
 - T020：`PlayerController` 缓存门禁与状态机、Media3 本地引擎、位置采样和房间页控制完成；模拟器从 VERIFIED MP3 进入 READY、PLAYING、ENDED，单测、lint、assemble 通过。
 - Git checkpoint：`1d606ed feat: add verified local media playback`。
 - T021：低 RTT 服务器时钟采样、异常样本过滤、30 秒周期刷新和调试 UI 完成；固定时钟单测通过，模拟器显示 offset 464ms、RTT 15ms。
+- Git checkpoint：`c16434d feat: estimate server clock offset`。
+- T022：计划执行、SYNC 期望位置、300ms 大误差 seek、断线继续播放、重连恢复和速度修正接口完成；双模拟器同步播放、pause、seek、next 验收通过，结束曲目不会被后续 SYNC 重启。
+- T023：Host 控制、Member 隐藏控制、当前歌曲/进度/缓存/时钟/WebSocket/下载队列调试字段完成；真实断线显示同步断开，后端恢复后自动重连。
+- WebSocket 重连并发回调风暴已修复：只允许一个待调度重连并忽略过期 socket 回调；真实断线 6 秒仍为第 1 次重连。
 
 ## Blockers
 

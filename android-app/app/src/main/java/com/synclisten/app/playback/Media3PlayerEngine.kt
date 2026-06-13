@@ -69,6 +69,8 @@ class Media3PlayerEngine @Inject constructor(
 
     override fun seekTo(positionMs: Long) = player.seekTo(positionMs)
 
+    override fun setPlaybackSpeed(speed: Float) = player.setPlaybackSpeed(speed)
+
     override fun release() {
         handler.removeCallbacks(positionTicker)
         player.release()
