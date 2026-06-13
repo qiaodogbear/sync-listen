@@ -874,3 +874,56 @@ cd ..\android-app
 | 阶段八：P1 增强功能 | P1 | 已完成 |
 | 文档与最终交付 | P0/P1 | 已完成 |
 | P2 Backlog | P2 | 暂缓 |
+
+---
+
+## 13. Host 手机内嵌服务器模式（P0 改进）
+
+**设计：** `docs/superpowers/specs/2026-06-14-android-host-server-design.md`
+**目标：** 一台 Android 手机可在同一 Wi-Fi 或手机热点内托管完整房间，不需要电脑或互联网。
+
+### T301 设计、协议与工程基础
+
+- [x] 确认采用 Android 内嵌 Ktor、复用现有 REST/WebSocket 协议。
+- [x] 明确首期支持同一 Wi-Fi 和 Host 手机热点，不支持公网、Host 迁移和房间恢复。
+- [ ] 编写详细实施计划。
+- [ ] 增加 Ktor Server/CIO/WebSocket 依赖、前台服务权限和服务声明。
+- [ ] 建立 Host server 包结构和自动化测试入口。
+
+### T302 Host 服务生命周期与可达地址
+
+- [ ] 实现 `HostAddressResolver`，仅选择其他设备可访问的 IPv4。
+- [ ] 实现 `HostServerController` 状态机。
+- [ ] 实现带常驻通知和 Wi-Fi lock 的 `HostServerService`。
+- [ ] 无可达地址、端口占用和启动失败时正确回滚并显示错误。
+- [ ] Host 离开或停止托管时关闭房间和服务。
+
+### T303 房间、成员与 WebSocket
+
+- [ ] 实现单活动房间线程安全 Host store。
+- [ ] 实现创建、加入、快照、离开和 Host 权限。
+- [ ] 实现房间 WebSocket 认证、权威快照、成员事件和重连。
+- [ ] 保持错误体、公共模型和 envelope 与电脑后端兼容。
+
+### T304 曲目、文件与播放同步
+
+- [ ] 实现播放列表连续唯一顺序。
+- [ ] 实现 MP3/FLAC 上传、SHA-256 校验、物理去重和下载。
+- [ ] 实现 Host 播放控制、计划执行时间和周期 `SYNC`。
+- [ ] Host 本机和成员继续复用现有上传、下载、缓存和 Media3 播放流程。
+
+### T305 UI、邀请与 BLE
+
+- [ ] 首页增加“手机托管房间”和“使用外部服务器创建”入口。
+- [ ] 显示 Host 托管状态、可达地址和错误提示。
+- [ ] 二维码、深链和 NFC 邀请使用 Host 可达地址。
+- [ ] 手动加入支持 Host 地址和房间码。
+- [ ] BLE 版本化载荷携带 IPv4、端口和房间码，并兼容旧载荷。
+
+### T306 验证、文档与交付
+
+- [ ] Host server 单元及 Ktor 集成测试通过。
+- [ ] Android 全量测试、lint 和 Debug 构建通过。
+- [ ] 在不启动电脑后端的前提下完成两个模拟器闭环验收。
+- [ ] 更新 README、架构、API、调试、已知问题和测试报告。
+- [ ] 更新 `EXECUTION_LOG.md` 并创建 Git 检查点。

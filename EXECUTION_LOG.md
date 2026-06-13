@@ -4,13 +4,18 @@
 
 ## Current
 
-- Updated: 2026-06-13
-- Active task: T107/T203 最终交付完成
-- Status: complete
-- Next: P2 backlog 按需另行启动。
+- Updated: 2026-06-14
+- Active task: T301 Host 手机内嵌服务器设计与实施计划
+- Status: in progress
+- Next: 审查并提交已批准设计规格，然后编写 TDD 实施计划。
 
 ## Decisions
 
+- Host 手机模式采用 Android 内嵌 Ktor/CIO，复用现有 REST/WebSocket 协议。
+- 首期支持同一 Wi-Fi 和 Host 手机热点；不支持公网、Host 迁移和房间恢复。
+- Host 前台服务监听 `0.0.0.0:38571`；Host 客户端使用 loopback，邀请使用可达 IPv4。
+- Host 停止托管或离开时关闭房间；音频 hash 文件保留，业务状态与临时文件清理。
+- BLE 升级为 13 字节版本化 IPv4/端口/房间码载荷，同时兼容旧 6 字节房间码。
 - 项目在用户指定目录原地初始化 Git；初始目录不是 Git 仓库，因此未创建 worktree。
 - 后端使用 Node.js + TypeScript + Fastify + SQLite。
 - Android 使用 Kotlin + Compose，`minSdk 26`、`compileSdk/targetSdk 35`。
