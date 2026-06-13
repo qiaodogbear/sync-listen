@@ -78,6 +78,9 @@
 - Git checkpoint：`d5746e9 test: enforce host playback permissions`。
 - T105：原生 BLE 广播/扫描接口、状态、API 版本权限、仅短房间码 payload 和 P0 回退完成；payload/权限测试及模拟器权限拒绝回退通过。模拟器无可广播 BLE 对端，两台 BLE 真机发现验收仍待外部硬件。
 - T106：NFC NDEF URI/文本读取、可用性状态和统一加入确认流程完成；单元测试及 API 35 模拟器 NDEF_DISCOVERED 有效链接运行时验收通过。
+- Git checkpoint：`3edafd2 feat: add BLE and NFC room invites`。
+- T107 进行中：无缓存后端 lint/typecheck/23 tests/build 与 Android clean test/lint/assemble 通过；手动房间码和深链加入回归通过，二维码入口与 NFC 状态仍可见，播放速度恢复为 1.0x。
+- T107 发现并修复同一用户短时多 WebSocket 时旧连接关闭错误标记离线的问题；新增多连接在线回归测试，后端 24/24 测试通过，运行时重启后 ManualMember/DeepMember 均保持在线。
 
 ## Blockers
 

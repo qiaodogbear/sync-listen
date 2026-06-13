@@ -74,3 +74,6 @@
   对端，两台 BLE 真机互相发现仍需补验。
 - T106 NFC 加入：有效 `NDEF_DISCOVERED` URI 在 API 35 模拟器进入统一邀请确认
   流程；无效 Tag、无 NFC/关闭提示和链接筛选有独立测试。
+- T107 中间回归：后端 lint/typecheck/24 tests/build、Android 无缓存 clean
+  test/lint/assemble 通过；两个模拟器分别通过手动房间码与深链加入同一房间。
+  回归中修复同一用户多 WebSocket 时旧连接关闭导致在线状态误报的问题。

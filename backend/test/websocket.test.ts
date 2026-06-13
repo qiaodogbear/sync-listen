@@ -135,4 +135,36 @@ describe("room websocket", () => {
 
     await app.close();
   });
+
+  it("keeps a member online while another socket for the same user remains open", async () => {
+    const app = await createTestApp();
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/rooms",
+      payload: { name: "Room", userId: "host", displayName: "Alice" },
+    });
+    const { room, joinToken } = created.json<{
+      room: { roomId: string };
+      joinToken: string;
+    }>();
+    await app.inject({
+      method: "POST",
+      url: `/api/rooms/${room.roomId}/join`,
+      payload: { userId: "member", displayName: "Bob", joinToken },
+    });
+    const first = await app.injectWS(`/ws/rooms/${room.roomId}?token=${joinToken}&userId=member`);
+    const second = await app.injectWS(`/ws/rooms/${room.roomId}?token=${joinToken}&userId=member`);
+
+    first.terminate();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const snapshot = await app.inject({ method: "GET", url: `/api/rooms/${room.roomId}` });
+
+    expect(snapshot.json()).toMatchObject({
+      members: expect.arrayContaining([
+        expect.objectContaining({ userId: "member", connected: true }),
+      ]),
+    });
+    second.terminate();
+    await app.close();
+  });
 });

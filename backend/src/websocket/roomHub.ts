@@ -74,7 +74,8 @@ export class RoomHub {
           if (clients.size === 0) {
             this.rooms.delete(roomId);
           }
-          if (!this.shuttingDown) {
+          const userStillConnected = [...clients].some((remaining) => remaining.userId === userId);
+          if (!this.shuttingDown && !userStillConnected) {
             this.database
               .prepare(
                 "UPDATE members SET connected = 0, last_seen_at = ? WHERE room_id = ? AND user_id = ?",
