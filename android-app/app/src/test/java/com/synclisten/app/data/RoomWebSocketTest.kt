@@ -1,6 +1,8 @@
 package com.synclisten.app.data
 
 import com.synclisten.app.domain.model.MemberRole
+import com.synclisten.app.domain.model.Track
+import com.synclisten.app.domain.model.TrackStatus
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -65,4 +67,46 @@ class RoomWebSocketTest {
         gate.complete()
         assertEquals(2, gate.trySchedule())
     }
+
+    @Test
+    fun playlistReducerIgnoresStaleEventsAndNormalizesServerOrder() {
+        val reducer = RoomEventReducer()
+        val initial = RoomEventParser(json).parse(
+            """
+            {"type":"ROOM_JOINED","payload":{
+              "room":{"roomId":"room-1","roomCode":"ABC123","name":"Room","hostUserId":"host","status":"ACTIVE","createdAt":1},
+              "members":[],
+              "playlist":[],
+              "playbackState":{"trackId":null,"positionMs":0,"isPlaying":false,"serverTimeMs":1,"executeAtServerTimeMs":null}
+            },"serverTimeMs":100}
+            """.trimIndent(),
+        )
+        var snapshot = reducer.apply(null, initial)
+        val newest = RoomEvent.Playlist(
+            PlaylistResponse(listOf(track("b", 1), track("a", 0), track("a", 0))),
+            serverTimeMs = 300,
+        )
+        val stale = RoomEvent.Playlist(PlaylistResponse(listOf(track("old", 0))), serverTimeMs = 200)
+
+        snapshot = reducer.apply(snapshot, newest)
+        snapshot = reducer.apply(snapshot, stale)
+
+        assertEquals(listOf("a", "b"), snapshot?.playlist?.map { it.trackId })
+    }
+
+    private fun track(id: String, orderIndex: Int) = Track(
+        trackId = id,
+        roomId = "room-1",
+        title = id,
+        artist = null,
+        durationMs = 1_000,
+        fileName = "$id.mp3",
+        fileSize = 1,
+        fileHash = id.padEnd(64, '0'),
+        uploaderId = "host",
+        uploaderName = "Alice",
+        orderIndex = orderIndex,
+        status = TrackStatus.READY,
+        createdAt = 1,
+    )
 }

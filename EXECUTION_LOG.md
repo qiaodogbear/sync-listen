@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-13
-- Active task: T102 并发添加歌曲冲突处理
+- Active task: T103 下载队列与下一首预下载
 - Status: in progress
-- Next: 扩展并发上传/秒传、顺序唯一连续和客户端乱序收敛测试。
+- Next: 验证并完善播放状态触发的优先级重排、下一首预下载和失败恢复。
 
 ## Decisions
 
@@ -69,6 +69,8 @@
 - P0 阶段七已完成；验收期间发现的重复并发播放事件已增加互斥串行化修复与回归测试。
 - Git checkpoint：`5761b6c test: complete p0 end-to-end acceptance`。
 - T101：80-300ms 正负误差分别使用 1.02x/0.98x，正常范围恢复 1.0x，大误差 seek，强制重同步、速度命令去重、调试 UI/日志和假播放器测试完成；Android 全量 test/lint/assemble 通过。
+- Git checkpoint：`2a18c41 feat: add playback drift speed correction`。
+- T102：8 个相同文件并发上传测试确认单物理文件和 0-7 连续唯一顺序；Android 播放列表 reducer 按 serverTime 忽略旧快照并去重排序；后端 23/23 测试和 Android 全量验证通过。
 
 ## Blockers
 

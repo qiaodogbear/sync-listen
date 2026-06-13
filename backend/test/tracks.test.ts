@@ -98,6 +98,32 @@ describe("track upload and download", () => {
     await app.close();
   });
 
+  it("keeps one physical file and continuous order for concurrent duplicate uploads", async () => {
+    const { app, paths, roomId } = await setup();
+    const content = Buffer.from("concurrent duplicate content");
+    const hash = createHash("sha256").update(content).digest("hex");
+
+    const responses = await Promise.all(
+      Array.from({ length: 8 }, () => {
+        const form = uploadForm(content, hash);
+        return app.inject({
+          method: "POST",
+          url: `/api/rooms/${roomId}/tracks`,
+          headers: form.getHeaders(),
+          payload: form.getBuffer(),
+        });
+      }),
+    );
+    const playlist = await app.inject({ method: "GET", url: `/api/rooms/${roomId}/playlist` });
+
+    expect(responses.every((response) => response.statusCode === 201)).toBe(true);
+    expect((await readdir(paths.audioStoragePath)).length).toBe(1);
+    expect(
+      playlist.json<{ playlist: Array<{ orderIndex: number }> }>().playlist.map((track) => track.orderIndex),
+    ).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    await app.close();
+  });
+
   it("rejects a mismatched hash and removes the temporary file", async () => {
     const { app, paths, roomId } = await setup();
     const form = uploadForm(Buffer.from("bad hash"), "a".repeat(64));

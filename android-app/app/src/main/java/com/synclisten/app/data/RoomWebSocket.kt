@@ -27,10 +27,10 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 
 sealed interface RoomEvent {
-    data class Snapshot(val value: RoomSnapshot) : RoomEvent
+    data class Snapshot(val value: RoomSnapshot, val serverTimeMs: Long) : RoomEvent
     data class MemberJoined(val member: Member) : RoomEvent
     data class MemberLeft(val userId: String) : RoomEvent
-    data class Playlist(val value: PlaylistResponse) : RoomEvent
+    data class Playlist(val value: PlaylistResponse, val serverTimeMs: Long) : RoomEvent
     data class Playback(val value: PlaybackState) : RoomEvent
     data class Other(val envelope: WebSocketEnvelope) : RoomEvent
 }
@@ -40,13 +40,13 @@ class RoomEventParser(private val json: Json) {
         val envelope = json.decodeFromString<WebSocketEnvelope>(text)
         return when (envelope.type) {
             WebSocketEventType.ROOM_JOINED ->
-                RoomEvent.Snapshot(json.decodeFromJsonElement(envelope.payload))
+                RoomEvent.Snapshot(json.decodeFromJsonElement(envelope.payload), envelope.serverTimeMs)
             WebSocketEventType.MEMBER_JOINED ->
                 RoomEvent.MemberJoined(json.decodeFromJsonElement<MemberPayload>(envelope.payload).member)
             WebSocketEventType.MEMBER_LEFT ->
                 RoomEvent.MemberLeft(json.decodeFromJsonElement<MemberLeftPayload>(envelope.payload).userId)
             WebSocketEventType.PLAYLIST_UPDATED ->
-                RoomEvent.Playlist(json.decodeFromJsonElement(envelope.payload))
+                RoomEvent.Playlist(json.decodeFromJsonElement(envelope.payload), envelope.serverTimeMs)
             WebSocketEventType.PLAY,
             WebSocketEventType.PAUSE,
             WebSocketEventType.SEEK,
@@ -65,8 +65,13 @@ private data class MemberPayload(val member: Member)
 private data class MemberLeftPayload(val userId: String)
 
 class RoomEventReducer {
+    private var latestPlaylistServerTimeMs = Long.MIN_VALUE
+
     fun apply(current: RoomSnapshot?, event: RoomEvent): RoomSnapshot? = when (event) {
-        is RoomEvent.Snapshot -> event.value
+        is RoomEvent.Snapshot -> {
+            latestPlaylistServerTimeMs = event.serverTimeMs
+            event.value.copy(playlist = normalizePlaylist(event.value.playlist))
+        }
         is RoomEvent.MemberJoined -> current?.copy(
             members = current.members.filterNot { it.userId == event.member.userId } + event.member,
         )
@@ -75,10 +80,18 @@ class RoomEventReducer {
                 if (it.userId == event.userId) it.copy(connected = false) else it
             },
         )
-        is RoomEvent.Playlist -> current?.copy(playlist = event.value.playlist)
+        is RoomEvent.Playlist -> if (event.serverTimeMs < latestPlaylistServerTimeMs) {
+            current
+        } else {
+            latestPlaylistServerTimeMs = event.serverTimeMs
+            current?.copy(playlist = normalizePlaylist(event.value.playlist))
+        }
         is RoomEvent.Playback -> current?.copy(playbackState = event.value)
         is RoomEvent.Other -> current
     }
+
+    private fun normalizePlaylist(playlist: List<com.synclisten.app.domain.model.Track>) =
+        playlist.distinctBy { it.trackId }.sortedBy { it.orderIndex }
 }
 
 sealed interface RoomConnectionState {
