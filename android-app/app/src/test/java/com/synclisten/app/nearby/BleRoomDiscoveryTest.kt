@@ -10,7 +10,8 @@ class BleRoomDiscoveryTest {
     fun invitePayloadContainsOnlyNormalizedRoomCode() {
         val payload = BleInviteCodec.encode(" e0670b ")
 
-        assertEquals("SyncListen:E0670B", payload.decodeToString())
+        assertEquals("E0670B", payload.decodeToString())
+        assertEquals(6, payload.size)
         assertEquals("E0670B", BleInviteCodec.decode(payload))
         assertNull(BleInviteCodec.decode("SyncListen:E0670B:secret".encodeToByteArray()))
         assertNull(BleInviteCodec.decode("Other:E0670B".encodeToByteArray()))

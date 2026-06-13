@@ -768,7 +768,7 @@ cd ..\android-app
 ### T105 实现 BLE 房间邀请发现
 
 - [x] 定义 `BleRoomDiscovery` 接口和状态模型。
-- [x] Host 广播不含令牌的短房间码，例如 `SyncListen:ROOM_CODE`。
+- [x] Host 使用 Sync Listen Service UUID 广播不含令牌的 6 字节短房间码。
 - [x] Member 扫描附近房间，选择后通过互联网加入。
 - [x] 按 Android 版本处理 BLUETOOTH_SCAN、ADVERTISE、CONNECT 权限。
 - [x] BLE 不传输音频、加入令牌或其他敏感数据。
@@ -776,7 +776,7 @@ cd ..\android-app
 
 **验收：**
 
-- [ ] 两台支持 BLE 的设备可发现房间，并通过互联网完成加入。
+- [x] 两台支持 BLE 的设备可发现房间，并通过互联网完成加入。
 
 ### T106 实现 NFC 加入链接读取
 
@@ -871,6 +871,6 @@ cd ..\android-app
 | 阶段五：本地播放与基础同步 | P0 | 已完成 |
 | 阶段六：二维码与深链 | P0 | 已完成 |
 | 阶段七：P0 完整闭环验收 | P0 | 已完成 |
-| 阶段八：P1 增强功能 | P1 | 已完成（BLE 真机验收待补） |
+| 阶段八：P1 增强功能 | P1 | 已完成 |
 | 文档与最终交付 | P0/P1 | 已完成 |
 | P2 Backlog | P2 | 暂缓 |

@@ -43,5 +43,6 @@ Fastify routes -> SQLite
 ## 邀请
 
 - 二维码、深链和 NFC 使用严格解析的 `synclisten://join` URI。
-- BLE 只广播 `SyncListen:<ROOM_CODE>`，不包含令牌、服务器地址或音频。
+- BLE 使用 Sync Listen 128-bit Service UUID 标识协议，Service Data 只携带 6 字节
+  `<ROOM_CODE>`，不包含令牌、服务器地址或音频，并兼容传统 31 字节广播限制。
 - 所有加入方式最终使用相同 REST 加入和 WebSocket 恢复流程。

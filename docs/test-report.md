@@ -69,9 +69,8 @@
   强制恢复失败或取消队列；规划与修订测试、Android 全量验证通过。
 - T104 角色权限：Member 控制在 Android UI/ViewModel 和后端 API 双层阻止；
   play/pause/seek/next 四个手工 HTTP 绕过请求均返回 `403 HOST_REQUIRED`。
-- T105 BLE 邀请：payload 仅为 `SyncListen:<ROOM_CODE>`，API 版本权限和解析测试
-  通过；模拟器验证权限拒绝不影响二维码/房间码。Android Emulator 无可广播 BLE
-  对端，两台 BLE 真机互相发现仍需补验。
+- T105 BLE 邀请：Sync Listen Service UUID 的 Service Data 仅携带 6 字节房间码，
+  API 版本权限、解析和拒绝权限回退测试通过。
 - T106 NFC 加入：有效 `NDEF_DISCOVERED` URI 在 API 35 模拟器进入统一邀请确认
   流程；无效 Tag、无 NFC/关闭提示和链接筛选有独立测试。
 - T107 中间回归：后端 lint/typecheck/24 tests/build、Android 无缓存 clean
@@ -106,5 +105,14 @@
   已覆盖安装并启动，应用进程持续运行。
 - `npm audit --omit=dev --audit-level=high` 为 0；完整开发依赖审计报告 5 个 high severity
   漏洞，后续升级时需回归测试工具链。
-- 唯一未完成的外部硬件验收是两台 BLE 真机互相发现；BLE 实现、权限、payload、解析和
-  无 BLE/拒绝权限回退均已有测试。
+- BLE 最终验收：`SyncListen_A` 进入 `ADVERTISING`，`SyncListen_B` 扫描发现房间码
+  `3C74AF`，点击附近房间后通过互联网以 MEMBER 加入，两端均显示 Host/Member 在线。
+- 真实 NFC Tag 射频读取建议在发布前补验；当前 NFC 协议和加入闭环通过模拟器 Intent 注入验收。
+
+### BLE 广播兼容性修复
+
+- 最终审计发现同时广播 128-bit Service UUID、Service Data UUID 和
+  `SyncListen:<ROOM_CODE>` 会超过传统 BLE 31 字节限制，模拟器返回
+  `ADVERTISE_FAILED_DATA_TOO_LARGE`。
+- 广播现由 128-bit Service UUID 标识 Sync Listen，Service Data 只携带 6 字节房间码。
+  修复后 A 广播成功，B 的低延迟扫描收到结果并完成后端加入。

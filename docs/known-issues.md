@@ -5,7 +5,7 @@
 - Host 离开会关闭房间，不支持 Host 迁移或多 Host。
 - 后端音频存储在单机本地磁盘，无云存储、配额和长期房间清理调度。
 - Android 进程被系统终止后不会自动恢复当前房间会话，需要重新加入。
-- Android Emulator 无法完成两台真实 BLE/NFC 硬件的射频交互；BLE 真机互相发现仍需补验。
+- NFC 仅通过 API 35 模拟器注入 `NDEF_DISCOVERED` 验收，真实 NFC Tag 射频读取仍建议在发布前补验。
 - 无头模拟器无法让一个虚拟相机物理对准另一个屏幕；二维码通过真实编码/解码和统一加入链路验收。
 - Node.js 24 的 `node:sqlite` 会输出 ExperimentalWarning。
 - `npm ci` 当前对开发工具依赖报告 5 个 high severity 漏洞；生产依赖

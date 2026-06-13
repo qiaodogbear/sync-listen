@@ -6,8 +6,8 @@
 
 - Updated: 2026-06-13
 - Active task: T107/T203 最终交付完成
-- Status: complete；仅剩外部 BLE 真机硬件验收
-- Next: 使用两台支持 BLE 的 Android 真机补验房间发现；P2 backlog 按需另行启动。
+- Status: complete
+- Next: P2 backlog 按需另行启动。
 
 ## Decisions
 
@@ -76,7 +76,7 @@
 - Git checkpoint：`6341587 feat: reprioritize and recover download queue`。
 - T104：Android UI 与 ViewModel 双重阻止 Member 控制，后端统一 Host 校验；play/pause/seek/next 手工 HTTP 绕过测试均返回 403，针对性后端测试与 Android 全量验证通过。
 - Git checkpoint：`d5746e9 test: enforce host playback permissions`。
-- T105：原生 BLE 广播/扫描接口、状态、API 版本权限、仅短房间码 payload 和 P0 回退完成；payload/权限测试及模拟器权限拒绝回退通过。模拟器无可广播 BLE 对端，两台 BLE 真机发现验收仍待外部硬件。
+- T105：原生 BLE 广播/扫描接口、状态、API 版本权限、仅短房间码 payload 和 P0 回退完成；payload/权限测试通过。
 - T106：NFC NDEF URI/文本读取、可用性状态和统一加入确认流程完成；单元测试及 API 35 模拟器 NDEF_DISCOVERED 有效链接运行时验收通过。
 - Git checkpoint：`3edafd2 feat: add BLE and NFC room invites`。
 - T107 进行中：无缓存后端 lint/typecheck/23 tests/build 与 Android clean test/lint/assemble 通过；手动房间码和深链加入回归通过，二维码入口与 NFC 状态仍可见，播放速度恢复为 1.0x。
@@ -96,5 +96,7 @@
 - Gradle Windows 单测无法从中文真实路径加载测试类；使用 `subst S: C:\Users\15224\Desktop\工程\sync-listen` 后测试通过。
 - Robolectric 在当前环境下载运行时 Android artifact 时持续挂起；Room schema/DAO 由 KSP 构建验证，缓存策略使用纯 JVM Fake DAO 测试。
 - 模拟器可访问 `10.0.2.2` 但系统不标记 VALIDATED internet；下载 Worker 不使用 `NetworkType.CONNECTED` 约束，实际请求失败时按限制重试。
-- 两台支持 BLE 的 Android 真机发现验收仍受外部硬件条件限制；实现、权限、payload 和回退测试均已通过。
+- 最终审计发现原 BLE 广播同时携带 128-bit UUID 和长前缀数据，触发
+  `ADVERTISE_FAILED_DATA_TOO_LARGE`；改为 Service UUID 标识协议、Service Data 仅携带
+  6 字节房间码后，双 API 35 模拟器完成广播、扫描、发现 `3C74AF` 和互联网加入，两端成员均在线。
 - `npm ci` 当前对开发依赖报告 5 个 high severity 漏洞；生产依赖审计为 0，升级需单独回归构建与测试工具链。

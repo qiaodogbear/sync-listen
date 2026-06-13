@@ -7,7 +7,6 @@ import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
@@ -23,15 +22,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 object BleInviteCodec {
-    private const val PREFIX = "SyncListen:"
     private val roomCode = Regex("[A-Z0-9]{6}")
 
-    fun encode(code: String): ByteArray = "$PREFIX${code.trim().uppercase()}".encodeToByteArray()
+    fun encode(code: String): ByteArray = code.trim().uppercase().encodeToByteArray()
 
     fun decode(payload: ByteArray): String? {
         val value = payload.decodeToString()
-        if (!value.startsWith(PREFIX)) return null
-        return value.removePrefix(PREFIX).takeIf(roomCode::matches)
+        return value.takeIf(roomCode::matches)
     }
 }
 
@@ -115,7 +112,6 @@ class AndroidBleRoomDiscovery @Inject constructor(
             .setConnectable(false)
             .build()
         val data = AdvertiseData.Builder()
-            .addServiceUuid(serviceUuid)
             .addServiceData(serviceUuid, BleInviteCodec.encode(roomCode))
             .build()
         advertiser.startAdvertising(settings, data, advertiseCallback)
@@ -135,7 +131,7 @@ class AndroidBleRoomDiscovery @Inject constructor(
         val scanner = adapter?.bluetoothLeScanner ?: return unsupported()
         mutableState.value = BleRoomDiscoveryState(BleDiscoveryStatus.SCANNING)
         scanner.startScan(
-            listOf(ScanFilter.Builder().setServiceUuid(serviceUuid).build()),
+            emptyList(),
             ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(),
             scanCallback,
         )
