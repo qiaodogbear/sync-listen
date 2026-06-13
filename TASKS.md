@@ -756,14 +756,14 @@ cd ..\android-app
 
 ### T104 完善角色权限
 
-- [ ] 后端对所有控制类操作统一执行 Host 权限校验。
-- [ ] Android 明确展示 Host/Member 角色与可用操作。
-- [ ] Member 的控制操作在 UI 和 API 两层均被阻止。
-- [ ] 增加权限绕过测试。
+- [x] 后端对所有控制类操作统一执行 Host 权限校验。
+- [x] Android 明确展示 Host/Member 角色与可用操作。
+- [x] Member 的控制操作在 UI 和 API 两层均被阻止。
+- [x] 增加权限绕过测试。
 
 **验收：**
 
-- [ ] Member 无法通过手工 HTTP 请求绕过权限。
+- [x] Member 无法通过手工 HTTP 请求绕过权限。
 
 ### T105 实现 BLE 房间邀请发现
 

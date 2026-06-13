@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-13
-- Active task: T104 角色权限
+- Active task: T105 BLE 房间邀请发现
 - Status: in progress
-- Next: 审计后端控制操作和 Android 控制入口，补 Member 权限绕过测试。
+- Next: 定义 BLE 邀请接口/状态，广播和扫描短房间码，处理权限与不可用回退。
 
 ## Decisions
 
@@ -73,6 +73,8 @@
 - T102：8 个相同文件并发上传测试确认单物理文件和 0-7 连续唯一顺序；Android 播放列表 reducer 按 serverTime 忽略旧快照并去重排序；后端 23/23 测试和 Android 全量验证通过。
 - Git checkpoint：`f11719b test: harden concurrent playlist updates`。
 - T103：播放状态/列表变化重建 WorkManager 优先级单链，READY 当前曲目与下一首优先，重连强制恢复失败/取消队列；优先级和恢复修订测试及 Android 全量验证通过。
+- Git checkpoint：`6341587 feat: reprioritize and recover download queue`。
+- T104：Android UI 与 ViewModel 双重阻止 Member 控制，后端统一 Host 校验；play/pause/seek/next 手工 HTTP 绕过测试均返回 403，针对性后端测试与 Android 全量验证通过。
 
 ## Blockers
 

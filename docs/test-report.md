@@ -67,3 +67,5 @@
   0-7 且唯一连续；客户端拒绝迟到播放列表快照并规范化重复/乱序条目。
 - T103 下载队列：播放状态变化重建当前/下一首优先的 WorkManager 单链，重连
   强制恢复失败或取消队列；规划与修订测试、Android 全量验证通过。
+- T104 角色权限：Member 控制在 Android UI/ViewModel 和后端 API 双层阻止；
+  play/pause/seek/next 四个手工 HTTP 绕过请求均返回 `403 HOST_REQUIRED`。

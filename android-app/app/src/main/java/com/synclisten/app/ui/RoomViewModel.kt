@@ -13,6 +13,7 @@ import com.synclisten.app.transfer.DownloadQueueManager
 import com.synclisten.app.playback.PlayerController
 import com.synclisten.app.playback.ServerClock
 import com.synclisten.app.playback.PlaybackSyncManager
+import com.synclisten.app.playback.canControlPlayback
 import com.synclisten.app.data.RoomEvent
 import com.synclisten.app.data.RepositoryResult
 import com.synclisten.app.data.TrackPlaybackCommand
@@ -166,6 +167,10 @@ class RoomViewModel @Inject constructor(
     private fun control(request: suspend (HomeState.InRoom) -> RepositoryResult<*>) {
         viewModelScope.launch {
             val session = homeController.state.value as? HomeState.InRoom ?: return@launch
+            if (!session.member.role.canControlPlayback()) {
+                mutableControlError.value = "仅房主可执行播放控制"
+                return@launch
+            }
             mutableControlError.value = when (val result = request(session)) {
                 is RepositoryResult.Success -> null
                 is RepositoryResult.Failure -> result.message

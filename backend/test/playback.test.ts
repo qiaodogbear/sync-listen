@@ -108,17 +108,35 @@ describe("playback API", () => {
       payload: { userId: "member", displayName: "Bob", joinToken },
     });
 
-    const pause = await app.inject({
-      method: "POST",
-      url: `/api/rooms/${roomId}/playback/pause`,
-      payload: { userId: "member", trackId: first.trackId, positionMs: 100 },
-    });
+    const responses = await Promise.all([
+      app.inject({
+        method: "POST",
+        url: `/api/rooms/${roomId}/playback/play`,
+        payload: { userId: "member", trackId: first.trackId, positionMs: 100 },
+      }),
+      app.inject({
+        method: "POST",
+        url: `/api/rooms/${roomId}/playback/pause`,
+        payload: { userId: "member", trackId: first.trackId, positionMs: 100 },
+      }),
+      app.inject({
+        method: "POST",
+        url: `/api/rooms/${roomId}/playback/seek`,
+        payload: { userId: "member", trackId: first.trackId, positionMs: 100 },
+      }),
+      app.inject({
+        method: "POST",
+        url: `/api/rooms/${roomId}/playback/next`,
+        payload: { userId: "member", positionMs: 0 },
+      }),
+    ]);
     const time = await app.inject({ method: "GET", url: "/api/time" });
 
-    expect(pause.statusCode).toBe(403);
-    expect(pause.json()).toMatchObject({ error: { code: "HOST_REQUIRED" } });
+    expect(responses.map((response) => response.statusCode)).toEqual([403, 403, 403, 403]);
+    for (const response of responses) {
+      expect(response.json()).toMatchObject({ error: { code: "HOST_REQUIRED" } });
+    }
     expect(time.json()).toMatchObject({ serverTimeMs: expect.any(Number) });
     await app.close();
   });
 });
-
