@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-13
-- Active task: T103 下载队列与下一首预下载
+- Active task: T104 角色权限
 - Status: in progress
-- Next: 验证并完善播放状态触发的优先级重排、下一首预下载和失败恢复。
+- Next: 审计后端控制操作和 Android 控制入口，补 Member 权限绕过测试。
 
 ## Decisions
 
@@ -71,6 +71,8 @@
 - T101：80-300ms 正负误差分别使用 1.02x/0.98x，正常范围恢复 1.0x，大误差 seek，强制重同步、速度命令去重、调试 UI/日志和假播放器测试完成；Android 全量 test/lint/assemble 通过。
 - Git checkpoint：`2a18c41 feat: add playback drift speed correction`。
 - T102：8 个相同文件并发上传测试确认单物理文件和 0-7 连续唯一顺序；Android 播放列表 reducer 按 serverTime 忽略旧快照并去重排序；后端 23/23 测试和 Android 全量验证通过。
+- Git checkpoint：`f11719b test: harden concurrent playlist updates`。
+- T103：播放状态/列表变化重建 WorkManager 优先级单链，READY 当前曲目与下一首优先，重连强制恢复失败/取消队列；优先级和恢复修订测试及 Android 全量验证通过。
 
 ## Blockers
 

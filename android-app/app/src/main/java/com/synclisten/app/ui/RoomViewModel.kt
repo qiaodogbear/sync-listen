@@ -75,6 +75,7 @@ class RoomViewModel @Inject constructor(
         viewModelScope.launch {
             socketClient.connection.collect {
                 playbackSyncManager.setConnected(it is RoomConnectionState.Connected)
+                if (it is RoomConnectionState.Connected) downloadQueueManager.resume()
             }
         }
         viewModelScope.launch {
