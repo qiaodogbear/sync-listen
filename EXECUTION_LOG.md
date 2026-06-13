@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-13
-- Active task: T107 P1 回归验收
+- Active task: T107 最终双设备闭环与 T203 最终交付检查
 - Status: in progress
-- Next: 执行后端/Android 全量回归、双模拟器 P0 加入回归与速度恢复检查；更新报告。
+- Next: 在当前版本重跑双模拟器上传、下载、同步控制与断线闭环；完成最终交付审计。
 
 ## Decisions
 
@@ -81,6 +81,8 @@
 - Git checkpoint：`3edafd2 feat: add BLE and NFC room invites`。
 - T107 进行中：无缓存后端 lint/typecheck/23 tests/build 与 Android clean test/lint/assemble 通过；手动房间码和深链加入回归通过，二维码入口与 NFC 状态仍可见，播放速度恢复为 1.0x。
 - T107 发现并修复同一用户短时多 WebSocket 时旧连接关闭错误标记离线的问题；新增多连接在线回归测试，后端 24/24 测试通过，运行时重启后 ManualMember/DeepMember 均保持在线。
+- Git checkpoint：`cd2e021 fix: preserve online state across duplicate sockets`。
+- T201/T202：README、REST、WebSocket、架构、调试、已知问题与测试报告已更新；环境示例移除后端未读取的变量。
 
 ## Blockers
 

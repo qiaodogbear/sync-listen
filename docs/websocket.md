@@ -94,3 +94,28 @@ ERROR:
 ## Reconnection rule
 
 After reconnecting, the server sends `ROOM_JOINED` with the authoritative room, member, playlist, and playback snapshot. Clients replace local room state with this snapshot before applying later events.
+
+The client ignores stale `PLAYLIST_UPDATED` events using envelope `serverTimeMs`, then deduplicates
+Track IDs and sorts by server `orderIndex`. The server may temporarily see multiple sockets for one
+user during reconnect; the member remains online until the final socket closes.
+
+## Payload summary
+
+| Event | Payload |
+|---|---|
+| `ROOM_JOINED` | Full `{ room, members, playlist, playbackState }` snapshot |
+| `MEMBER_JOINED` | `{ member }` |
+| `MEMBER_LEFT` | `{ userId }` |
+| `TRACK_ADDED`, `TRACK_READY` | `{ track }` |
+| `PLAYLIST_UPDATED` | `{ playlist }` |
+| `PLAY`, `PAUSE`, `SEEK`, `NEXT`, `SYNC` | `PlaybackState` |
+
+Current clients treat unrecognized protocol events as no-ops so a later authoritative snapshot can
+restore state.
+
+## Playback timing
+
+- PLAY, SEEK and NEXT include a future `executeAtServerTimeMs`.
+- PAUSE is applied immediately.
+- SYNC omits the scheduled time and reports the current authoritative position.
+- Clients continue local playback while disconnected and apply the next snapshot/SYNC after reconnect.

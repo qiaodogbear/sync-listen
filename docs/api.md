@@ -127,6 +127,7 @@ Joins using either `joinToken` or `roomCode`.
 ```
 
 Returns `{ room, member }`.
+The actual response also includes `joinToken` so the client can authenticate WebSocket recovery.
 
 ### `POST /api/rooms/join`
 
@@ -148,6 +149,20 @@ Returns `{ playlist }` ordered by the server-assigned `orderIndex`.
 
 Accepts a multipart upload with metadata fields before the `file` field. The server streams the file, verifies its SHA-256 hash, deduplicates physical storage, and returns HTTP 201 with `{ track }`.
 
+Fields:
+
+| Field | Type | Notes |
+|---|---|---|
+| `title` | string | Required |
+| `artist` | string | Empty becomes `null` |
+| `durationMs` | integer | Non-negative |
+| `fileHash` | string | 64-character SHA-256 hex |
+| `uploaderId` | string | Required |
+| `uploaderName` | string | Required |
+| `file` | MP3/FLAC | One file, default maximum 512 MiB |
+
+Response also includes `deduplicated`, which is true when an existing physical file was reused.
+
 ### `GET /api/tracks/{trackId}/download`
 
 Downloads a ready track from server storage.
@@ -166,3 +181,41 @@ PLAY, SEEK, and NEXT responses include a shared future `executeAtServerTimeMs`. 
 ### `GET /api/time`
 
 Returns `{ serverTimeMs }` for client clock offset estimation.
+
+## Playback request bodies
+
+PLAY, PAUSE and SEEK:
+
+```json
+{
+  "userId": "user-host",
+  "trackId": "track-1",
+  "positionMs": 12000
+}
+```
+
+NEXT:
+
+```json
+{
+  "userId": "user-host",
+  "positionMs": 0
+}
+```
+
+## Error codes
+
+| HTTP | Code | Meaning |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | Request shape or field validation failed |
+| 400 | `ROOM_CODE_REQUIRED` | Manual join omitted a room code |
+| 400 | `FILE_REQUIRED` / `MULTIPLE_FILES` | Invalid upload file count |
+| 403 | `INVALID_JOIN_TOKEN` | Join credential is invalid |
+| 403 | `HOST_REQUIRED` | Member attempted Host-only playback control |
+| 404 | `ROOM_NOT_FOUND` / `MEMBER_NOT_FOUND` | Requested identity does not exist |
+| 404 | `TRACK_FILE_NOT_FOUND` | Download file is absent |
+| 409 | `TRACK_NOT_READY` / `NO_NEXT_TRACK` | Playback precondition failed |
+| 410 | `ROOM_CLOSED` | Room is no longer active |
+| 413 | `FILE_TOO_LARGE` | Upload exceeds the configured default limit |
+| 415 | `UNSUPPORTED_AUDIO_TYPE` | File is not MP3 or FLAC |
+| 422 | `HASH_MISMATCH` | Uploaded bytes do not match declared SHA-256 |
