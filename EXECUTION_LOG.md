@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-12
-- Active task: T024 定义加入链接与深链解析
+- Active task: 阶段七 P0 完整闭环验收
 - Status: in progress
-- Next: 用测试定义严格加入链接编解码，再注册 Manifest 深链与冷/热启动确认流程。
+- Next: 按 T026-T029 执行完整双设备闭环、自动化回归、性能与健壮性验收并修复发现的问题。
 
 ## Decisions
 
@@ -60,6 +60,9 @@
 - T022：计划执行、SYNC 期望位置、300ms 大误差 seek、断线继续播放、重连恢复和速度修正接口完成；双模拟器同步播放、pause、seek、next 验收通过，结束曲目不会被后续 SYNC 重启。
 - T023：Host 控制、Member 隐藏控制、当前歌曲/进度/缓存/时钟/WebSocket/下载队列调试字段完成；真实断线显示同步断开，后端恢复后自动重连。
 - WebSocket 重连并发回调风暴已修复：只允许一个待调度重连并忽略过期 socket 回调；真实断线 6 秒仍为第 1 次重连。
+- Git checkpoint：`052491b feat: complete synchronized playback flow`。
+- T024：严格加入链接编解码、token 加入、Manifest 深链和加入确认流程完成；模拟器冷启动与运行中链接均进入确认，非法 server 链接不崩溃且不静默加入。
+- T025：邀请页 QR、相机扫描 Activity、CAMERA 权限拒绝回退和手动房间码保留完成；A 二维码截图被 OpenCV 实际解码，B 复用扫描结果确认后以 MEMBER 加入并连接成功，阶段六完成。
 
 ## Blockers
 

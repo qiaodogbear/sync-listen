@@ -13,6 +13,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
+import com.synclisten.app.invite.JoinLink
 
 sealed interface HomeState {
     data object Idle : HomeState
@@ -45,6 +46,24 @@ class HomeController @Inject constructor(
         submit {
             val identity = saveAndReadIdentity(displayName)
             when (val result = repository.joinRoom(roomCode.trim(), identity.userId, identity.displayName)) {
+                is RepositoryResult.Success -> result.value.toHomeState()
+                is RepositoryResult.Failure -> HomeState.Error(result.message)
+            }
+        }
+    }
+
+    suspend fun joinRoom(link: JoinLink, displayName: String) {
+        submit {
+            settingsStore.update(serverUrl = link.serverUrl)
+            val identity = saveAndReadIdentity(displayName)
+            when (
+                val result = repository.joinRoomByLink(
+                    link.roomId,
+                    link.token,
+                    identity.userId,
+                    identity.displayName,
+                )
+            ) {
                 is RepositoryResult.Success -> result.value.toHomeState()
                 is RepositoryResult.Failure -> HomeState.Error(result.message)
             }

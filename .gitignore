@@ -29,3 +29,4 @@ android-app/local.properties
 .vscode/
 .DS_Store
 Thumbs.db
+emulator-*.log

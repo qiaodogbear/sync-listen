@@ -3,6 +3,8 @@ package com.synclisten.app.ui
 import com.synclisten.app.data.AppSettings
 import com.synclisten.app.data.CreateRoomRequest
 import com.synclisten.app.data.CreateRoomResponse
+import com.synclisten.app.data.JoinRoomRequest
+import com.synclisten.app.data.JoinRoomResponse
 import com.synclisten.app.data.IdentityManager
 import com.synclisten.app.data.RoomRemoteDataSource
 import com.synclisten.app.data.RoomRepository
@@ -15,10 +17,12 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.synclisten.app.invite.JoinLink
 
 class HomeControllerTest {
     @Test
@@ -45,6 +49,26 @@ class HomeControllerTest {
         second.await()
 
         assertEquals(1, calls)
+        assertTrue(controller.state.value is HomeState.InRoom)
+    }
+
+    @Test
+    fun confirmsJoinLinkUsingTokenAndLinkServer() = runBlocking {
+        var captured: Pair<String, JoinRoomRequest>? = null
+        val remote = object : RoomRemoteDataSource {
+            override suspend fun joinRoomById(roomId: String, request: JoinRoomRequest): JoinRoomResponse {
+                captured = roomId to request
+                return JoinRoomResponse(createResponse().room, createResponse().member, "join-token")
+            }
+        }
+        val settings = FakeHomeSettingsStore()
+        val controller = HomeController(RoomRepository(remote), settings, IdentityManager(settings) { "user-1" })
+
+        controller.joinRoom(JoinLink("room-1", "invite-token", "http://server:3000"), "Bob")
+
+        assertEquals("http://server:3000", settings.settings.first().serverUrl)
+        assertEquals("room-1", captured?.first)
+        assertEquals("invite-token", captured?.second?.joinToken)
         assertTrue(controller.state.value is HomeState.InRoom)
     }
 }

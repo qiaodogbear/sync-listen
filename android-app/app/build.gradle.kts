@@ -82,6 +82,8 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.session)
+    implementation(libs.zxing.core)
+    implementation(libs.zxing.embedded)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)

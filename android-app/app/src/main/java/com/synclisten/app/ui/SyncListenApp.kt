@@ -1,5 +1,7 @@
 package com.synclisten.app.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +14,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -22,6 +25,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -33,6 +39,9 @@ import com.synclisten.app.transfer.UploadState
 import com.synclisten.app.playback.PlayerStatus
 import com.synclisten.app.playback.canControlPlayback
 import com.synclisten.app.domain.model.TrackStatus
+import com.synclisten.app.invite.QrCodeCodec
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 
 private const val HOME_ROUTE = "home"
 private const val SETTINGS_ROUTE = "settings"
@@ -75,7 +84,7 @@ fun SyncListenApp() {
             PlaceholderScreen("播放器", "将在阶段五实现", "返回") { navController.popBackStack() }
         }
         composable(INVITE_ROUTE) {
-            PlaceholderScreen("邀请成员", "将在阶段六实现", "返回") { navController.popBackStack() }
+            InviteScreen(onBack = { navController.popBackStack() })
         }
     }
 }
@@ -136,6 +145,22 @@ private fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val pendingJoinLink by viewModel.pendingJoinLink.collectAsState()
+    val context = LocalContext.current
+    var cameraDenied by remember { mutableStateOf(false) }
+    val scanner = rememberLauncherForActivityResult(ScanContract()) { result ->
+        viewModel.acceptJoinLink(result.contents)
+    }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        cameraDenied = !granted
+        if (granted) {
+            scanner.launch(
+                ScanOptions()
+                    .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                    .setPrompt("扫描 Sync Listen 邀请二维码"),
+            )
+        }
+    }
     var displayName by remember { mutableStateOf("") }
     var roomName by remember { mutableStateOf("") }
     var roomCode by remember { mutableStateOf("") }
@@ -151,6 +176,15 @@ private fun HomeScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(text = "Sync Listen", style = MaterialTheme.typography.headlineMedium)
+        pendingJoinLink?.let { link ->
+            Text("加入邀请：${link.roomId}")
+            Text("服务器：${link.serverUrl}")
+            Button(
+                onClick = { viewModel.confirmJoinLink(displayName) },
+                enabled = displayName.isNotBlank() && !loading,
+            ) { Text("确认加入邀请") }
+            Button(onClick = viewModel::dismissJoinLink, enabled = !loading) { Text("取消邀请") }
+        }
         OutlinedTextField(
             value = displayName,
             onValueChange = { displayName = it },
@@ -181,6 +215,14 @@ private fun HomeScreen(
         ) {
             Text("加入房间")
         }
+        Button(onClick = {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE))
+            } else {
+                cameraPermission.launch(Manifest.permission.CAMERA)
+            }
+        }) { Text("扫描二维码加入") }
+        if (cameraDenied) Text("相机权限被拒绝，仍可使用房间码加入")
         if (loading) CircularProgressIndicator()
         if (state is HomeState.Error) {
             Text((state as HomeState.Error).message, color = MaterialTheme.colorScheme.error)
@@ -188,6 +230,25 @@ private fun HomeScreen(
         Button(onClick = onOpenSettings, enabled = !loading) {
             Text("调试设置")
         }
+    }
+}
+
+@Composable
+private fun InviteScreen(
+    onBack: () -> Unit,
+    viewModel: InviteViewModel = hiltViewModel(),
+) {
+    val link by viewModel.link.collectAsState()
+    val bitmap = remember(link) { link?.let { QrCodeCodec.bitmap(it, 768).asImageBitmap() } }
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("邀请成员", style = MaterialTheme.typography.headlineMedium)
+        bitmap?.let { Image(bitmap = it, contentDescription = "加入房间二维码") }
+        Text(link ?: "正在生成邀请链接")
+        Button(onClick = onBack) { Text("返回") }
     }
 }
 
