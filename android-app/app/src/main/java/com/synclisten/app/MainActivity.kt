@@ -9,14 +9,16 @@ import com.synclisten.app.ui.theme.SyncListenTheme
 import dagger.hilt.android.AndroidEntryPoint
 import com.synclisten.app.invite.JoinLinkInbox
 import javax.inject.Inject
+import com.synclisten.app.nearby.NfcJoinManager
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var joinLinkInbox: JoinLinkInbox
+    @Inject lateinit var nfcJoinManager: NfcJoinManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        intent?.dataString?.let(joinLinkInbox::accept)
+        nfcJoinManager.handleIntent(intent)
         setContent {
             SyncListenTheme {
                 SyncListenApp()
@@ -27,6 +29,6 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        joinLinkInbox.accept(intent.dataString)
+        nfcJoinManager.handleIntent(intent)
     }
 }

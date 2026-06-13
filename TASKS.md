@@ -767,12 +767,12 @@ cd ..\android-app
 
 ### T105 实现 BLE 房间邀请发现
 
-- [ ] 定义 `BleRoomDiscovery` 接口和状态模型。
-- [ ] Host 广播不含令牌的短房间码，例如 `SyncListen:ROOM_CODE`。
-- [ ] Member 扫描附近房间，选择后通过互联网加入。
-- [ ] 按 Android 版本处理 BLUETOOTH_SCAN、ADVERTISE、CONNECT 权限。
-- [ ] BLE 不传输音频、加入令牌或其他敏感数据。
-- [ ] 无 BLE 或权限被拒绝时不影响 P0 加入方式。
+- [x] 定义 `BleRoomDiscovery` 接口和状态模型。
+- [x] Host 广播不含令牌的短房间码，例如 `SyncListen:ROOM_CODE`。
+- [x] Member 扫描附近房间，选择后通过互联网加入。
+- [x] 按 Android 版本处理 BLUETOOTH_SCAN、ADVERTISE、CONNECT 权限。
+- [x] BLE 不传输音频、加入令牌或其他敏感数据。
+- [x] 无 BLE 或权限被拒绝时不影响 P0 加入方式。
 
 **验收：**
 
@@ -780,15 +780,15 @@ cd ..\android-app
 
 ### T106 实现 NFC 加入链接读取
 
-- [ ] 定义 `NfcJoinManager` 接口和状态模型。
-- [ ] 支持读取包含 `synclisten://join` 的 NFC Tag。
-- [ ] 复用统一深链解析和加入确认流程。
-- [ ] 无 NFC 或 NFC 关闭时提供清晰提示。
-- [ ] NFC 不用于传输音频文件。
+- [x] 定义 `NfcJoinManager` 接口和状态模型。
+- [x] 支持读取包含 `synclisten://join` 的 NFC Tag。
+- [x] 复用统一深链解析和加入确认流程。
+- [x] 无 NFC 或 NFC 关闭时提供清晰提示。
+- [x] NFC 不用于传输音频文件。
 
 **验收：**
 
-- [ ] 读取有效 NFC Tag 后可加入房间。
+- [x] 读取有效 NFC Tag 后可加入房间。
 
 ### T107 执行 P1 回归验收
 

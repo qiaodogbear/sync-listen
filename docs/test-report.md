@@ -69,3 +69,8 @@
   强制恢复失败或取消队列；规划与修订测试、Android 全量验证通过。
 - T104 角色权限：Member 控制在 Android UI/ViewModel 和后端 API 双层阻止；
   play/pause/seek/next 四个手工 HTTP 绕过请求均返回 `403 HOST_REQUIRED`。
+- T105 BLE 邀请：payload 仅为 `SyncListen:<ROOM_CODE>`，API 版本权限和解析测试
+  通过；模拟器验证权限拒绝不影响二维码/房间码。Android Emulator 无可广播 BLE
+  对端，两台 BLE 真机互相发现仍需补验。
+- T106 NFC 加入：有效 `NDEF_DISCOVERED` URI 在 API 35 模拟器进入统一邀请确认
+  流程；无效 Tag、无 NFC/关闭提示和链接筛选有独立测试。

@@ -146,8 +146,11 @@ private fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val pendingJoinLink by viewModel.pendingJoinLink.collectAsState()
+    val bleState by viewModel.bleState.collectAsState()
+    val nfcState by viewModel.nfcState.collectAsState()
     val context = LocalContext.current
     var cameraDenied by remember { mutableStateOf(false) }
+    var bleDenied by remember { mutableStateOf(false) }
     val scanner = rememberLauncherForActivityResult(ScanContract()) { result ->
         viewModel.acceptJoinLink(result.contents)
     }
@@ -160,6 +163,10 @@ private fun HomeScreen(
                     .setPrompt("扫描 Sync Listen 邀请二维码"),
             )
         }
+    }
+    val blePermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        bleDenied = grants.values.any { !it }
+        if (!bleDenied) viewModel.startBleScan()
     }
     var displayName by remember { mutableStateOf("") }
     var roomName by remember { mutableStateOf("") }
@@ -223,6 +230,20 @@ private fun HomeScreen(
             }
         }) { Text("扫描二维码加入") }
         if (cameraDenied) Text("相机权限被拒绝，仍可使用房间码加入")
+        Button(onClick = {
+            val missing = viewModel.requiredBlePermissions()
+            if (missing.isEmpty()) viewModel.startBleScan() else blePermissions.launch(missing.toTypedArray())
+        }) { Text("发现附近房间") }
+        bleState.roomCodes.forEach { code ->
+            Button(
+                onClick = { viewModel.joinRoom(code, displayName) },
+                enabled = displayName.isNotBlank() && !loading,
+            ) { Text("加入附近房间 $code") }
+        }
+        Text("BLE：${bleState.status.name}")
+        bleState.message?.let { Text(it) }
+        if (bleDenied) Text("蓝牙权限被拒绝，二维码和房间码仍可使用")
+        Text("NFC：${nfcState.message}")
         if (loading) CircularProgressIndicator()
         if (state is HomeState.Error) {
             Text((state as HomeState.Error).message, color = MaterialTheme.colorScheme.error)
@@ -239,6 +260,12 @@ private fun InviteScreen(
     viewModel: InviteViewModel = hiltViewModel(),
 ) {
     val link by viewModel.link.collectAsState()
+    val bleState by viewModel.bleState.collectAsState()
+    var bleDenied by remember { mutableStateOf(false) }
+    val blePermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        bleDenied = grants.values.any { !it }
+        if (!bleDenied) viewModel.startBleInvite()
+    }
     val bitmap = remember(link) { link?.let { QrCodeCodec.bitmap(it, 768).asImageBitmap() } }
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -248,6 +275,13 @@ private fun InviteScreen(
         Text("邀请成员", style = MaterialTheme.typography.headlineMedium)
         bitmap?.let { Image(bitmap = it, contentDescription = "加入房间二维码") }
         Text(link ?: "正在生成邀请链接")
+        Button(onClick = {
+            val missing = viewModel.requiredBlePermissions()
+            if (missing.isEmpty()) viewModel.startBleInvite() else blePermissions.launch(missing.toTypedArray())
+        }) { Text("通过 BLE 广播房间码") }
+        Text("BLE：${bleState.status.name}")
+        bleState.message?.let { Text(it) }
+        if (bleDenied) Text("蓝牙权限被拒绝，二维码邀请仍可使用")
         Button(onClick = onBack) { Text("返回") }
     }
 }

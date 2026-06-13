@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-13
-- Active task: T105 BLE 房间邀请发现
+- Active task: T107 P1 回归验收
 - Status: in progress
-- Next: 定义 BLE 邀请接口/状态，广播和扫描短房间码，处理权限与不可用回退。
+- Next: 执行后端/Android 全量回归、双模拟器 P0 加入回归与速度恢复检查；更新报告。
 
 ## Decisions
 
@@ -75,6 +75,9 @@
 - T103：播放状态/列表变化重建 WorkManager 优先级单链，READY 当前曲目与下一首优先，重连强制恢复失败/取消队列；优先级和恢复修订测试及 Android 全量验证通过。
 - Git checkpoint：`6341587 feat: reprioritize and recover download queue`。
 - T104：Android UI 与 ViewModel 双重阻止 Member 控制，后端统一 Host 校验；play/pause/seek/next 手工 HTTP 绕过测试均返回 403，针对性后端测试与 Android 全量验证通过。
+- Git checkpoint：`d5746e9 test: enforce host playback permissions`。
+- T105：原生 BLE 广播/扫描接口、状态、API 版本权限、仅短房间码 payload 和 P0 回退完成；payload/权限测试及模拟器权限拒绝回退通过。模拟器无可广播 BLE 对端，两台 BLE 真机发现验收仍待外部硬件。
+- T106：NFC NDEF URI/文本读取、可用性状态和统一加入确认流程完成；单元测试及 API 35 模拟器 NDEF_DISCOVERED 有效链接运行时验收通过。
 
 ## Blockers
 

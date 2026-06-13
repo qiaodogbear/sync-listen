@@ -25,6 +25,10 @@ import com.synclisten.app.playback.LocalClock
 import com.synclisten.app.playback.PlaybackSyncManager
 import com.synclisten.app.playback.PlayerController
 import com.synclisten.app.playback.ServerClock
+import com.synclisten.app.nearby.AndroidBleRoomDiscovery
+import com.synclisten.app.nearby.BleRoomDiscovery
+import com.synclisten.app.nearby.AndroidNfcJoinManager
+import com.synclisten.app.nearby.NfcJoinManager
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -40,6 +44,12 @@ abstract class DataBindingsModule {
 
     @Binds
     abstract fun bindPlayerEngine(engine: Media3PlayerEngine): PlayerEngine
+
+    @Binds
+    abstract fun bindBleRoomDiscovery(discovery: AndroidBleRoomDiscovery): BleRoomDiscovery
+
+    @Binds
+    abstract fun bindNfcJoinManager(manager: AndroidNfcJoinManager): NfcJoinManager
 }
 
 @Module
