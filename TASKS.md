@@ -886,7 +886,7 @@ cd ..\android-app
 
 - [x] 确认采用 Android 内嵌 Ktor、复用现有 REST/WebSocket 协议。
 - [x] 明确首期支持同一 Wi-Fi 和 Host 手机热点，不支持公网、Host 迁移和房间恢复。
-- [ ] 编写详细实施计划。
+- [x] 编写详细实施计划。
 - [ ] 增加 Ktor Server/CIO/WebSocket 依赖、前台服务权限和服务声明。
 - [ ] 建立 Host server 包结构和自动化测试入口。
 

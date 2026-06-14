@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-14
-- Active task: T301 Host 手机内嵌服务器设计与实施计划
+- Active task: T301 Host 手机内嵌服务器工程基础
 - Status: in progress
-- Next: 审查并提交已批准设计规格，然后编写 TDD 实施计划。
+- Next: 按 `docs/superpowers/plans/2026-06-14-android-host-server.md` 从地址边界失败测试开始执行。
 
 ## Decisions
 
