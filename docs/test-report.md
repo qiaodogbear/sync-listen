@@ -69,8 +69,8 @@
   强制恢复失败或取消队列；规划与修订测试、Android 全量验证通过。
 - T104 角色权限：Member 控制在 Android UI/ViewModel 和后端 API 双层阻止；
   play/pause/seek/next 四个手工 HTTP 绕过请求均返回 `403 HOST_REQUIRED`。
-- T105 BLE 邀请：Sync Listen Service UUID 的 Service Data 仅携带 6 字节房间码，
-  API 版本权限、解析和拒绝权限回退测试通过。
+- T105 BLE 邀请初版：Sync Listen Service UUID 的 Service Data 仅携带 6 字节房间码，
+  API 版本权限、解析和拒绝权限回退测试通过；手机 Host 模式随后升级为版本化地址载荷。
 - T106 NFC 加入：有效 `NDEF_DISCOVERED` URI 在 API 35 模拟器进入统一邀请确认
   流程；无效 Tag、无 NFC/关闭提示和链接筛选有独立测试。
 - T107 中间回归：后端 lint/typecheck/24 tests/build、Android 无缓存 clean
@@ -114,5 +114,20 @@
 - 最终审计发现同时广播 128-bit Service UUID、Service Data UUID 和
   `SyncListen:<ROOM_CODE>` 会超过传统 BLE 31 字节限制，模拟器返回
   `ADVERTISE_FAILED_DATA_TOO_LARGE`。
-- 广播现由 128-bit Service UUID 标识 Sync Listen，Service Data 只携带 6 字节房间码。
-  修复后 A 广播成功，B 的低延迟扫描收到结果并完成后端加入。
+- 当次修复由 128-bit Service UUID 标识 Sync Listen，Service Data 只携带 6 字节房间码。
+  手机 Host 模式随后使用 scan response 承载 13 字节版本化地址载荷，同时保留旧版解析。
+
+## 2026-06-14 手机 Host 模式验收
+
+- 未启动电脑后端；`SyncListen_A` 的前台服务以内嵌 Ktor/CIO 监听 TCP 38571。
+- `SyncListen_B` 通过 ADB 端口转发绕过模拟器 NAT 后加入 A 托管的房间；真实手机在同一
+  Wi-Fi/热点内直接使用 Host 页面显示的局域网 IPv4，不需要转发。
+- A、B 均显示 Host/Member 在线；MP3、FLAC 和下一首 MP3 上传、物理去重、自动下载及
+  hash 校验通过。
+- 播放、暂停、seek 和 next 通过；短曲结束位置采样误差约 2ms，暂停位置两端均为 489ms。
+- Host 离开后前台服务和监听停止，成员端约 2 秒内从已连接进入重连状态。
+- 通知权限授予后，系统通知记录显示 `Sync Listen 正在托管房间` 和可达地址。
+- 回归中补充服务器 `GOING_AWAY` 关闭原因及 OkHttp `onClosing` 处理，避免成员端在
+  Host 停止后继续错误显示已连接。
+- 最终自动化：Android 干净 `testDebugUnitTest`、`lintDebug`、`assembleDebug` 通过；
+  电脑后端 lint、typecheck、24/24 tests 和 build 通过。

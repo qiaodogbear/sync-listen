@@ -12,6 +12,7 @@ Compose UI -> ViewModel -> RoomRepository/RoomWebSocket
 Fastify routes -> SQLite
                -> local audio storage
                -> RoomHub -> WebSocket clients
+Android HostServerService -> embedded Ktor/CIO -> HostRoomStore/HostRoomHub
 ```
 
 ## 后端
@@ -29,6 +30,10 @@ Fastify routes -> SQLite
 - WorkManager 使用单一优先级链下载 READY Track：当前、下一首、其他。
 - Room 缓存索引按 Track 引用，物理文件按 hash 去重，下载完成后校验 SHA-256。
 - Media3 仅播放 VERIFIED 本地文件。
+- 手机托管模式由前台 `HostServerService` 启动内嵌 Ktor/CIO，监听 `0.0.0.0:38571`。
+  Host 自身通过 loopback 使用同一 REST/WebSocket 客户端路径，成员使用 Host 可达 IPv4。
+- `HostRoomStore` 在内存中维护单活动房间、成员、播放列表和播放状态；音频文件保存在
+  App 私有目录并按 SHA-256 去重。Host 停止托管后不恢复房间。
 
 ## 同步策略
 
@@ -43,6 +48,6 @@ Fastify routes -> SQLite
 ## 邀请
 
 - 二维码、深链和 NFC 使用严格解析的 `synclisten://join` URI。
-- BLE 使用 Sync Listen 128-bit Service UUID 标识协议，Service Data 只携带 6 字节
-  `<ROOM_CODE>`，不包含令牌、服务器地址或音频，并兼容传统 31 字节广播限制。
+- BLE 使用 Sync Listen 128-bit Service UUID 标识协议。新版 13 字节 Service Data 携带
+  版本、IPv4、端口和 6 字节房间码，并兼容旧版仅房间码载荷；不包含令牌或音频。
 - 所有加入方式最终使用相同 REST 加入和 WebSocket 恢复流程。

@@ -8,6 +8,9 @@
 - IDs are opaque strings.
 - Nullable fields are returned explicitly as `null`.
 
+The same REST and WebSocket contract is served by the computer backend and Android mobile-host
+mode. Mobile-host mode listens on the Host phone's reachable LAN address at port `38571`.
+
 Error response:
 
 ```json

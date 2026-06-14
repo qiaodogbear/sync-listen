@@ -23,6 +23,8 @@ Get-NetTCPConnection -LocalPort 3000 -State Listen
 adb devices
 adb -s emulator-5554 shell pidof com.synclisten.app.debug
 adb -s emulator-5554 logcat -d | Select-String SyncListen
+adb -s emulator-5554 shell dumpsys activity services com.synclisten.app.debug
+adb -s emulator-5554 shell dumpsys notification --noredact
 ```
 
 ## 常见故障
@@ -31,6 +33,13 @@ adb -s emulator-5554 logcat -d | Select-String SyncListen
 
 使用 `10.0.2.2` 而不是 `localhost`。确认后端监听 `0.0.0.0:3000`，必要时执行
 `adb shell svc data enable`。模拟器可能能访问该地址但不把网络标记为 VALIDATED。
+
+### 成员无法连接手机 Host
+
+确认 Host 前台通知显示 `http://<LAN_IP>:38571`，成员与 Host 位于同一 Wi-Fi/热点，
+且热点未启用客户端隔离。模拟器之间受 NAT 隔离，验收时可在 A 执行
+`adb -s emulator-5554 forward tcp:38571 tcp:38571`，再让 B 使用
+`http://10.0.2.2:38571`；真机不需要该转发。
 
 ### Windows 中文路径下测试类无法加载
 

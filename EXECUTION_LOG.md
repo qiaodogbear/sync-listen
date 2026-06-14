@@ -5,9 +5,9 @@
 ## Current
 
 - Updated: 2026-06-14
-- Active task: T301 Host 手机内嵌服务器工程基础
-- Status: in progress
-- Next: 按 `docs/superpowers/plans/2026-06-14-android-host-server.md` 从地址边界失败测试开始执行。
+- Active task: T301-T306 Host 手机内嵌服务器模式
+- Status: completed
+- Next: 在两台真实 Android 手机上补充同一 Wi-Fi/热点长期运行验收。
 
 ## Decisions
 
@@ -21,8 +21,18 @@
 - Android 使用 Kotlin + Compose，`minSdk 26`、`compileSdk/targetSdk 35`。
 - 恢复日志保持轻量；详细任务状态以 `TASKS.md` 为准。
 - 后端 Vitest 限制为 4 个 worker；Windows 上默认高并发启动 Fastify/SQLite 会导致 5 秒测试超时。
+- Android 13+ 在首次手机托管时请求通知权限；拒绝不阻止托管，但通知栏可能不显示常驻通知。
 
 ## Verified
+
+- T301-T306：Android 内嵌 Ktor/CIO Host、前台服务、可达地址、房间/WebSocket、文件、
+  播放同步、邀请和 BLE 版本化载荷已完成。
+- 不启动电脑后端时，A 模拟器托管房间，B 通过测试转发加入；MP3/FLAC 上传下载、
+  SHA-256 校验、同步播放、pause、seek、next 均通过。Host 停止后 B 在约 2 秒内进入重连。
+- Host 前台服务持有 Wi-Fi lock，通知记录显示持续通知和 `http://10.0.2.15:38571`。
+- 2026-06-14 完整回归：Android `clean testDebugUnitTest lintDebug assembleDebug --no-daemon`
+  通过；后端 lint、typecheck、24/24 tests 和 build 通过。
+- Git checkpoint：`20481f0 feat: add android mobile host server`。
 
 - T001：目标目录、Git、基础目录、README、环境示例和忽略规则已验证。
 - T002：`npm test` 1/1 通过；lint、typecheck、build 通过；实际启动后 `/health` 返回 200。
