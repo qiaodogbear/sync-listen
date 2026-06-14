@@ -4,6 +4,16 @@ import com.synclisten.app.domain.model.MemberRole
 import com.synclisten.app.domain.model.Track
 import com.synclisten.app.domain.model.TrackStatus
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import okhttp3.OkHttpClient
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -66,6 +76,35 @@ class RoomWebSocketTest {
         assertEquals(null, gate.trySchedule())
         gate.complete()
         assertEquals(2, gate.trySchedule())
+    }
+
+    @Test
+    fun serverInitiatedCloseTransitionsClientToReconnecting() {
+        runBlocking {
+            val server = MockWebServer()
+            server.enqueue(
+                MockResponse().withWebSocketUpgrade(
+                    object : WebSocketListener() {
+                        override fun onOpen(webSocket: WebSocket, response: Response) {
+                            webSocket.close(1001, "Host stopped")
+                        }
+                    },
+                ),
+            )
+            server.start()
+            val client = RoomWebSocketClient(OkHttpClient(), json)
+
+            try {
+                client.connect(server.url("/").toString(), "room-1", "user-1", "token")
+
+                withTimeout(3_000) {
+                    client.connection.filterIsInstance<RoomConnectionState.Reconnecting>().first()
+                }
+            } finally {
+                client.disconnect()
+                server.shutdown()
+            }
+        }
     }
 
     @Test

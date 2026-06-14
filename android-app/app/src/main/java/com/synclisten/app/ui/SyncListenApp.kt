@@ -2,6 +2,7 @@ package com.synclisten.app.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -148,6 +149,7 @@ private fun HomeScreen(
     val pendingJoinLink by viewModel.pendingJoinLink.collectAsState()
     val bleState by viewModel.bleState.collectAsState()
     val nfcState by viewModel.nfcState.collectAsState()
+    val hostServerState by viewModel.hostServerState.collectAsState()
     val context = LocalContext.current
     var cameraDenied by remember { mutableStateOf(false) }
     var bleDenied by remember { mutableStateOf(false) }
@@ -171,7 +173,11 @@ private fun HomeScreen(
     var displayName by remember { mutableStateOf("") }
     var roomName by remember { mutableStateOf("") }
     var roomCode by remember { mutableStateOf("") }
+    var hostAddress by remember { mutableStateOf("") }
     val loading = state is HomeState.Loading
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        viewModel.createHostedRoom(roomName, displayName)
+    }
 
     LaunchedEffect(state) {
         if (state is HomeState.InRoom) onEnteredRoom()
@@ -208,8 +214,31 @@ private fun HomeScreen(
             onClick = { viewModel.createRoom(roomName, displayName) },
             enabled = !loading && displayName.isNotBlank() && roomName.isNotBlank(),
         ) {
-            Text("创建房间")
+            Text("使用外部服务器创建")
         }
+        Button(
+            onClick = {
+                if (
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                    PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    viewModel.createHostedRoom(roomName, displayName)
+                }
+            },
+            enabled = !loading && displayName.isNotBlank() && roomName.isNotBlank(),
+        ) {
+            Text("手机托管房间")
+        }
+        Text("手机托管：$hostServerState")
+        OutlinedTextField(
+            value = hostAddress,
+            onValueChange = { hostAddress = it },
+            label = { Text("Host 地址（可选，如 http://192.168.43.1:38571）") },
+            enabled = !loading,
+        )
         OutlinedTextField(
             value = roomCode,
             onValueChange = { roomCode = it.uppercase() },
@@ -217,7 +246,10 @@ private fun HomeScreen(
             enabled = !loading,
         )
         Button(
-            onClick = { viewModel.joinRoom(roomCode, displayName) },
+            onClick = {
+                if (hostAddress.isBlank()) viewModel.joinRoom(roomCode, displayName)
+                else viewModel.joinRoom(hostAddress, roomCode, displayName)
+            },
             enabled = !loading && displayName.isNotBlank() && roomCode.isNotBlank(),
         ) {
             Text("加入房间")
@@ -234,11 +266,14 @@ private fun HomeScreen(
             val missing = viewModel.requiredBlePermissions()
             if (missing.isEmpty()) viewModel.startBleScan() else blePermissions.launch(missing.toTypedArray())
         }) { Text("发现附近房间") }
-        bleState.roomCodes.forEach { code ->
+        bleState.invites.forEach { invite ->
             Button(
-                onClick = { viewModel.joinRoom(code, displayName) },
+                onClick = {
+                    if (invite.serverUrl == null) viewModel.joinRoom(invite.roomCode, displayName)
+                    else viewModel.joinRoom(invite.serverUrl, invite.roomCode, displayName)
+                },
                 enabled = displayName.isNotBlank() && !loading,
-            ) { Text("加入附近房间 $code") }
+            ) { Text("加入附近房间 ${invite.roomCode}") }
         }
         Text("BLE：${bleState.status.name}")
         bleState.message?.let { Text(it) }

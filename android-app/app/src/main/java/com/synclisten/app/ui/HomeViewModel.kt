@@ -20,13 +20,22 @@ class HomeViewModel @Inject constructor(
     val pendingJoinLink = joinLinkInbox.pending
     val bleState = bleRoomDiscovery.state
     val nfcState = nfcJoinManager.state
+    val hostServerState = controller.hostServerState
 
     fun createRoom(name: String, displayName: String) {
         viewModelScope.launch { controller.createRoom(name, displayName) }
     }
 
+    fun createHostedRoom(name: String, displayName: String) {
+        viewModelScope.launch { controller.createHostedRoom(name, displayName) }
+    }
+
     fun joinRoom(roomCode: String, displayName: String) {
         viewModelScope.launch { controller.joinRoom(roomCode, displayName) }
+    }
+
+    fun joinRoom(serverUrl: String, roomCode: String, displayName: String) {
+        viewModelScope.launch { controller.joinRoom(serverUrl, roomCode, displayName) }
     }
 
     fun reset() = controller.reset()

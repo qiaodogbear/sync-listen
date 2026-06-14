@@ -7,12 +7,16 @@ import org.junit.Test
 
 class BleRoomDiscoveryTest {
     @Test
-    fun invitePayloadContainsOnlyNormalizedRoomCode() {
-        val payload = BleInviteCodec.encode(" e0670b ")
+    fun invitePayloadContainsVersionedIpv4PortAndRoomCode() {
+        val payload = BleInviteCodec.encode(BleInvite("e0670b", "http://192.168.43.1:38571"))
 
-        assertEquals("E0670B", payload.decodeToString())
-        assertEquals(6, payload.size)
-        assertEquals("E0670B", BleInviteCodec.decode(payload))
+        assertEquals(13, payload.size)
+        assertEquals(BleInvite("E0670B", "http://192.168.43.1:38571"), BleInviteCodec.decode(payload))
+    }
+
+    @Test
+    fun decodesLegacyRoomCodeWithoutServerAddress() {
+        assertEquals(BleInvite("E0670B", null), BleInviteCodec.decode("E0670B".encodeToByteArray()))
         assertNull(BleInviteCodec.decode("SyncListen:E0670B:secret".encodeToByteArray()))
         assertNull(BleInviteCodec.decode("Other:E0670B".encodeToByteArray()))
     }

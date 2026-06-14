@@ -29,6 +29,11 @@ import com.synclisten.app.nearby.AndroidBleRoomDiscovery
 import com.synclisten.app.nearby.BleRoomDiscovery
 import com.synclisten.app.nearby.AndroidNfcJoinManager
 import com.synclisten.app.nearby.NfcJoinManager
+import com.synclisten.app.host.HostServerController
+import com.synclisten.app.host.HostRuntimeLauncher
+import com.synclisten.app.host.AndroidHostRuntimeLauncher
+import com.synclisten.app.host.DefaultHostServerController
+import com.synclisten.app.host.HostAddressResolver
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -50,11 +55,21 @@ abstract class DataBindingsModule {
 
     @Binds
     abstract fun bindNfcJoinManager(manager: AndroidNfcJoinManager): NfcJoinManager
+
+    @Binds
+    abstract fun bindHostRuntimeLauncher(launcher: AndroidHostRuntimeLauncher): HostRuntimeLauncher
 }
 
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
+    @Provides
+    @Singleton
+    fun provideHostServerController(
+        resolver: HostAddressResolver,
+        launcher: HostRuntimeLauncher,
+    ): HostServerController = DefaultHostServerController(resolver::resolve, launcher)
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): SyncListenDatabase =

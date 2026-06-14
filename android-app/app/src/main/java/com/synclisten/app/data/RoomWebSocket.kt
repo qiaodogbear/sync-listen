@@ -216,6 +216,12 @@ class RoomWebSocketClient @Inject constructor(
             scheduleReconnect("Closed: $code $reason")
         }
 
+        override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+            if (webSocket !== socket) return
+            webSocket.close(code, reason)
+            scheduleReconnect("Closing: $code $reason")
+        }
+
         override fun onFailure(webSocket: WebSocket, error: Throwable, response: Response?) {
             if (webSocket !== socket) return
             AppLogger.error("WebSocket", "Connection failed", error)

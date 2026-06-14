@@ -16,6 +16,9 @@ import android.os.ParcelUuid
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
+import java.net.URI
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,13 +27,36 @@ import kotlinx.coroutines.flow.StateFlow
 object BleInviteCodec {
     private val roomCode = Regex("[A-Z0-9]{6}")
 
-    fun encode(code: String): ByteArray = code.trim().uppercase().encodeToByteArray()
+    fun encode(invite: BleInvite): ByteArray {
+        val code = invite.roomCode.trim().uppercase().takeIf(roomCode::matches)
+            ?: error("Invalid room code")
+        val uri = URI(invite.serverUrl ?: error("Server URL is required"))
+        val octets = uri.host.split(".").map(String::toInt)
+        require(octets.size == 4 && octets.all { it in 0..255 })
+        val port = if (uri.port >= 0) uri.port else 80
+        return ByteBuffer.allocate(13).order(ByteOrder.BIG_ENDIAN)
+            .put(1)
+            .apply { octets.forEach { put(it.toByte()) } }
+            .putShort(port.toShort())
+            .put(code.encodeToByteArray())
+            .array()
+    }
 
-    fun decode(payload: ByteArray): String? {
-        val value = payload.decodeToString()
-        return value.takeIf(roomCode::matches)
+    fun decode(payload: ByteArray): BleInvite? {
+        if (payload.size == 6) {
+            return payload.decodeToString().takeIf(roomCode::matches)?.let { BleInvite(it, null) }
+        }
+        if (payload.size != 13 || payload[0].toInt() != 1) return null
+        val buffer = ByteBuffer.wrap(payload).order(ByteOrder.BIG_ENDIAN)
+        buffer.get()
+        val host = (0 until 4).joinToString(".") { buffer.get().toUByte().toString() }
+        val port = buffer.short.toUShort().toInt()
+        val code = ByteArray(6).also(buffer::get).decodeToString()
+        return code.takeIf(roomCode::matches)?.let { BleInvite(it, "http://$host:$port") }
     }
 }
+
+data class BleInvite(val roomCode: String, val serverUrl: String?)
 
 fun blePermissions(sdkInt: Int, advertise: Boolean): List<String> =
     if (sdkInt >= Build.VERSION_CODES.S) {
@@ -54,14 +80,14 @@ enum class BleDiscoveryStatus {
 
 data class BleRoomDiscoveryState(
     val status: BleDiscoveryStatus = BleDiscoveryStatus.IDLE,
-    val roomCodes: Set<String> = emptySet(),
+    val invites: Set<BleInvite> = emptySet(),
     val message: String? = null,
 )
 
 interface BleRoomDiscovery {
     val state: StateFlow<BleRoomDiscoveryState>
     fun requiredPermissions(advertise: Boolean): List<String>
-    fun startAdvertising(roomCode: String)
+    fun startAdvertising(invite: BleInvite)
     fun stopAdvertising()
     fun startScanning()
     fun stopScanning()
@@ -88,8 +114,8 @@ class AndroidBleRoomDiscovery @Inject constructor(
     }
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
-            val code = result.scanRecord?.getServiceData(serviceUuid)?.let(BleInviteCodec::decode) ?: return
-            mutableState.value = mutableState.value.copy(roomCodes = mutableState.value.roomCodes + code)
+            val invite = result.scanRecord?.getServiceData(serviceUuid)?.let(BleInviteCodec::decode) ?: return
+            mutableState.value = mutableState.value.copy(invites = mutableState.value.invites + invite)
         }
 
         override fun onScanFailed(errorCode: Int) {
@@ -103,7 +129,7 @@ class AndroidBleRoomDiscovery @Inject constructor(
         }
 
     @Suppress("MissingPermission")
-    override fun startAdvertising(roomCode: String) {
+    override fun startAdvertising(invite: BleInvite) {
         if (!checkAvailable(advertise = true)) return
         val advertiser = adapter?.bluetoothLeAdvertiser ?: return unsupported()
         val settings = AdvertiseSettings.Builder()
@@ -112,9 +138,12 @@ class AndroidBleRoomDiscovery @Inject constructor(
             .setConnectable(false)
             .build()
         val data = AdvertiseData.Builder()
-            .addServiceData(serviceUuid, BleInviteCodec.encode(roomCode))
+            .addServiceUuid(serviceUuid)
             .build()
-        advertiser.startAdvertising(settings, data, advertiseCallback)
+        val scanResponse = AdvertiseData.Builder()
+            .addServiceData(serviceUuid, BleInviteCodec.encode(invite))
+            .build()
+        advertiser.startAdvertising(settings, data, scanResponse, advertiseCallback)
     }
 
     @Suppress("MissingPermission")

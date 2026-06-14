@@ -145,6 +145,7 @@ class RoomViewModel @Inject constructor(
             val session = homeController.state.value as? HomeState.InRoom
             if (session != null) {
                 repository.leaveRoom(session.room.roomId, session.member.userId)
+                if (session.hostedLocally) homeController.stopHosting()
             }
             socketClient.disconnect()
             homeController.reset()

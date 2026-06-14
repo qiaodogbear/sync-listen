@@ -23,6 +23,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import com.synclisten.app.invite.JoinLink
+import com.synclisten.app.host.HOST_LOCAL_URL
+import com.synclisten.app.host.HostServerController
+import com.synclisten.app.host.HostServerState
 
 class HomeControllerTest {
     @Test
@@ -39,7 +42,7 @@ class HomeControllerTest {
             }
         }
         val settings = FakeHomeSettingsStore()
-        val controller = HomeController(RoomRepository(remote), settings, IdentityManager(settings) { "user-1" })
+        val controller = controller(remote, settings)
 
         val first = async { controller.createRoom("Friday", "Alice") }
         entered.await()
@@ -62,7 +65,7 @@ class HomeControllerTest {
             }
         }
         val settings = FakeHomeSettingsStore()
-        val controller = HomeController(RoomRepository(remote), settings, IdentityManager(settings) { "user-1" })
+        val controller = controller(remote, settings)
 
         controller.joinRoom(JoinLink("room-1", "invite-token", "http://server:3000"), "Bob")
 
@@ -71,6 +74,55 @@ class HomeControllerTest {
         assertEquals("invite-token", captured?.second?.joinToken)
         assertTrue(controller.state.value is HomeState.InRoom)
     }
+
+    @Test
+    fun hostedCreateUsesLoopbackAndAdvertisesReachableAddress() = runBlocking {
+        val settings = FakeHomeSettingsStore()
+        var serverDuringCreate: String? = null
+        val remote = object : RoomRemoteDataSource {
+            override suspend fun createRoom(request: CreateRoomRequest): CreateRoomResponse {
+                serverDuringCreate = settings.settings.first().serverUrl
+                return createResponse()
+            }
+        }
+        val host = FakeHostServerController(
+            HostServerState.Running(HOST_LOCAL_URL, "http://192.168.43.1:38571", 38571),
+        )
+        val controller = controller(remote, settings, host)
+
+        controller.createHostedRoom("Friday", "Alice")
+
+        val state = controller.state.value as HomeState.InRoom
+        assertEquals(HOST_LOCAL_URL, serverDuringCreate)
+        assertEquals("http://192.168.43.1:38571", state.inviteServerUrl)
+        assertTrue(state.hostedLocally)
+    }
+
+    @Test
+    fun hostedCreateRollsBackServerAndStopsWhenCreateFails() = runBlocking {
+        val settings = FakeHomeSettingsStore()
+        val host = FakeHostServerController(
+            HostServerState.Running(HOST_LOCAL_URL, "http://192.168.43.1:38571", 38571),
+        )
+        val remote = object : RoomRemoteDataSource {
+            override suspend fun createRoom(request: CreateRoomRequest): CreateRoomResponse {
+                throw java.io.IOException("failed")
+            }
+        }
+        val controller = controller(remote, settings, host)
+
+        controller.createHostedRoom("Friday", "Alice")
+
+        assertEquals(AppSettings().serverUrl, settings.settings.first().serverUrl)
+        assertEquals(1, host.stopCalls)
+        assertTrue(controller.state.value is HomeState.Error)
+    }
+
+    private fun controller(
+        remote: RoomRemoteDataSource,
+        settings: FakeHomeSettingsStore,
+        host: HostServerController = FakeHostServerController(HostServerState.Stopped),
+    ) = HomeController(RoomRepository(remote), settings, IdentityManager(settings) { "user-1" }, host)
 }
 
 private class FakeHomeSettingsStore : SettingsStore {
@@ -91,3 +143,16 @@ private fun createResponse() = CreateRoomResponse(
     member = Member("user-1", "Alice", MemberRole.HOST, false, 1),
     joinToken = "join-token",
 )
+
+private class FakeHostServerController(initial: HostServerState) : HostServerController {
+    private val mutableState = MutableStateFlow(initial)
+    override val state = mutableState
+    var stopCalls = 0
+
+    override suspend fun start(): HostServerState = mutableState.value
+
+    override suspend fun stop() {
+        stopCalls += 1
+        mutableState.value = HostServerState.Stopped
+    }
+}
