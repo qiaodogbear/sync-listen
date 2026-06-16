@@ -32,8 +32,9 @@ Android HostServerService -> embedded Ktor/CIO -> HostRoomStore/HostRoomHub
 - Media3 仅播放 VERIFIED 本地文件。
 - 手机托管模式由前台 `HostServerService` 启动内嵌 Ktor/CIO，监听 `0.0.0.0:38571`。
   Host 自身通过 loopback 使用同一 REST/WebSocket 客户端路径，成员使用 Host 可达 IPv4。
-- `HostRoomStore` 在内存中维护单活动房间、成员、播放列表和播放状态；音频文件保存在
-  App 私有目录并按 SHA-256 去重。Host 停止托管后不恢复房间。
+- `HostRoomStore` 采用 write-through 策略持久化到独立 Room 数据库（`host-persistence.db`），
+  包含房间、成员、曲目、播放状态和恢复标记。音频文件保存在 App 私有目录并按 SHA-256 去重。
+  Host 主动停止托管后清理持久化数据；进程异常终止后保留恢复标记，下次启动可一键恢复房间。
 
 ## 同步策略
 

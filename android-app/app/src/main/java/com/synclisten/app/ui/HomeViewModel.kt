@@ -21,6 +21,11 @@ class HomeViewModel @Inject constructor(
     val bleState = bleRoomDiscovery.state
     val nfcState = nfcJoinManager.state
     val hostServerState = controller.hostServerState
+    val recoverableRoom = controller.recoverableRoom
+
+    init {
+        viewModelScope.launch { controller.checkRecovery() }
+    }
 
     fun createRoom(name: String, displayName: String) {
         viewModelScope.launch { controller.createRoom(name, displayName) }
@@ -28,6 +33,14 @@ class HomeViewModel @Inject constructor(
 
     fun createHostedRoom(name: String, displayName: String) {
         viewModelScope.launch { controller.createHostedRoom(name, displayName) }
+    }
+
+    fun recoverHostedRoom() {
+        viewModelScope.launch { controller.recoverHostedRoom() }
+    }
+
+    fun dismissRecovery() {
+        viewModelScope.launch { controller.dismissRecovery() }
     }
 
     fun joinRoom(roomCode: String, displayName: String) {

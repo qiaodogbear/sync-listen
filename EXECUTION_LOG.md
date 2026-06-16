@@ -4,15 +4,19 @@
 
 ## Current
 
-- Updated: 2026-06-14
-- Active task: T301-T306 Host 手机内嵌服务器模式
-- Status: completed
-- Next: 在两台真实 Android 手机上补充同一 Wi-Fi/热点长期运行验收。
+- Updated: 2026-06-16
+- Active task: 阶段 A — Host 房间持久化与一键恢复（Step 1-5 已完成，待模拟器验收）
+- Status: in progress
+- Next: 双模拟器 kill-recover 验收测试，然后更新文档并创建 Git checkpoint。
 
 ## Decisions
 
 - Host 手机模式采用 Android 内嵌 Ktor/CIO，复用现有 REST/WebSocket 协议。
 - 首期支持同一 Wi-Fi 和 Host 手机热点；不支持公网、Host 迁移和房间恢复。
+- Host 持久化采用独立 Room 数据库 `host-persistence.db`，与客户端缓存数据库分离。
+- Host 房间状态采用 write-through 持久化策略：先写 DB，再更新内存缓存。
+- 显式关闭（用户操作）清理 RecoveryMarker，异常终止（进程被杀/崩溃）保留 RecoveryMarker。
+- 恢复时所有成员标记为离线，播放状态恢复为暂停，保留当前曲目和位置。
 - Host 前台服务监听 `0.0.0.0:38571`；Host 客户端使用 loopback，邀请使用可达 IPv4。
 - Host 停止托管或离开时关闭房间；音频 hash 文件保留，业务状态与临时文件清理。
 - BLE 升级为 13 字节版本化 IPv4/端口/房间码载荷，同时兼容旧 6 字节房间码。
@@ -25,8 +29,10 @@
 
 ## Verified
 
-- T301-T306：Android 内嵌 Ktor/CIO Host、前台服务、可达地址、房间/WebSocket、文件、
-  播放同步、邀请和 BLE 版本化载荷已完成。
+- 阶段 A Step 1-5（2026-06-16）：持久化设计文档、HostPersistenceDatabase（5 实体 + DAO）、
+  HostRoomStore write-through 重构、显式/异常关闭语义、HostRecoveryManager、首页恢复卡片 UI、
+  持久化与恢复单元测试（12 个新测试）已完成。
+- Android full test suite: 82/82 tests pass, lintDebug + assembleDebug 通过。
 - 不启动电脑后端时，A 模拟器托管房间，B 通过测试转发加入；MP3/FLAC 上传下载、
   SHA-256 校验、同步播放、pause、seek、next 均通过。Host 停止后 B 在约 2 秒内进入重连。
 - Host 前台服务持有 Wi-Fi lock，通知记录显示持续通知和 `http://10.0.2.15:38571`。

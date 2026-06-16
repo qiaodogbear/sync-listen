@@ -4,7 +4,8 @@
 
 - 后端前台开发日志：`npm run dev` 控制台。
 - 当前本机后台验收日志：`backend/data/runtime.log`、`runtime.err.log`。
-- Android：`adb logcat -s SyncListen/HTTP SyncListen/WebSocket SyncListen/Player SyncListen/PlaybackSync SyncListen/ServerClock`。
+- Android：`adb logcat -s SyncListen/HTTP SyncListen/WebSocket SyncListen/Player SyncListen/PlaybackSync SyncListen/ServerClock SyncListen/Persistence`。
+- 持久化相关日志使用 `SyncListen/Persistence` 标签，记录 Host 房间的创建、持久化写入、恢复和清理操作。
 - Android 构建报告：`android-app/app/build/reports/`。
 
 ## 房间页指标

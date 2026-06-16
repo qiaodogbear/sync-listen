@@ -874,6 +874,7 @@ cd ..\android-app
 | 阶段八：P1 增强功能 | P1 | 已完成 |
 | 文档与最终交付 | P0/P1 | 已完成 |
 | Host 手机内嵌服务器模式 | P0 改进 | 已完成 |
+| 阶段 A：Host 持久化与一键恢复 | P0 改进 | 进行中 |
 | P2 Backlog | P2 | 暂缓 |
 
 ---
@@ -928,3 +929,68 @@ cd ..\android-app
 - [x] 在不启动电脑后端的前提下完成两个模拟器闭环验收。
 - [x] 更新 README、架构、API、调试、已知问题和测试报告。
 - [x] 更新 `EXECUTION_LOG.md` 并创建 Git 检查点。
+
+---
+
+## 14. 阶段 A：Host 持久化与一键恢复（P0 改进）
+
+**设计：** `docs/superpowers/specs/2026-06-16-host-persistence-design.md`
+**目标：** Host 进程被杀或重启后可一键恢复原房间，沿用房间码、播放列表和缓存文件。
+
+### T401 编写恢复设计文档与状态生命周期规则
+
+- [x] 创建 `docs/superpowers/specs/2026-06-16-host-persistence-design.md`。
+- [x] 定义房间生命周期状态机：ACTIVE → CLOSED_BY_USER / DISCONNECTED。
+- [x] 明确显式关闭与异常终止的判别条件。
+- [x] 定义恢复行为：地址重解析、成员离线、播放暂停恢复。
+
+### T402 为 Host 权威状态增加持久化层
+
+- [x] 创建独立 `HostPersistenceDatabase` Room 数据库（5 实体 + DAO）。
+- [x] 实体：HostRoom、HostMember、HostTrack、HostPlayback、RecoveryMarker。
+- [x] 重构 `HostRoomStore` 为 write-through 持久化（先写 DB，再更新内存缓存）。
+- [x] 新增 `loadRecoverableRoom()` 和 `recoverRoom()` 方法。
+- [x] 新增 `dismissRecovery()` 方法。
+- [x] 在 DataModule 注册 HostPersistenceDatabase 和 HostDao。
+
+### T403 修改服务关闭语义
+
+- [x] `closeAndCleanup()`：显式关闭，删除 RecoveryMarker。
+- [x] `emergencyShutdown()`：异常终止，保留 RecoveryMarker，标记 DISCONNECTED。
+- [x] `HostServerService.stopHosting()`：调用 `closeAndCleanup()`。
+- [x] `HostServerService.onDestroy()` / `onTaskRemoved()`：调用 `emergencyShutdown()`。
+- [x] 新增 `ACTION_RECOVER` intent 支持恢复启动。
+
+### T404 增加恢复检测与首页恢复卡片
+
+- [x] 创建 `HostRecoveryManager`（@Singleton，注入 HostDao 和 Context）。
+- [x] `HomeViewModel` 启动时自动检测可恢复房间。
+- [x] 首页显示 `RecoveryCard`：房间名、房间码、成员数、歌曲数。
+- [x] "恢复房间" 按钮：重新解析 IPv4、启动恢复服务、进入房间。
+- [x] "忽略" 按钮：删除 RecoveryMarker 和所有持久化数据。
+- [x] `HostServerService` 支持 `@AndroidEntryPoint` Hilt 注入。
+
+### T405 编写持久化层测试
+
+- [x] 创建 `HostRoomStorePersistenceTest`（12 个测试用例）。
+- [x] 包含 FakeHostDao 内存实现。
+- [x] 测试覆盖：创建持久化、恢复、显式关闭清除、异常终止保留、忽略恢复。
+- [x] Android 全量 testDebugUnitTest（82/82 通过）。
+
+### T406 模拟器进程杀死与恢复验收
+
+- [ ] 双模拟器 Host 托管 → 创建房间 → 加入成员 → 上传歌曲。
+- [ ] `adb shell am force-stop` 杀进程。
+- [ ] 重启 App → 验证恢复卡片显示。
+- [ ] 恢复 → 验证房间码、歌曲列表、成员离线、播放暂停。
+- [ ] 显式停止 → 杀进程 → 重启 → 验证无恢复卡片。
+
+### T407 更新文档与 Git 检查点
+
+- [x] 更新 `EXECUTION_LOG.md`，记录关键决策和验证结果。
+- [x] 更新 `TASKS.md`，添加阶段 A 任务列表。
+- [ ] 更新 `docs/architecture.md`，补充 Host 持久化层说明。
+- [ ] 更新 `docs/debugging.md`，增加持久化相关日志标签。
+- [ ] 更新 `docs/known-issues.md`，移除"Host 进程被杀后房间不可恢复"条目。
+- [ ] 更新 `README.md`，补充恢复功能使用说明。
+- [ ] 创建 Git checkpoint。

@@ -5,16 +5,24 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,6 +48,7 @@ import com.synclisten.app.transfer.UploadState
 import com.synclisten.app.playback.PlayerStatus
 import com.synclisten.app.playback.canControlPlayback
 import com.synclisten.app.domain.model.TrackStatus
+import com.synclisten.app.host.server.HostRecoverySnapshot
 import com.synclisten.app.invite.QrCodeCodec
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
@@ -150,6 +159,7 @@ private fun HomeScreen(
     val bleState by viewModel.bleState.collectAsState()
     val nfcState by viewModel.nfcState.collectAsState()
     val hostServerState by viewModel.hostServerState.collectAsState()
+    val recoverableRoom by viewModel.recoverableRoom.collectAsState()
     val context = LocalContext.current
     var cameraDenied by remember { mutableStateOf(false) }
     var bleDenied by remember { mutableStateOf(false) }
@@ -189,6 +199,17 @@ private fun HomeScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(text = "Sync Listen", style = MaterialTheme.typography.headlineMedium)
+
+        // 可恢复房间卡片
+        recoverableRoom?.let { snapshot ->
+            RecoveryCard(
+                snapshot = snapshot,
+                onRecover = { viewModel.recoverHostedRoom() },
+                onDismiss = { viewModel.dismissRecovery() },
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
         pendingJoinLink?.let { link ->
             Text("加入邀请：${link.roomId}")
             Text("服务器：${link.serverUrl}")
@@ -458,6 +479,55 @@ private fun SettingsScreen(
         }
         Button(onClick = onBack) {
             Text("返回")
+        }
+    }
+}
+
+@Composable
+private fun RecoveryCard(
+    snapshot: HostRecoverySnapshot,
+    onRecover: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "发现上次托管的房间",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                snapshot.roomName,
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Text(
+                "房间码：${snapshot.roomCode}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Text(
+                "${snapshot.memberCount} 位成员 · ${snapshot.trackCount} 首歌曲",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            snapshot.currentTrackTitle?.let {
+                Text(
+                    "当前曲目：$it",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row {
+                Button(onClick = onRecover) { Text("恢复房间") }
+                Spacer(modifier = Modifier.padding(8.dp))
+                TextButton(onClick = onDismiss) { Text("忽略") }
+            }
         }
     }
 }

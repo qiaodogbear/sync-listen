@@ -34,6 +34,8 @@ import com.synclisten.app.host.HostRuntimeLauncher
 import com.synclisten.app.host.AndroidHostRuntimeLauncher
 import com.synclisten.app.host.DefaultHostServerController
 import com.synclisten.app.host.HostAddressResolver
+import com.synclisten.app.host.persistence.HostDao
+import com.synclisten.app.host.persistence.HostPersistenceDatabase
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -77,6 +79,14 @@ object NetworkModule {
 
     @Provides
     fun provideCacheDao(database: SyncListenDatabase): CacheDao = database.cacheDao()
+
+    @Provides
+    @Singleton
+    fun provideHostPersistenceDatabase(@ApplicationContext context: Context): HostPersistenceDatabase =
+        Room.databaseBuilder(context, HostPersistenceDatabase::class.java, "host-persistence.db").build()
+
+    @Provides
+    fun provideHostDao(database: HostPersistenceDatabase): HostDao = database.hostDao()
 
     @Provides
     @Singleton

@@ -7,7 +7,9 @@ import com.synclisten.app.data.RepositoryResult
 import com.synclisten.app.data.RoomRepository
 import com.synclisten.app.data.SettingsStore
 import com.synclisten.app.domain.model.Member
+import com.synclisten.app.domain.model.MemberRole
 import com.synclisten.app.domain.model.Room
+import com.synclisten.app.domain.model.RoomStatus
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +18,8 @@ import kotlinx.coroutines.sync.Mutex
 import com.synclisten.app.invite.JoinLink
 import com.synclisten.app.host.HostServerController
 import com.synclisten.app.host.HostServerState
+import com.synclisten.app.host.HostRecoveryManager
+import com.synclisten.app.host.server.HostRecoverySnapshot
 import kotlinx.coroutines.flow.first
 
 sealed interface HomeState {
@@ -37,11 +41,63 @@ class HomeController @Inject constructor(
     private val settingsStore: SettingsStore,
     private val identityManager: IdentityManager,
     private val hostServerController: HostServerController,
+    private val recoveryManager: HostRecoveryManager? = null,
 ) {
     private val submitMutex = Mutex()
     private val mutableState = MutableStateFlow<HomeState>(HomeState.Idle)
     val state: StateFlow<HomeState> = mutableState
     val hostServerState = hostServerController.state
+
+    private val mutableRecovery = MutableStateFlow<HostRecoverySnapshot?>(null)
+    val recoverableRoom: StateFlow<HostRecoverySnapshot?> = mutableRecovery
+
+    suspend fun checkRecovery() {
+        mutableRecovery.value = recoveryManager?.checkRecoverable()
+    }
+
+    suspend fun recoverHostedRoom() {
+        submit {
+            val snapshot = mutableRecovery.value ?: return@submit HomeState.Error("没有可恢复的房间")
+            val previousServer = settingsStore.settings.first().serverUrl
+            when (val host = recoveryManager?.launchRecovery() ?: return@submit HomeState.Error("恢复功能不可用")) {
+                is HostServerState.Running -> {
+                    settingsStore.update(serverUrl = host.localUrl)
+                    val identity = identityManager.ensureIdentity()
+                    mutableRecovery.value = null
+                    HomeState.InRoom(
+                        room = Room(
+                            roomId = snapshot.roomId,
+                            roomCode = snapshot.roomCode,
+                            name = snapshot.roomName,
+                            hostUserId = identity.userId,
+                            status = RoomStatus.ACTIVE,
+                            createdAt = 0,
+                        ),
+                        member = Member(
+                            userId = identity.userId,
+                            displayName = identity.displayName,
+                            role = MemberRole.HOST,
+                            connected = false,
+                            joinedAt = 0,
+                        ),
+                        joinToken = null,
+                        inviteServerUrl = host.advertisedUrl,
+                        hostedLocally = true,
+                    )
+                }
+                is HostServerState.Error -> {
+                    settingsStore.update(serverUrl = previousServer)
+                    HomeState.Error(host.message)
+                }
+                else -> HomeState.Error("恢复服务尚未就绪")
+            }
+        }
+    }
+
+    suspend fun dismissRecovery() {
+        recoveryManager?.dismissRecovery()
+        mutableRecovery.value = null
+    }
 
     suspend fun createRoom(name: String, displayName: String) {
         submit {
