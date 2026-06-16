@@ -28,11 +28,12 @@ private class FakeSettingsStore : SettingsStore {
 
     override val settings: Flow<AppSettings> = state
 
-    override suspend fun update(userId: String?, displayName: String?, serverUrl: String?) {
+    override suspend fun update(userId: String?, displayName: String?, serverUrl: String?, recentNickname: String?) {
         state.value = state.value.copy(
             userId = userId ?: state.value.userId,
             displayName = displayName ?: state.value.displayName,
             serverUrl = serverUrl ?: state.value.serverUrl,
+            recentNickname = recentNickname ?: state.value.recentNickname,
         )
     }
 }

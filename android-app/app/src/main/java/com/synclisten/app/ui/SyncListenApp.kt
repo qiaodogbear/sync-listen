@@ -1,553 +1,97 @@
 package com.synclisten.app.ui
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.ContextCompat
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.synclisten.app.data.RoomConnectionState
-import com.synclisten.app.transfer.UploadState
-import com.synclisten.app.playback.PlayerStatus
-import com.synclisten.app.playback.canControlPlayback
-import com.synclisten.app.domain.model.TrackStatus
-import com.synclisten.app.host.server.HostRecoverySnapshot
-import com.synclisten.app.invite.QrCodeCodec
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
+import com.synclisten.app.ui.component.RecoveryCard
+import com.synclisten.app.ui.screen.CreateRoomScreen
+import com.synclisten.app.ui.screen.HomeScreen
+import com.synclisten.app.ui.screen.InviteScreen
+import com.synclisten.app.ui.screen.JoinRoomScreen
+import com.synclisten.app.ui.screen.RoomScreen
+import com.synclisten.app.ui.screen.SettingsScreen
+import com.synclisten.app.ui.screen.UploadScreen
+import com.synclisten.app.ui.theme.SyncListenTheme
 
-private const val HOME_ROUTE = "home"
-private const val SETTINGS_ROUTE = "settings"
-private const val ROOM_ROUTE = "room"
-private const val UPLOAD_ROUTE = "upload"
-private const val PLAYER_ROUTE = "player"
-private const val INVITE_ROUTE = "invite"
+private const val HOME = "home"
+private const val CREATE = "create"
+private const val JOIN = "join"
+private const val ROOM = "room"
+private const val UPLOAD = "upload"
+private const val INVITE = "invite"
+private const val SETTINGS = "settings"
 
 @Composable
 fun SyncListenApp() {
-    val navController = rememberNavController()
+    SyncListenTheme {
+        val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = HOME_ROUTE) {
-        composable(HOME_ROUTE) {
-            HomeScreen(
-                onOpenSettings = { navController.navigate(SETTINGS_ROUTE) },
-                onEnteredRoom = { navController.navigate(ROOM_ROUTE) },
-            )
-        }
-        composable(SETTINGS_ROUTE) {
-            SettingsScreen(
-                onBack = { navController.popBackStack() },
-            )
-        }
-        composable(ROOM_ROUTE) {
-            RoomResultScreen(
-                onLeave = {
-                    navController.popBackStack(HOME_ROUTE, inclusive = false)
-                },
-                onOpenSettings = { navController.navigate(SETTINGS_ROUTE) },
-                onOpenUpload = { navController.navigate(UPLOAD_ROUTE) },
-                onOpenPlayer = { navController.navigate(PLAYER_ROUTE) },
-                onOpenInvite = { navController.navigate(INVITE_ROUTE) },
-            )
-        }
-        composable(UPLOAD_ROUTE) {
-            UploadScreen(onBack = { navController.popBackStack() })
-        }
-        composable(PLAYER_ROUTE) {
-            PlaceholderScreen("播放器", "将在阶段五实现", "返回") { navController.popBackStack() }
-        }
-        composable(INVITE_ROUTE) {
-            InviteScreen(onBack = { navController.popBackStack() })
-        }
-    }
-}
-
-@Composable
-private fun UploadScreen(
-    onBack: () -> Unit,
-    viewModel: UploadViewModel = hiltViewModel(),
-) {
-    val state by viewModel.state.collectAsState()
-    val upload by viewModel.upload.collectAsState()
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {
-        viewModel.select(it)
-    }
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("选择本地音频", style = MaterialTheme.typography.headlineMedium)
-        Button(onClick = { launcher.launch(arrayOf("audio/mpeg", "audio/flac", "audio/x-flac")) }) {
-            Text("选择 MP3 / FLAC")
-        }
-        when (val current = state) {
-            UploadSelectionState.Empty -> Text("尚未选择文件")
-            UploadSelectionState.Reading -> CircularProgressIndicator()
-            UploadSelectionState.Cancelled -> Text("已取消选择")
-            is UploadSelectionState.Error -> Text(current.message, color = MaterialTheme.colorScheme.error)
-            is UploadSelectionState.Ready -> {
-                val file = current.result.file
-                Text(file.title)
-                Text(file.artist ?: "未知艺术家")
-                Text("${file.fileName} · ${file.fileSize} bytes · ${file.durationMs} ms")
-                Text("SHA-256：${file.sha256}")
-                Button(
-                    onClick = viewModel::upload,
-                    enabled = upload.state !is UploadState.Uploading,
-                ) {
-                    Text(if (upload.state is UploadState.Failed) "重试上传" else "上传")
-                }
-            }
-        }
-        when (val current = upload.state) {
-            UploadState.Idle -> Unit
-            UploadState.Uploading -> Text("上传进度：${upload.progress}%")
-            UploadState.AlreadyRunning -> Text("相同文件正在上传")
-            is UploadState.Success -> Text(if (current.result.deduplicated) "秒传完成" else "上传完成")
-            is UploadState.Failed -> Text(current.message, color = MaterialTheme.colorScheme.error)
-        }
-        Button(onClick = onBack) { Text("返回") }
-    }
-}
-
-@Composable
-private fun HomeScreen(
-    onOpenSettings: () -> Unit,
-    onEnteredRoom: () -> Unit,
-    viewModel: HomeViewModel = hiltViewModel(),
-) {
-    val state by viewModel.state.collectAsState()
-    val pendingJoinLink by viewModel.pendingJoinLink.collectAsState()
-    val bleState by viewModel.bleState.collectAsState()
-    val nfcState by viewModel.nfcState.collectAsState()
-    val hostServerState by viewModel.hostServerState.collectAsState()
-    val recoverableRoom by viewModel.recoverableRoom.collectAsState()
-    val context = LocalContext.current
-    var cameraDenied by remember { mutableStateOf(false) }
-    var bleDenied by remember { mutableStateOf(false) }
-    val scanner = rememberLauncherForActivityResult(ScanContract()) { result ->
-        viewModel.acceptJoinLink(result.contents)
-    }
-    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        cameraDenied = !granted
-        if (granted) {
-            scanner.launch(
-                ScanOptions()
-                    .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                    .setPrompt("扫描 Sync Listen 邀请二维码"),
-            )
-        }
-    }
-    val blePermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
-        bleDenied = grants.values.any { !it }
-        if (!bleDenied) viewModel.startBleScan()
-    }
-    var displayName by remember { mutableStateOf("") }
-    var roomName by remember { mutableStateOf("") }
-    var roomCode by remember { mutableStateOf("") }
-    var hostAddress by remember { mutableStateOf("") }
-    val loading = state is HomeState.Loading
-    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        viewModel.createHostedRoom(roomName, displayName)
-    }
-
-    LaunchedEffect(state) {
-        if (state is HomeState.InRoom) onEnteredRoom()
-    }
-
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(text = "Sync Listen", style = MaterialTheme.typography.headlineMedium)
-
-        // 可恢复房间卡片
-        recoverableRoom?.let { snapshot ->
-            RecoveryCard(
-                snapshot = snapshot,
-                onRecover = { viewModel.recoverHostedRoom() },
-                onDismiss = { viewModel.dismissRecovery() },
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        pendingJoinLink?.let { link ->
-            Text("加入邀请：${link.roomId}")
-            Text("服务器：${link.serverUrl}")
-            Button(
-                onClick = { viewModel.confirmJoinLink(displayName) },
-                enabled = displayName.isNotBlank() && !loading,
-            ) { Text("确认加入邀请") }
-            Button(onClick = viewModel::dismissJoinLink, enabled = !loading) { Text("取消邀请") }
-        }
-        OutlinedTextField(
-            value = displayName,
-            onValueChange = { displayName = it },
-            label = { Text("临时昵称") },
-            enabled = !loading,
-        )
-        OutlinedTextField(
-            value = roomName,
-            onValueChange = { roomName = it },
-            label = { Text("新房间名称") },
-            enabled = !loading,
-        )
-        Button(
-            onClick = { viewModel.createRoom(roomName, displayName) },
-            enabled = !loading && displayName.isNotBlank() && roomName.isNotBlank(),
-        ) {
-            Text("使用外部服务器创建")
-        }
-        Button(
-            onClick = {
-                if (
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
-                    PackageManager.PERMISSION_GRANTED
-                ) {
-                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                } else {
-                    viewModel.createHostedRoom(roomName, displayName)
-                }
-            },
-            enabled = !loading && displayName.isNotBlank() && roomName.isNotBlank(),
-        ) {
-            Text("手机托管房间")
-        }
-        Text("手机托管：$hostServerState")
-        OutlinedTextField(
-            value = hostAddress,
-            onValueChange = { hostAddress = it },
-            label = { Text("Host 地址（可选，如 http://192.168.43.1:38571）") },
-            enabled = !loading,
-        )
-        OutlinedTextField(
-            value = roomCode,
-            onValueChange = { roomCode = it.uppercase() },
-            label = { Text("房间码") },
-            enabled = !loading,
-        )
-        Button(
-            onClick = {
-                if (hostAddress.isBlank()) viewModel.joinRoom(roomCode, displayName)
-                else viewModel.joinRoom(hostAddress, roomCode, displayName)
-            },
-            enabled = !loading && displayName.isNotBlank() && roomCode.isNotBlank(),
-        ) {
-            Text("加入房间")
-        }
-        Button(onClick = {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE))
-            } else {
-                cameraPermission.launch(Manifest.permission.CAMERA)
-            }
-        }) { Text("扫描二维码加入") }
-        if (cameraDenied) Text("相机权限被拒绝，仍可使用房间码加入")
-        Button(onClick = {
-            val missing = viewModel.requiredBlePermissions()
-            if (missing.isEmpty()) viewModel.startBleScan() else blePermissions.launch(missing.toTypedArray())
-        }) { Text("发现附近房间") }
-        bleState.invites.forEach { invite ->
-            Button(
-                onClick = {
-                    if (invite.serverUrl == null) viewModel.joinRoom(invite.roomCode, displayName)
-                    else viewModel.joinRoom(invite.serverUrl, invite.roomCode, displayName)
-                },
-                enabled = displayName.isNotBlank() && !loading,
-            ) { Text("加入附近房间 ${invite.roomCode}") }
-        }
-        Text("BLE：${bleState.status.name}")
-        bleState.message?.let { Text(it) }
-        if (bleDenied) Text("蓝牙权限被拒绝，二维码和房间码仍可使用")
-        Text("NFC：${nfcState.message}")
-        if (loading) CircularProgressIndicator()
-        if (state is HomeState.Error) {
-            Text((state as HomeState.Error).message, color = MaterialTheme.colorScheme.error)
-        }
-        Button(onClick = onOpenSettings, enabled = !loading) {
-            Text("调试设置")
-        }
-    }
-}
-
-@Composable
-private fun InviteScreen(
-    onBack: () -> Unit,
-    viewModel: InviteViewModel = hiltViewModel(),
-) {
-    val link by viewModel.link.collectAsState()
-    val bleState by viewModel.bleState.collectAsState()
-    var bleDenied by remember { mutableStateOf(false) }
-    val blePermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
-        bleDenied = grants.values.any { !it }
-        if (!bleDenied) viewModel.startBleInvite()
-    }
-    val bitmap = remember(link) { link?.let { QrCodeCodec.bitmap(it, 768).asImageBitmap() } }
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("邀请成员", style = MaterialTheme.typography.headlineMedium)
-        bitmap?.let { Image(bitmap = it, contentDescription = "加入房间二维码") }
-        Text(link ?: "正在生成邀请链接")
-        Button(onClick = {
-            val missing = viewModel.requiredBlePermissions()
-            if (missing.isEmpty()) viewModel.startBleInvite() else blePermissions.launch(missing.toTypedArray())
-        }) { Text("通过 BLE 广播房间码") }
-        Text("BLE：${bleState.status.name}")
-        bleState.message?.let { Text(it) }
-        if (bleDenied) Text("蓝牙权限被拒绝，二维码邀请仍可使用")
-        Button(onClick = onBack) { Text("返回") }
-    }
-}
-
-@Composable
-private fun RoomResultScreen(
-    onLeave: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onOpenUpload: () -> Unit,
-    onOpenPlayer: () -> Unit,
-    onOpenInvite: () -> Unit,
-    homeViewModel: HomeViewModel = hiltViewModel(),
-    roomViewModel: RoomViewModel = hiltViewModel(),
-) {
-    val state by homeViewModel.state.collectAsState()
-    val connection by roomViewModel.connection.collectAsState()
-    val snapshot by roomViewModel.snapshot.collectAsState()
-    val downloads by roomViewModel.downloads.collectAsState()
-    val cacheSummary by roomViewModel.cacheSummary.collectAsState()
-    val player by roomViewModel.player.collectAsState()
-    val clock by roomViewModel.clock.collectAsState()
-    val sync by roomViewModel.sync.collectAsState()
-    val controlError by roomViewModel.controlError.collectAsState()
-    val room = state as? HomeState.InRoom
-    val canControl = room?.member?.role?.canControlPlayback() == true
-    val currentTrack = snapshot?.playlist?.firstOrNull {
-        it.trackId == (player.trackId ?: snapshot?.playbackState?.trackId)
-    }
-
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(text = room?.room?.name ?: "房间不可用", style = MaterialTheme.typography.headlineMedium)
-        Text(text = "房间码：${room?.room?.roomCode.orEmpty()}")
-        Text(text = "角色：${room?.member?.role?.name.orEmpty()}")
-        Text(text = "webSocketStatus：${connection.label()}")
-        Text(text = "成员")
-        snapshot?.members?.forEach { member ->
-            Text("${member.displayName} · ${member.role.name} · ${if (member.connected) "在线" else "离线"}")
-        }
-        Text(text = "播放列表")
-        Text(text = "downloadQueueSize：${downloads.queued} · ${downloads.lastStatus}")
-        Text(text = "缓存：${cacheSummary.entries} 首 · ${cacheSummary.physicalBytes} bytes")
-        snapshot?.playlist?.forEach { track ->
-            Text("${track.title} · ${track.status.name}")
-            if (canControl) {
-                Button(
-                    onClick = { roomViewModel.hostPlay(track.trackId) },
-                    enabled = track.status == TrackStatus.READY,
-                ) {
-                    Text("播放此曲")
-                }
-            }
-        }
-        Text("当前歌曲：${currentTrack?.title ?: "无"}")
-        Text("本地播放器：${player.status.name} · 缓存：${if (player.status == PlayerStatus.WAITING_FOR_CACHE) "等待中" else "可用"}")
-        Text("localPositionMs：${player.positionMs} / durationMs：${player.durationMs}")
-        LinearProgressIndicator(
-            progress = {
-                if (player.durationMs > 0) {
-                    (player.positionMs.toFloat() / player.durationMs).coerceIn(0f, 1f)
-                } else {
-                    0f
-                }
-            },
-        )
-        Text("serverOffsetMs：${clock.serverOffsetMs} · rttMs：${clock.rttMs}")
-        Text(
-            "expectedPositionMs：${sync.expectedPositionMs} · syncErrorMs：${sync.syncErrorMs} · " +
-                "playbackSpeed：${sync.playbackSpeed}x",
-        )
-        if (!sync.connected) Text("同步断开，本地继续播放", color = MaterialTheme.colorScheme.error)
-        clock.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        if (player.status == PlayerStatus.WAITING_FOR_CACHE) Text("等待缓存完成")
-        player.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        controlError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        if (canControl) {
-            Button(onClick = roomViewModel::hostPause) { Text("暂停") }
-            Button(onClick = { roomViewModel.hostSeek(player.positionMs + 5_000) }) { Text("前进 5 秒") }
-            Button(onClick = roomViewModel::hostNext) { Text("下一首") }
-        }
-        Button(onClick = onOpenUpload) { Text("上传歌曲") }
-        Button(onClick = roomViewModel::refreshCache) { Text("刷新缓存") }
-        Button(onClick = roomViewModel::clearCache) { Text("清理非播放缓存") }
-        Button(onClick = onOpenPlayer) { Text("播放器") }
-        Button(onClick = onOpenInvite) { Text("邀请") }
-        Button(onClick = onOpenSettings) { Text("设置") }
-        Button(onClick = {
-            roomViewModel.leave(onLeave)
-        }) {
-            Text("返回首页")
-        }
-    }
-}
-
-private fun RoomConnectionState.label(): String = when (this) {
-    RoomConnectionState.Disconnected -> "已断开"
-    RoomConnectionState.Connecting -> "连接中"
-    RoomConnectionState.Connected -> "已连接"
-    is RoomConnectionState.Reconnecting -> "重连中（第 $attempt 次）"
-    is RoomConnectionState.Failed -> "失败：$message"
-}
-
-@Composable
-private fun SettingsScreen(
-    onBack: () -> Unit,
-    viewModel: SettingsViewModel = hiltViewModel(),
-) {
-    val settings by viewModel.settings.collectAsState()
-    var displayName by remember { mutableStateOf("") }
-    var serverUrl by remember { mutableStateOf("") }
-
-    LaunchedEffect(settings) {
-        displayName = settings.displayName
-        serverUrl = settings.serverUrl
-    }
-
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(text = "调试设置", style = MaterialTheme.typography.headlineMedium)
-        Text(text = "用户 ID：${settings.userId}", style = MaterialTheme.typography.bodySmall)
-        OutlinedTextField(
-            value = displayName,
-            onValueChange = { displayName = it },
-            label = { Text("临时昵称") },
-        )
-        OutlinedTextField(
-            value = serverUrl,
-            onValueChange = { serverUrl = it },
-            label = { Text("服务器地址") },
-        )
-        Button(onClick = { viewModel.save(displayName, serverUrl) }) {
-            Text("保存")
-        }
-        Button(onClick = onBack) {
-            Text("返回")
-        }
-    }
-}
-
-@Composable
-private fun RecoveryCard(
-    snapshot: HostRecoverySnapshot,
-    onRecover: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "发现上次托管的房间",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                snapshot.roomName,
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-            Text(
-                "房间码：${snapshot.roomCode}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-            Text(
-                "${snapshot.memberCount} 位成员 · ${snapshot.trackCount} 首歌曲",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-            snapshot.currentTrackTitle?.let {
-                Text(
-                    "当前曲目：$it",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+        NavHost(navController = navController, startDestination = HOME) {
+            composable(HOME) {
+                HomeScreen(
+                    onNavigateCreate = { navController.navigate(CREATE) },
+                    onNavigateJoin = { navController.navigate(JOIN) },
+                    onOpenSettings = { navController.navigate(SETTINGS) },
+                    onEnteredRoom = { navController.navigate(ROOM) {
+                        popUpTo(HOME) { inclusive = false }
+                    } },
                 )
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row {
-                Button(onClick = onRecover) { Text("恢复房间") }
-                Spacer(modifier = Modifier.padding(8.dp))
-                TextButton(onClick = onDismiss) { Text("忽略") }
-            }
-        }
-    }
-}
 
-@Composable
-private fun PlaceholderScreen(
-    title: String,
-    body: String,
-    actionLabel: String,
-    onAction: () -> Unit,
-) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(text = title, style = MaterialTheme.typography.headlineMedium)
-        Text(text = body, style = MaterialTheme.typography.bodyLarge)
-        Button(onClick = onAction) {
-            Text(actionLabel)
+            composable(CREATE) {
+                CreateRoomScreen(
+                    onBack = { navController.popBackStack() },
+                    onRoomCreated = { navController.navigate(ROOM) {
+                        popUpTo(HOME) { inclusive = false }
+                    } },
+                )
+            }
+
+            composable(JOIN) {
+                val viewModel: HomeViewModel = hiltViewModel()
+                val state by viewModel.state.collectAsState()
+
+                LaunchedEffect(state) {
+                    if (state is HomeState.InRoom) {
+                        navController.navigate(ROOM) {
+                            popUpTo(HOME) { inclusive = false }
+                        }
+                    }
+                }
+
+                JoinRoomScreen(
+                    onBack = { navController.popBackStack() },
+                    onJoinedRoom = { navController.navigate(ROOM) {
+                        popUpTo(HOME) { inclusive = false }
+                    } },
+                )
+            }
+
+            composable(ROOM) {
+                RoomScreen(
+                    onLeave = { navController.popBackStack(HOME, inclusive = false) },
+                    onOpenUpload = { navController.navigate(UPLOAD) },
+                    onOpenInvite = { navController.navigate(INVITE) },
+                    onOpenSettings = { navController.navigate(SETTINGS) },
+                )
+            }
+
+            composable(UPLOAD) {
+                UploadScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(INVITE) {
+                InviteScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(SETTINGS) {
+                SettingsScreen(onBack = { navController.popBackStack() })
+            }
         }
     }
 }

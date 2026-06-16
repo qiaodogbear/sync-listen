@@ -17,12 +17,13 @@ data class AppSettings(
     val userId: String = "",
     val displayName: String = "",
     val serverUrl: String = BuildConfig.DEFAULT_SERVER_URL,
+    val recentNickname: String = "",
 )
 
 interface SettingsStore {
     val settings: Flow<AppSettings>
 
-    suspend fun update(userId: String? = null, displayName: String? = null, serverUrl: String? = null)
+    suspend fun update(userId: String? = null, displayName: String? = null, serverUrl: String? = null, recentNickname: String? = null)
 }
 
 private val Context.settingsDataStore by preferencesDataStore(name = "settings")
@@ -36,14 +37,16 @@ class PreferenceSettingsStore @Inject constructor(
             userId = preferences[USER_ID].orEmpty(),
             displayName = preferences[DISPLAY_NAME].orEmpty(),
             serverUrl = preferences[SERVER_URL] ?: BuildConfig.DEFAULT_SERVER_URL,
+            recentNickname = preferences[RECENT_NICKNAME].orEmpty(),
         )
     }
 
-    override suspend fun update(userId: String?, displayName: String?, serverUrl: String?) {
+    override suspend fun update(userId: String?, displayName: String?, serverUrl: String?, recentNickname: String?) {
         context.settingsDataStore.edit { preferences ->
             userId?.let { preferences[USER_ID] = it }
             displayName?.let { preferences[DISPLAY_NAME] = it }
             serverUrl?.let { preferences[SERVER_URL] = normalizeServerUrl(it) }
+            recentNickname?.let { preferences[RECENT_NICKNAME] = it }
         }
     }
 
@@ -51,6 +54,7 @@ class PreferenceSettingsStore @Inject constructor(
         val USER_ID = stringPreferencesKey("user_id")
         val DISPLAY_NAME = stringPreferencesKey("display_name")
         val SERVER_URL = stringPreferencesKey("server_url")
+        val RECENT_NICKNAME = stringPreferencesKey("recent_nickname")
     }
 }
 
