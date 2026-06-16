@@ -1,0 +1,27 @@
+app = "sync-listen"
+primary_region = "hkg"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 3000
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+    force_https = true
+
+[mounts]
+  source = "sync_listen_data"
+  destination = "/app/data"

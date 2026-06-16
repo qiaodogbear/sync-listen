@@ -181,7 +181,8 @@ class HomeController @Inject constructor(
     }
 
     private suspend fun saveAndReadIdentity(displayName: String) =
-        settingsStore.update(displayName = displayName.trim()).let { identityManager.ensureIdentity() }
+        settingsStore.update(displayName = displayName.trim(), recentNickname = displayName.trim())
+            .let { identityManager.ensureIdentity() }
 
     suspend fun stopHosting() = hostServerController.stop()
 

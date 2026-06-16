@@ -59,10 +59,11 @@ fun JoinRoomScreen(
     val bleState by viewModel.bleState.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val userSettings by viewModel.settings.collectAsState(initial = com.synclisten.app.data.AppSettings())
     var roomCode by remember { mutableStateOf("") }
     var hostAddress by remember { mutableStateOf("") }
     var advancedExpanded by remember { mutableStateOf(false) }
-    var displayName by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf(userSettings.recentNickname) }
     var probeResult by remember { mutableStateOf<ProbeResult?>(null) }
     var probing by remember { mutableStateOf(false) }
 

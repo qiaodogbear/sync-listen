@@ -10,7 +10,7 @@ class IdentityManagerTest {
     @Test
     fun createsUserIdOnceAndKeepsSavedSettings() = runBlocking {
         val store = FakeSettingsStore()
-        val manager = IdentityManager(store) { "generated-user" }
+        val manager = IdentityManager(store, { "generated-user" }, { "🎵" })
 
         val first = manager.ensureIdentity()
         store.update(userId = null, displayName = "Alice", serverUrl = "http://192.168.1.2:3000")
@@ -28,12 +28,13 @@ private class FakeSettingsStore : SettingsStore {
 
     override val settings: Flow<AppSettings> = state
 
-    override suspend fun update(userId: String?, displayName: String?, serverUrl: String?, recentNickname: String?) {
+    override suspend fun update(userId: String?, displayName: String?, serverUrl: String?, recentNickname: String?, avatarEmoji: String?) {
         state.value = state.value.copy(
             userId = userId ?: state.value.userId,
             displayName = displayName ?: state.value.displayName,
             serverUrl = serverUrl ?: state.value.serverUrl,
             recentNickname = recentNickname ?: state.value.recentNickname,
+            avatarEmoji = avatarEmoji ?: state.value.avatarEmoji,
         )
     }
 }

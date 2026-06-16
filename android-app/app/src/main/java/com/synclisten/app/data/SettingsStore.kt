@@ -18,12 +18,13 @@ data class AppSettings(
     val displayName: String = "",
     val serverUrl: String = BuildConfig.DEFAULT_SERVER_URL,
     val recentNickname: String = "",
+    val avatarEmoji: String = "",
 )
 
 interface SettingsStore {
     val settings: Flow<AppSettings>
 
-    suspend fun update(userId: String? = null, displayName: String? = null, serverUrl: String? = null, recentNickname: String? = null)
+    suspend fun update(userId: String? = null, displayName: String? = null, serverUrl: String? = null, recentNickname: String? = null, avatarEmoji: String? = null)
 }
 
 private val Context.settingsDataStore by preferencesDataStore(name = "settings")
@@ -38,15 +39,17 @@ class PreferenceSettingsStore @Inject constructor(
             displayName = preferences[DISPLAY_NAME].orEmpty(),
             serverUrl = preferences[SERVER_URL] ?: BuildConfig.DEFAULT_SERVER_URL,
             recentNickname = preferences[RECENT_NICKNAME].orEmpty(),
+            avatarEmoji = preferences[AVATAR_EMOJI].orEmpty(),
         )
     }
 
-    override suspend fun update(userId: String?, displayName: String?, serverUrl: String?, recentNickname: String?) {
+    override suspend fun update(userId: String?, displayName: String?, serverUrl: String?, recentNickname: String?, avatarEmoji: String?) {
         context.settingsDataStore.edit { preferences ->
             userId?.let { preferences[USER_ID] = it }
             displayName?.let { preferences[DISPLAY_NAME] = it }
             serverUrl?.let { preferences[SERVER_URL] = normalizeServerUrl(it) }
             recentNickname?.let { preferences[RECENT_NICKNAME] = it }
+            avatarEmoji?.let { preferences[AVATAR_EMOJI] = it }
         }
     }
 
@@ -55,17 +58,21 @@ class PreferenceSettingsStore @Inject constructor(
         val DISPLAY_NAME = stringPreferencesKey("display_name")
         val SERVER_URL = stringPreferencesKey("server_url")
         val RECENT_NICKNAME = stringPreferencesKey("recent_nickname")
+        val AVATAR_EMOJI = stringPreferencesKey("avatar_emoji")
     }
 }
+
+val AVATAR_EMOJIS = listOf("🎵","🎸","🎹","🎺","🎻","🥁","🎧","🎤","🎼","🎶","💿","🦊","🐱","🐶","🐼","🐨","🐰","🦄","🌈","🔥","⭐","🌸","🍕","🎮","🚀")
 
 class IdentityManager(
     private val settingsStore: SettingsStore,
     private val idFactory: () -> String = { UUID.randomUUID().toString() },
+    private val emojiFactory: () -> String = { AVATAR_EMOJIS.random() },
 ) {
     suspend fun ensureIdentity(): AppSettings {
         val current = settingsStore.settings.first()
         if (current.userId.isNotBlank()) return current
-        settingsStore.update(userId = idFactory())
+        settingsStore.update(userId = idFactory(), avatarEmoji = emojiFactory())
         return settingsStore.settings.first()
     }
 }

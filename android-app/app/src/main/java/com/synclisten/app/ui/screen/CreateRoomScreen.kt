@@ -53,8 +53,9 @@ fun CreateRoomScreen(
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
     val hostState by viewModel.hostServerState.collectAsState()
+    val userSettings by viewModel.settings.collectAsState(initial = com.synclisten.app.data.AppSettings())
     var step by remember { mutableStateOf(0) }
-    var displayName by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf(userSettings.recentNickname) }
     var roomName by remember { mutableStateOf("TestRoom") }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()

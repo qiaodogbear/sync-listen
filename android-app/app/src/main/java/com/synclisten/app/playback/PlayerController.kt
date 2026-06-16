@@ -14,6 +14,7 @@ enum class PlayerStatus {
     IDLE,
     WAITING_FOR_CACHE,
     PREPARING,
+    BUFFERING,
     READY,
     PLAYING,
     PAUSED,
@@ -27,12 +28,16 @@ data class PlayerControllerState(
     val positionMs: Long = 0,
     val durationMs: Long = 0,
     val error: String? = null,
+    val localFilePath: String? = null,
+    val bufferedMs: Long = 0,
+    val audioSessionId: Int = 0,
 )
 
 sealed interface PlayerEngineEvent {
     data class Ready(val durationMs: Long) : PlayerEngineEvent
     data class Position(val positionMs: Long, val durationMs: Long) : PlayerEngineEvent
     data object Ended : PlayerEngineEvent
+    data object Buffering : PlayerEngineEvent
     data class Error(val message: String) : PlayerEngineEvent
 }
 
@@ -133,6 +138,7 @@ class PlayerController @Inject constructor(
                 positionMs = event.positionMs,
                 durationMs = event.durationMs,
             )
+            PlayerEngineEvent.Buffering -> update(status = PlayerStatus.BUFFERING)
             PlayerEngineEvent.Ended -> update(status = PlayerStatus.ENDED)
             is PlayerEngineEvent.Error -> {
                 update(status = PlayerStatus.ERROR, error = event.message)

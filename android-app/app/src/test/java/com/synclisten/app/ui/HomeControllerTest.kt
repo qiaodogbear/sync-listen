@@ -129,12 +129,13 @@ private class FakeHomeSettingsStore : SettingsStore {
     private val state = MutableStateFlow(AppSettings())
     override val settings: Flow<AppSettings> = state
 
-    override suspend fun update(userId: String?, displayName: String?, serverUrl: String?, recentNickname: String?) {
+    override suspend fun update(userId: String?, displayName: String?, serverUrl: String?, recentNickname: String?, avatarEmoji: String?) {
         state.value = state.value.copy(
             userId = userId ?: state.value.userId,
             displayName = displayName ?: state.value.displayName,
             serverUrl = serverUrl ?: state.value.serverUrl,
             recentNickname = recentNickname ?: state.value.recentNickname,
+            avatarEmoji = avatarEmoji ?: state.value.avatarEmoji,
         )
     }
 }

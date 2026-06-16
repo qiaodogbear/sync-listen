@@ -28,7 +28,17 @@ class SettingsViewModel @Inject constructor(
 
     fun save(displayName: String, serverUrl: String) {
         viewModelScope.launch {
-            settingsStore.update(displayName = displayName.trim(), serverUrl = serverUrl)
+            settingsStore.update(
+                displayName = displayName.trim(),
+                serverUrl = serverUrl,
+                recentNickname = displayName.trim(),
+            )
+        }
+    }
+
+    fun saveAvatar(emoji: String) {
+        viewModelScope.launch {
+            settingsStore.update(avatarEmoji = emoji)
         }
     }
 }

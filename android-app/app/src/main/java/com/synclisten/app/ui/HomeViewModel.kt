@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.launch
+import com.synclisten.app.data.SettingsStore
 import com.synclisten.app.invite.JoinLinkInbox
 import com.synclisten.app.nearby.BleRoomDiscovery
 import com.synclisten.app.nearby.NfcJoinManager
@@ -15,6 +16,7 @@ class HomeViewModel @Inject constructor(
     private val joinLinkInbox: JoinLinkInbox,
     private val bleRoomDiscovery: BleRoomDiscovery,
     private val nfcJoinManager: NfcJoinManager,
+    settingsStore: SettingsStore,
 ) : ViewModel() {
     val state = controller.state
     val pendingJoinLink = joinLinkInbox.pending
@@ -22,6 +24,7 @@ class HomeViewModel @Inject constructor(
     val nfcState = nfcJoinManager.state
     val hostServerState = controller.hostServerState
     val recoverableRoom = controller.recoverableRoom
+    val settings = settingsStore.settings
 
     init {
         viewModelScope.launch { controller.checkRecovery() }
