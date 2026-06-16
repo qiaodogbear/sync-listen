@@ -9,16 +9,17 @@ COPY backend/ ./
 
 RUN npm run build
 
-RUN mkdir -p /data/audio /data/tmp /app/data
+RUN mkdir -p /data/audio /data/tmp
 
-VOLUME ["/app/data"]
+VOLUME ["/data"]
 
 ENV HOST=0.0.0.0
 ENV PORT=3000
-ENV DATABASE_PATH=/app/data/sync-listen.sqlite
-ENV AUDIO_STORAGE_PATH=/app/data/audio
-ENV TEMP_UPLOAD_PATH=/app/data/tmp
+ENV DATABASE_PATH=/data/sync-listen.sqlite
+ENV AUDIO_STORAGE_PATH=/data/audio
+ENV TEMP_UPLOAD_PATH=/data/tmp
 
 EXPOSE 3000
 
-CMD ["node", "dist/server.js"]
+# 启动时自动创建数据目录并初始化数据库
+CMD sh -c "mkdir -p /data/audio /data/tmp && node dist/db/migrate.js && node dist/server.js"
