@@ -22,17 +22,35 @@ android {
         buildConfigField("String", "DEFAULT_SERVER_URL", "\"http://10.0.2.2:3000\"")
     }
 
+    signingConfigs {
+        create("release") {
+            val keystorePath = project.findProperty("RELEASE_KEYSTORE_PATH") as? String
+            if (keystorePath != null) {
+                storeFile = file(keystorePath)
+                storePassword = project.findProperty("RELEASE_KEYSTORE_PASSWORD") as? String ?: ""
+                keyAlias = project.findProperty("RELEASE_KEY_ALIAS") as? String ?: ""
+                keyPassword = project.findProperty("RELEASE_KEY_PASSWORD") as? String ?: ""
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = if (signingConfigs.getByName("release").storeFile != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 

@@ -11,7 +11,7 @@ import org.junit.Test
 class ServerClockTest {
     @Test
     fun usesLowestRttSampleToEstimateServerOffset() = runBlocking {
-        val local = SequenceLocalClock(1_000, 1_100, 2_000, 2_020, 3_000, 3_060, 5_000)
+        val local = SequenceLocalClock(1_000, 1_100, 2_000, 2_020, 3_000, 3_060, 5_000, 6_000)
         val remote = SequenceTimeRemote(2_050, 3_010, 4_030)
         val clock = ServerClock(RoomRepository(remote), local)
 
@@ -19,7 +19,7 @@ class ServerClockTest {
 
         assertEquals(1_000, clock.state.value.serverOffsetMs)
         assertEquals(20, clock.state.value.rttMs)
-        assertEquals(6_000, clock.estimatedServerNowMs())
+        assertEquals(7_000, clock.estimatedServerNowMs())
     }
 
     @Test

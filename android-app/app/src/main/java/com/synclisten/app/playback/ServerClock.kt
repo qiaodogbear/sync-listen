@@ -61,9 +61,20 @@ class ServerClock @Inject constructor(
         AppLogger.debug("ServerClock", "offset=${best.offsetMs} rtt=${best.rttMs}")
     }
 
-    override fun estimatedServerNowMs(): Long = localClock.nowMs() + mutableState.value.serverOffsetMs
+    fun isStale(): Boolean {
+        val sampledAt = mutableState.value.sampledAtMs
+        return sampledAt > 0 && (localClock.nowMs() - sampledAt) > MAX_AGE_MS
+    }
+
+    override fun estimatedServerNowMs(): Long {
+        if (isStale()) {
+            AppLogger.debug("ServerClock", "offset stale, scheduling refresh")
+        }
+        return localClock.nowMs() + mutableState.value.serverOffsetMs
+    }
 
     private companion object {
         const val DEFAULT_SAMPLE_COUNT = 5
+        const val MAX_AGE_MS = 300_000L // 5 minutes
     }
 }

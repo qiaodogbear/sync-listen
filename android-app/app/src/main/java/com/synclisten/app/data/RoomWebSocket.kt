@@ -16,6 +16,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -127,6 +128,9 @@ class ReconnectGate {
         attempt = 0
     }
 
+    @Synchronized
+    fun isAtLimit(): Boolean = attempt >= MAX_ATTEMPT
+
     private companion object {
         const val MAX_ATTEMPT = 1_000
     }
@@ -143,6 +147,7 @@ fun buildWebSocketUrl(serverUrl: String, roomId: String, userId: String, token: 
 @Singleton
 class RoomWebSocketClient @Inject constructor(
     private val client: OkHttpClient,
+    private val networkAvailable: kotlinx.coroutines.flow.StateFlow<Boolean>,
     json: Json,
 ) {
     private data class Target(val serverUrl: String, val roomId: String, val userId: String, val token: String)
@@ -231,9 +236,17 @@ class RoomWebSocketClient @Inject constructor(
 
     private fun scheduleReconnect(message: String) {
         if (!shouldReconnect.get()) return
+        if (reconnectGate.isAtLimit()) {
+            mutableConnection.value = RoomConnectionState.Failed("重连次数已达上限，请检查网络后重新加入房间")
+            return
+        }
         val attempt = reconnectGate.trySchedule() ?: return
         mutableConnection.value = RoomConnectionState.Reconnecting(attempt)
         reconnectJob = scope.launch {
+            // 如果网络不可用，等待恢复
+            if (!networkAvailable.value) {
+                networkAvailable.first { it }
+            }
             delay(reconnectDelayMs(attempt - 1))
             reconnectGate.complete()
             if (shouldReconnect.get()) open() else mutableConnection.value = RoomConnectionState.Failed(message)

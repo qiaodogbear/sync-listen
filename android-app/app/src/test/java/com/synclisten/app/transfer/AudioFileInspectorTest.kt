@@ -15,10 +15,13 @@ class AudioFileInspectorTest {
     }
 
     @Test
-    fun acceptsOnlyMp3AndFlac() {
+    fun acceptsSupportedAudioFormats() {
         assertTrue(isSupportedAudio("song.mp3", "audio/mpeg"))
         assertTrue(isSupportedAudio("song.flac", "audio/flac"))
-        assertFalse(isSupportedAudio("song.wav", "audio/wav"))
+        assertTrue(isSupportedAudio("song.wav", "audio/wav"))
+        assertTrue(isSupportedAudio("song.ogg", "audio/ogg"))
+        assertTrue(isSupportedAudio("song.aac", "audio/aac"))
         assertFalse(isSupportedAudio("notes.txt", null))
+        assertFalse(isSupportedAudio("video.mp4", "video/mp4"))
     }
 }

@@ -42,11 +42,21 @@ fun sha256(input: InputStream): String {
     return digest.digest().joinToString("") { byte -> "%02x".format(byte) }
 }
 
+private val SUPPORTED_EXTENSIONS = setOf("mp3", "flac", "ogg", "aac", "wav", "opus", "m4a", "wma")
+private val SUPPORTED_MIME_TYPES = setOf(
+    "audio/mpeg", "audio/mp3", "audio/flac", "audio/x-flac",
+    "audio/ogg", "audio/aac", "audio/wav", "audio/x-wav",
+    "audio/opus", "audio/mp4", "audio/x-ms-wma",
+)
+private const val MAX_FILE_SIZE_BYTES = 200L * 1024 * 1024
+
 fun isSupportedAudio(fileName: String, mimeType: String?): Boolean {
     val extension = fileName.substringAfterLast('.', "").lowercase()
-    return extension in setOf("mp3", "flac") &&
-        (mimeType == null || mimeType in setOf("audio/mpeg", "audio/mp3", "audio/flac", "audio/x-flac"))
+    return extension in SUPPORTED_EXTENSIONS &&
+        (mimeType == null || mimeType in SUPPORTED_MIME_TYPES)
 }
+
+private const val DEFAULT_BUFFER_SIZE = 8192
 
 @Singleton
 class AudioFileInspector @Inject constructor(
@@ -63,6 +73,8 @@ class AudioFileInspector @Inject constructor(
                     (if (sizeIndex >= 0) cursor.getLong(sizeIndex) else 0L)
             } ?: error("无法读取文件信息")
             val fileName = metadata.first ?: error("文件名不可用")
+            val fileSize = metadata.second
+            if (fileSize > MAX_FILE_SIZE_BYTES) return@withContext AudioSelectionResult.Failed("文件过大（超过 200MB），请选择较小的音频文件")
             val mimeType = resolver.getType(uri)
             if (!isSupportedAudio(fileName, mimeType)) return@withContext AudioSelectionResult.Unsupported
             val hash = resolver.openInputStream(uri)?.let(::sha256) ?: error("无法打开文件")

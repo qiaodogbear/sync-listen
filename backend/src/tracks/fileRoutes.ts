@@ -124,12 +124,30 @@ export async function registerTrackFileRoutes(
       if (track === undefined || track.storage_path === null || !existsSync(track.storage_path)) {
         throw new AppError(404, "TRACK_FILE_NOT_FOUND", "Track file does not exist");
       }
+      const storagePath: string = track.storage_path;
+      const stat = await import("node:fs/promises").then((f) => f.stat(storagePath));
+      const fileSize = Number(stat.size);
+      reply.header("accept-ranges", "bytes");
       reply.header("content-type", "application/octet-stream");
       reply.header(
         "content-disposition",
         `attachment; filename*=UTF-8''${encodeURIComponent(track.file_name)}`,
       );
-      return reply.send(createReadStream(track.storage_path));
+
+      const rangeHeader = request.headers.range;
+      if (rangeHeader) {
+        const match = rangeHeader.match(/bytes=(\d+)-/);
+        if (match && match[1]) {
+          const start = parseInt(match[1], 10);
+          const end = fileSize - 1;
+          reply.header("content-range", `bytes ${start}-${end}/${fileSize}`);
+          reply.header("content-length", end - start + 1);
+          reply.code(206);
+          return reply.send(createReadStream(storagePath, { start, end }));
+        }
+      }
+      reply.header("content-length", fileSize);
+      return reply.send(createReadStream(storagePath));
     },
   );
 }

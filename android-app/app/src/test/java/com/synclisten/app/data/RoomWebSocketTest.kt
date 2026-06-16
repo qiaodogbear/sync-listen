@@ -20,6 +20,8 @@ import org.junit.Test
 class RoomWebSocketTest {
     private val json = Json { ignoreUnknownKeys = true }
 
+    private fun client() = RoomWebSocketClient(OkHttpClient(), kotlinx.coroutines.flow.MutableStateFlow(true), json)
+
     @Test
     fun roomJoinedRestoresAuthoritativeSnapshot() {
         val event = RoomEventParser(json).parse(
@@ -92,7 +94,7 @@ class RoomWebSocketTest {
                 ),
             )
             server.start()
-            val client = RoomWebSocketClient(OkHttpClient(), json)
+            val client = client()
 
             try {
                 client.connect(server.url("/").toString(), "room-1", "user-1", "token")

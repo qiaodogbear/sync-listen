@@ -98,6 +98,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideNetworkAvailable(networkMonitor: com.synclisten.app.util.NetworkMonitor): kotlinx.coroutines.flow.StateFlow<Boolean> =
+        networkMonitor.isAvailable
+
+    @Provides
+    @Singleton
     fun providePlaybackSyncManager(
         playerController: PlayerController,
         serverClock: ServerClock,
@@ -117,7 +122,21 @@ object NetworkModule {
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
+            .pingInterval(30, TimeUnit.SECONDS)
             .addInterceptor(logger)
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    @javax.inject.Named("download")
+    fun provideDownloadOkHttpClient(): OkHttpClient {
+        return OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .pingInterval(30, TimeUnit.SECONDS)
+            .connectionPool(okhttp3.ConnectionPool(5, 30, TimeUnit.SECONDS))
             .build()
     }
 }

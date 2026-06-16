@@ -70,4 +70,11 @@ class IdentityManager(
     }
 }
 
-fun normalizeServerUrl(value: String): String = value.trim().trimEnd('/')
+fun normalizeServerUrl(value: String): String {
+    val trimmed = value.trim().trimEnd('/')
+    if (trimmed.isBlank()) return trimmed
+    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+        return "http://$trimmed"
+    }
+    return trimmed
+}

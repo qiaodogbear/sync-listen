@@ -34,8 +34,14 @@ class HostRoomHub(
     }
 
     suspend fun broadcast(roomId: String, type: WebSocketEventType, payload: JsonObject) {
+        val dead = mutableListOf<DefaultWebSocketServerSession>()
         sessions[roomId].orEmpty().toList().forEach { session ->
             runCatching { send(session, type, payload) }
+                .onFailure { dead.add(session) }
+        }
+        dead.forEach { session ->
+            runCatching { session.close(CloseReason(CloseReason.Codes.GOING_AWAY, "Send failed")) }
+            sessions[roomId]?.remove(session)
         }
     }
 

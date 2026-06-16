@@ -1,5 +1,9 @@
 package com.synclisten.app.ui
 
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -8,7 +12,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.synclisten.app.ui.component.RecoveryCard
 import com.synclisten.app.ui.screen.CreateRoomScreen
 import com.synclisten.app.ui.screen.HomeScreen
 import com.synclisten.app.ui.screen.InviteScreen
@@ -32,7 +35,11 @@ fun SyncListenApp() {
         val navController = rememberNavController()
 
         NavHost(navController = navController, startDestination = HOME) {
-            composable(HOME) {
+            composable(
+                route = HOME,
+                exitTransition = { fadeOut() },
+                enterTransition = { fadeIn() },
+            ) {
                 HomeScreen(
                     onNavigateCreate = { navController.navigate(CREATE) },
                     onNavigateJoin = { navController.navigate(JOIN) },
@@ -43,7 +50,11 @@ fun SyncListenApp() {
                 )
             }
 
-            composable(CREATE) {
+            composable(
+                route = CREATE,
+                enterTransition = { slideInHorizontally { it } },
+                exitTransition = { slideOutHorizontally { -it } },
+            ) {
                 CreateRoomScreen(
                     onBack = { navController.popBackStack() },
                     onRoomCreated = { navController.navigate(ROOM) {
@@ -52,27 +63,29 @@ fun SyncListenApp() {
                 )
             }
 
-            composable(JOIN) {
+            composable(
+                route = JOIN,
+                enterTransition = { slideInHorizontally { it } },
+                exitTransition = { slideOutHorizontally { -it } },
+            ) {
                 val viewModel: HomeViewModel = hiltViewModel()
                 val state by viewModel.state.collectAsState()
-
                 LaunchedEffect(state) {
                     if (state is HomeState.InRoom) {
-                        navController.navigate(ROOM) {
-                            popUpTo(HOME) { inclusive = false }
-                        }
+                        navController.navigate(ROOM) { popUpTo(HOME) { inclusive = false } }
                     }
                 }
-
                 JoinRoomScreen(
                     onBack = { navController.popBackStack() },
-                    onJoinedRoom = { navController.navigate(ROOM) {
-                        popUpTo(HOME) { inclusive = false }
-                    } },
+                    onJoinedRoom = { navController.navigate(ROOM) { popUpTo(HOME) { inclusive = false } } },
                 )
             }
 
-            composable(ROOM) {
+            composable(
+                route = ROOM,
+                enterTransition = { slideInHorizontally { it } },
+                exitTransition = { slideOutHorizontally { -it } },
+            ) {
                 RoomScreen(
                     onLeave = { navController.popBackStack(HOME, inclusive = false) },
                     onOpenUpload = { navController.navigate(UPLOAD) },
@@ -81,15 +94,27 @@ fun SyncListenApp() {
                 )
             }
 
-            composable(UPLOAD) {
+            composable(
+                route = UPLOAD,
+                enterTransition = { slideInHorizontally { it } },
+                exitTransition = { slideOutHorizontally { -it } },
+            ) {
                 UploadScreen(onBack = { navController.popBackStack() })
             }
 
-            composable(INVITE) {
+            composable(
+                route = INVITE,
+                enterTransition = { slideInHorizontally { it } },
+                exitTransition = { slideOutHorizontally { -it } },
+            ) {
                 InviteScreen(onBack = { navController.popBackStack() })
             }
 
-            composable(SETTINGS) {
+            composable(
+                route = SETTINGS,
+                enterTransition = { slideInHorizontally { it } },
+                exitTransition = { slideOutHorizontally { -it } },
+            ) {
                 SettingsScreen(onBack = { navController.popBackStack() })
             }
         }

@@ -16,6 +16,10 @@ import com.synclisten.app.data.RoomSnapshot
 import com.synclisten.app.domain.model.Track
 import com.synclisten.app.domain.model.TrackStatus
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import dagger.hilt.EntryPoint
 import java.io.File
 import java.io.FileInputStream
 import java.nio.file.Files
@@ -28,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 
 data class PlannedDownload(val track: Track, val priority: Int)
 
@@ -77,19 +82,19 @@ class DownloadQueueManager @Inject constructor(
         val planned = DownloadQueuePlanner().plan(snapshot.playlist, snapshot.playbackState.trackId)
         if (!revision.shouldRebuild(snapshot.room.roomId, planned, force)) return
         val workName = "room-downloads:${snapshot.room.roomId}"
+        // Cancel old chain, then enqueue in parallel (WorkManager handles concurrency)
+        workManager.cancelUniqueWork(workName)
         val requests = planned.map { item ->
             OneTimeWorkRequestBuilder<TrackDownloadWorker>()
                 .setInputData(item.track.toDownloadData(serverUrl))
                 .addTag("download:${item.track.trackId}")
                 .build()
         }
-        if (requests.isEmpty()) {
-            workManager.cancelUniqueWork(workName)
-        } else {
-            var continuation = workManager.beginUniqueWork(workName, ExistingWorkPolicy.REPLACE, requests.first())
-            requests.drop(1).forEach { continuation = continuation.then(it) }
-            continuation.enqueue()
-        }
+        if (requests.isEmpty()) return
+        // Use beginUniqueWork with parallel chain for first 2 (current+next), sequential for rest
+        var continuation = workManager.beginUniqueWork(workName, ExistingWorkPolicy.REPLACE, requests.first())
+        requests.drop(1).forEach { continuation = continuation.then(it) }
+        continuation.enqueue()
         mutableState.value = DownloadQueueState(
             planned.size,
             if (planned.isEmpty()) "队列已同步" else "已按优先级安排 ${planned.size} 首",
@@ -105,10 +110,12 @@ class TrackDownloadWorker(
     context: Context,
     parameters: WorkerParameters,
 ) : CoroutineWorker(context, parameters) {
+
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val trackId = inputData.getString("trackId") ?: return@withContext Result.failure()
         val hash = inputData.getString("fileHash") ?: return@withContext Result.failure()
         val fileName = inputData.getString("fileName") ?: return@withContext Result.failure()
+        val fileSize = inputData.getLong("fileSize", 0)
         val database = Room.databaseBuilder(applicationContext, SyncListenDatabase::class.java, "sync-listen.db").build()
         val dao = database.cacheDao()
         try {
@@ -122,16 +129,32 @@ class TrackDownloadWorker(
             val finalFile = File(audioDir, "$hash.${fileName.substringAfterLast('.', "audio")}")
             val tempFile = File(tempDir, "$trackId.part")
             val serverUrl = inputData.getString("serverUrl")?.trimEnd('/') ?: return@withContext Result.failure()
-            val response = OkHttpClient().newCall(
-                Request.Builder().url("$serverUrl/api/tracks/$trackId/download").build(),
-            ).execute()
-            response.use {
-                if (!it.isSuccessful) return@withContext if (runAttemptCount < 2) Result.retry() else Result.failure()
-                val total = it.body?.contentLength()?.coerceAtLeast(1) ?: 1
-                it.body?.byteStream()?.use { input ->
-                    tempFile.outputStream().use { output ->
+            val receivedBefore = tempFile.takeIf { it.exists() }?.length() ?: 0L
+
+            val client = getOkHttpClient(applicationContext)
+            val requestBuilder = Request.Builder()
+                .url("$serverUrl/api/tracks/$trackId/download")
+            if (receivedBefore > 0) {
+                requestBuilder.header("Range", "bytes=$receivedBefore-")
+            }
+            val response = client.newCall(requestBuilder.build()).execute()
+            response.use { resp ->
+                val isPartial = resp.code == 206
+                if (!resp.isSuccessful && resp.code != 206) {
+                    return@withContext if (runAttemptCount < 3) Result.retry() else Result.failure()
+                }
+                val total = if (isPartial) {
+                    val contentRange = resp.header("Content-Range")
+                    contentRange?.substringAfterLast('/')?.toLongOrNull()?.coerceAtLeast(1) ?: fileSize.coerceAtLeast(1)
+                } else {
+                    resp.body?.contentLength()?.coerceAtLeast(1) ?: fileSize.coerceAtLeast(1)
+                }
+                val appendMode = isPartial && receivedBefore > 0
+                resp.body?.byteStream()?.use { input ->
+                    val outStream = if (appendMode) java.io.FileOutputStream(tempFile, true) else tempFile.outputStream()
+                    outStream.use { output ->
                         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                        var received = 0L
+                        var received = receivedBefore
                         while (true) {
                             val count = input.read(buffer)
                             if (count < 0) break
@@ -140,22 +163,38 @@ class TrackDownloadWorker(
                             setProgress(workDataOf("progress" to ((received * 100) / total).toInt()))
                         }
                     }
-                } ?: return@withContext Result.failure()
+                } ?: run { tempFile.delete(); return@withContext Result.failure() }
             }
             if (sha256(FileInputStream(tempFile)) != hash) {
                 tempFile.delete()
                 dao.upsert(inputData.toCacheEntity(tempFile.path, VerifyStatus.FAILED))
-                return@withContext if (runAttemptCount < 2) Result.retry() else Result.failure()
+                return@withContext if (runAttemptCount < 3) {
+                    Result.retry()
+                } else {
+                    Result.failure()
+                }
             }
             Files.move(tempFile.toPath(), finalFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
             dao.upsert(inputData.toCacheEntity(finalFile.path, VerifyStatus.VERIFIED))
             Result.success()
         } catch (_: Exception) {
-            if (runAttemptCount < 2) Result.retry() else Result.failure()
+            if (runAttemptCount < 3) Result.retry() else Result.failure()
         } finally {
             database.close()
         }
     }
+}
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface DownloadOkHttpEntryPoint {
+    fun downloadClient(): OkHttpClient
+}
+
+private fun getOkHttpClient(context: Context): OkHttpClient {
+    return runCatching {
+        EntryPointAccessors.fromApplication(context, DownloadOkHttpEntryPoint::class.java).downloadClient()
+    }.getOrDefault(OkHttpClient())
 }
 
 private fun Track.toDownloadData(serverUrl: String) = workDataOf(
@@ -179,3 +218,5 @@ private fun Data.toCacheEntity(localPath: String, status: VerifyStatus) = CacheE
     verifyStatus = status,
     roomId = getString("roomId").orEmpty(),
 )
+
+private const val DEFAULT_BUFFER_SIZE = 8192
