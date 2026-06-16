@@ -2,7 +2,7 @@ services:
   - type: web
     name: sync-listen
     runtime: docker
-    repo: https://github.com/YOUR_USERNAME/sync-listen
+    repo: https://github.com/qiaodogbear/sync-listen
     branch: feat/mvp
     plan: free
     region: singapore
