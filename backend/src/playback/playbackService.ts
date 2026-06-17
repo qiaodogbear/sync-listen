@@ -39,19 +39,19 @@ export class PlaybackService {
   }
 
   play(roomId: string, userId: string, trackId: string, positionMs: number) {
-    this.requireHost(roomId, userId);
+    this.requireHostOrAdmin(roomId, userId);
     this.requireReadyTrack(roomId, trackId);
     return this.schedule(roomId, "PLAY", trackId, positionMs);
   }
 
   seek(roomId: string, userId: string, trackId: string, positionMs: number) {
-    this.requireHost(roomId, userId);
+    this.requireHostOrAdmin(roomId, userId);
     this.requireReadyTrack(roomId, trackId);
     return this.schedule(roomId, "SEEK", trackId, positionMs);
   }
 
   pause(roomId: string, userId: string, trackId: string, positionMs: number) {
-    this.requireHost(roomId, userId);
+    this.requireHostOrAdmin(roomId, userId);
     this.requireReadyTrack(roomId, trackId);
     const now = Date.now();
     this.updateState(roomId, trackId, positionMs, false, now, null);
@@ -61,7 +61,7 @@ export class PlaybackService {
   }
 
   next(roomId: string, userId: string, positionMs: number) {
-    this.requireHost(roomId, userId);
+    this.requireHostOrAdmin(roomId, userId);
     const current = this.getState(roomId);
     const currentTrack =
       current.trackId === null
@@ -133,11 +133,11 @@ export class PlaybackService {
       );
   }
 
-  private requireHost(roomId: string, userId: string): void {
+  private requireHostOrAdmin(roomId: string, userId: string): void {
     findActiveRoom(this.database, roomId);
     const member = findMember(this.database, roomId, userId);
-    if (member.role !== "HOST") {
-      throw new AppError(403, "HOST_REQUIRED", "Only the host can control playback");
+    if (member.role !== "HOST" && member.role !== "ADMIN") {
+      throw new AppError(403, "HOST_REQUIRED", "Only the host or an admin can control playback");
     }
   }
 

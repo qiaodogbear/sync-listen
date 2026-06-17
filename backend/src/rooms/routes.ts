@@ -30,6 +30,8 @@ const joinRoomBodySchema = z
     message: "joinToken or roomCode is required",
   });
 
+const roleBodySchema = z.object({ role: z.enum(["ADMIN", "MEMBER"]) });
+
 function generateRoomCode(): string {
   return randomBytes(4).toString("hex").slice(0, 6).toUpperCase();
 }
@@ -172,6 +174,17 @@ export async function registerRoomRoutes(
       }
 
       return reply.status(204).send();
+    },
+  );
+
+  app.put<{ Params: { roomId: string; userId: string } }>(
+    "/api/rooms/:roomId/members/:userId/role",
+    async (request, reply) => {
+      const body = roleBodySchema.parse(request.body);
+      const room = findActiveRoom(database, request.params.roomId);
+      database.prepare("UPDATE members SET role = ? WHERE room_id = ? AND user_id = ?")
+        .run(body.role, room.room_id, request.params.userId);
+      return reply.code(200).send({ userId: request.params.userId, role: body.role });
     },
   );
 }

@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-fun MemberRole.canControlPlayback(): Boolean = this == MemberRole.HOST
+fun MemberRole.canControlPlayback(): Boolean = this == MemberRole.HOST || this == MemberRole.ADMIN
 
 data class PlaybackSyncState(
     val expectedPositionMs: Long = 0,

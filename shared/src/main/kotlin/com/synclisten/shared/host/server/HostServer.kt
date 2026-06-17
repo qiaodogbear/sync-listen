@@ -28,12 +28,14 @@ import io.ktor.server.response.respondFile
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+import io.ktor.server.routing.put
 import io.ktor.server.routing.routing
 import io.ktor.server.websocket.WebSockets
 import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
@@ -49,7 +51,7 @@ import kotlinx.coroutines.withContext
 
 data class HostStorage(
     val root: File,
-    val maxUploadBytes: Long = 512L * 1024 * 1024,
+    val maxUploadBytes: Long = 500L * 1024 * 1024,
 ) {
     val audioDir: File = File(root, "audio").apply { mkdirs() }
     val uploadDir: File = File(root, "uploads").apply { mkdirs() }
@@ -126,11 +128,10 @@ fun Application.hostServerModule(
                         when (part) {
                             is PartData.FormItem -> fields[part.name.orEmpty()] = part.value
                             is PartData.FileItem -> {
-                                if (temp != null) throw HostServerError(400, "MULTIPLE_FILES", "Only one audio file is allowed")
                                 filename = part.originalFileName
                                 val extension = filename?.substringAfterLast('.', "")?.lowercase()
-                                if (extension !in setOf("mp3", "flac")) {
-                                    throw HostServerError(415, "UNSUPPORTED_AUDIO_TYPE", "Only MP3 and FLAC are supported")
+                                if (extension !in setOf("mp3", "flac", "ogg", "aac", "wav", "opus", "m4a", "wma", "x-flac")) {
+                                    throw HostServerError(415, "UNSUPPORTED_AUDIO_TYPE", "Only MP3, FLAC, OGG, AAC, WAV, OPUS, M4A, WMA are supported")
                                 }
                                 val file = File.createTempFile("upload-", ".part", storage.uploadDir)
                                 temp = file
@@ -222,6 +223,28 @@ fun Application.hostServerModule(
             val state = store.next(call.roomId(), call.receive<NextPlaybackCommand>())
             hub.broadcast(call.roomId(), WebSocketEventType.NEXT, jsonCodec.objectPayload(state))
             call.respond(PlaybackResponse(state))
+        }
+        put("/api/rooms/{roomId}/members/{userId}/role") {
+            val targetUserId = call.parameters["userId"].orEmpty()
+            val body = call.receive<Map<String, String>>()
+            val role = com.synclisten.shared.domain.model.MemberRole.valueOf(body["role"] ?: "MEMBER")
+            val updated = store.changeRole(call.roomId(), targetUserId, role)
+            call.respond(mapOf("userId" to updated.userId, "role" to updated.role.name))
+        }
+        delete("/api/rooms/{roomId}/tracks/{trackId}") {
+            store.removeTrack(call.roomId(), call.parameters["trackId"].orEmpty())
+            hub.broadcast(call.roomId(), WebSocketEventType.TRACK_REMOVED,
+                buildJsonObject { put("trackId", JsonPrimitive(call.parameters["trackId"].orEmpty())) })
+            hub.broadcast(call.roomId(), WebSocketEventType.PLAYLIST_UPDATED,
+                jsonCodec.objectPayload(com.synclisten.shared.data.PlaylistResponse(store.playlist(call.roomId()))))
+            call.respond(mapOf("ok" to true))
+        }
+        put("/api/rooms/{roomId}/playlist/reorder") {
+            val body = call.receive<Map<String, List<String>>>()
+            store.reorderPlaylist(call.roomId(), body["orderedTrackIds"].orEmpty())
+            hub.broadcast(call.roomId(), WebSocketEventType.PLAYLIST_UPDATED,
+                jsonCodec.objectPayload(com.synclisten.shared.data.PlaylistResponse(store.playlist(call.roomId()))))
+            call.respond(mapOf("ok" to true))
         }
         webSocket("/ws/rooms/{roomId}") {
             val roomId = call.roomId()

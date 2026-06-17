@@ -16,7 +16,7 @@ export type RoomRow = {
 type MemberRow = {
   user_id: string;
   display_name: string;
-  role: "HOST" | "MEMBER";
+  role: "HOST" | "ADMIN" | "MEMBER";
   connected: number;
   joined_at: number;
 };

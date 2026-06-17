@@ -109,22 +109,22 @@ class HostRoomStore(
     }
 
     suspend fun play(roomId: String, command: TrackPlaybackCommand): PlaybackState = mutex.withLock {
-        requireHost(roomId, command.userId); requireReadyTrack(roomId, command.trackId)
+        requireHostOrAdmin(roomId, command.userId); requireReadyTrack(roomId, command.trackId)
         schedule(command.trackId, command.positionMs)
     }
 
     suspend fun seek(roomId: String, command: TrackPlaybackCommand): PlaybackState = mutex.withLock {
-        requireHost(roomId, command.userId); requireReadyTrack(roomId, command.trackId)
+        requireHostOrAdmin(roomId, command.userId); requireReadyTrack(roomId, command.trackId)
         schedule(command.trackId, command.positionMs)
     }
 
     suspend fun pause(roomId: String, command: TrackPlaybackCommand): PlaybackState = mutex.withLock {
-        requireHost(roomId, command.userId); requireReadyTrack(roomId, command.trackId)
+        requireHostOrAdmin(roomId, command.userId); requireReadyTrack(roomId, command.trackId)
         PlaybackState(command.trackId, command.positionMs.coerceAtLeast(0), false, clock(), null).also { playback = it }
     }
 
     suspend fun next(roomId: String, command: NextPlaybackCommand): PlaybackState = mutex.withLock {
-        requireHost(roomId, command.userId)
+        requireHostOrAdmin(roomId, command.userId)
         val idx = tracks.indexOfFirst { it.track.trackId == playback.trackId }
         val nxt = tracks.drop(idx + 1).firstOrNull { it.track.status == TrackStatus.READY } ?: fail(409, "NO_NEXT_TRACK")
         schedule(nxt.track.trackId, command.positionMs)
@@ -144,6 +144,26 @@ class HostRoomStore(
 
     fun loadRecoverableRoom(): HostRecoverySnapshot? = null
 
+    suspend fun changeRole(roomId: String, targetUserId: String, newRole: MemberRole) = mutex.withLock {
+        requireHost(roomId, requireActiveRoom(roomId).hostUserId)
+        val m = members[targetUserId] ?: fail(404, "MEMBER_NOT_FOUND")
+        members[targetUserId] = m.copy(role = newRole)
+        members[targetUserId]!!
+    }
+
+    suspend fun removeTrack(roomId: String, trackId: String) = mutex.withLock {
+        requireActiveRoom(roomId)
+        tracks.removeAll { it.track.trackId == trackId }
+    }
+
+    suspend fun reorderPlaylist(roomId: String, orderedTrackIds: List<String>) = mutex.withLock {
+        requireActiveRoom(roomId)
+        val reordered = orderedTrackIds.mapNotNull { id -> tracks.firstOrNull { it.track.trackId == id } }
+        tracks.clear(); tracks.addAll(reordered)
+        // Fix orderIndex
+        tracks.forEachIndexed { i, stored -> tracks[i] = stored.copy(track = stored.track.copy(orderIndex = i)) }
+    }
+
     private suspend fun join(active: Room, request: JoinRoomRequest): JoinRoomResponse {
         val now = clock(); val ex = members[request.userId]
         val member = Member(request.userId, request.displayName.trim(),
@@ -157,6 +177,13 @@ class HostRoomStore(
         if (expectedId != null && it.roomId != expectedId) fail(404, "ROOM_NOT_FOUND")
         if (it.status != RoomStatus.ACTIVE) fail(410, "ROOM_CLOSED")
     } ?: fail(404, "ROOM_NOT_FOUND")
+
+    private fun requireHostOrAdmin(roomId: String, userId: String) {
+        val member = requireActiveRoom(roomId).let { r ->
+            members[userId] ?: fail(404, "MEMBER_NOT_FOUND")
+        }
+        if (member.role != MemberRole.HOST && member.role != MemberRole.ADMIN) fail(403, "HOST_REQUIRED")
+    }
 
     private fun requireHost(roomId: String, userId: String) {
         if (requireActiveRoom(roomId).hostUserId != userId) fail(403, "HOST_REQUIRED")

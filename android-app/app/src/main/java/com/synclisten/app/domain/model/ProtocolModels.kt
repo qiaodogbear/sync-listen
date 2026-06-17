@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonObject
 @Serializable
 enum class MemberRole {
     HOST,
+    ADMIN,
     MEMBER,
 }
 

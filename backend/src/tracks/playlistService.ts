@@ -88,4 +88,27 @@ export class PlaylistService {
       .get(trackId) as TrackRow;
     return toTrack(row);
   }
+
+  removeTrack(roomId: string, trackId: string) {
+    findActiveRoom(this.database, roomId);
+    this.database.prepare("DELETE FROM tracks WHERE track_id = ? AND room_id = ?").run(trackId, roomId);
+    this.roomHub?.broadcast(roomId, "TRACK_REMOVED", { trackId });
+    this.roomHub?.broadcast(roomId, "PLAYLIST_UPDATED", { playlist: this.getPlaylist(roomId) });
+  }
+
+  reorderPlaylist(roomId: string, orderedTrackIds: string[]) {
+    findActiveRoom(this.database, roomId);
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      for (let i = 0; i < orderedTrackIds.length; i++) {
+        this.database.prepare("UPDATE tracks SET order_index = ? WHERE track_id = ? AND room_id = ?")
+          .run(i, orderedTrackIds[i]!, roomId);
+      }
+      this.database.exec("COMMIT");
+    } catch (e) {
+      this.database.exec("ROLLBACK");
+      throw e;
+    }
+    this.roomHub?.broadcast(roomId, "PLAYLIST_UPDATED", { playlist: this.getPlaylist(roomId) });
+  }
 }

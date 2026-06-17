@@ -44,19 +44,17 @@ export async function registerTrackFileRoutes(
 
       try {
         for await (const part of request.parts({
-          limits: { fileSize: storage.maxUploadBytes ?? 512 * 1024 * 1024, files: 1 },
+          limits: { fileSize: storage.maxUploadBytes ?? 500 * 1024 * 1024, files: 20 },
         })) {
           if (part.type === "field") {
             fields[part.fieldname] = String(part.value);
             continue;
           }
-          if (fileName !== undefined) {
-            throw new AppError(400, "MULTIPLE_FILES", "Only one audio file is allowed");
-          }
           fileName = part.filename;
           const extension = extname(fileName).toLowerCase();
-          if (extension !== ".mp3" && extension !== ".flac") {
-            throw new AppError(415, "UNSUPPORTED_AUDIO_TYPE", "Only MP3 and FLAC are supported");
+          const SUPPORTED = [".mp3", ".flac", ".ogg", ".aac", ".wav", ".opus", ".m4a", ".wma", ".x-flac"];
+          if (!SUPPORTED.includes(extension)) {
+            throw new AppError(415, "UNSUPPORTED_AUDIO_TYPE", "Only MP3, FLAC, OGG, AAC, WAV, OPUS, M4A, WMA are supported");
           }
           tempPath = join(storage.tempUploadPath, `${randomUUID()}.upload`);
           const hash = createHash("sha256");

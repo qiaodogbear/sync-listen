@@ -48,7 +48,7 @@ private val SUPPORTED_MIME_TYPES = setOf(
     "audio/ogg", "audio/aac", "audio/wav", "audio/x-wav",
     "audio/opus", "audio/mp4", "audio/x-ms-wma",
 )
-private const val MAX_FILE_SIZE_BYTES = 200L * 1024 * 1024
+private const val MAX_FILE_SIZE_BYTES = 500L * 1024 * 1024
 
 fun isSupportedAudio(fileName: String, mimeType: String?): Boolean {
     val extension = fileName.substringAfterLast('.', "").lowercase()
