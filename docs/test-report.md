@@ -40,6 +40,15 @@ B 曾显示 RTT 17ms、serverOffset -619ms、上次 syncError 155ms、速度 1.0
 
 模拟器 Wi-Fi/data 开关没有立即断开既有连接，因此本轮使用 Host 进程停止验证服务中断，不把它记录成完整网络切换或真实热点验收。
 
+### 发布校验
+
+[v0.3.0 Preview](https://github.com/qiaodogbear/sync-listen/releases/tag/v0.3.0) 已在公开 MIT 仓库发布，标签对应84fc8aa；[标签代码CI](https://github.com/qiaodogbear/sync-listen/actions/runs/35012478206) 三端通过。
+
+- APK 7,407,866字节；Windows ZIP 139,259,418字节；第三方源码ZIP 112,640,996字节。
+- 4个Release附件的GitHub SHA-256 digest与本地全部匹配。实际匿名下载APK和SHA256SUMS后再次校验通过；Windows下载入口HEAD200。
+- Windows ZIP完整解压后运行，进程存活10秒且无stderr；已结束测试进程。它不是桌面声学或视觉端到端验收。
+- 包含Java运行时、许可证、音频库对应源码，另附JDK对应源码包。签名材料未上传。
+
 ### 产物与验证边界
 
 最终正式签名构建通过，apksigner 验证 v2 签名与 RSA4096 证书；APK 含 LICENSE 和 THIRD_PARTY_NOTICES。GitHub CI run [35010915893](https://github.com/qiaodogbear/sync-listen/actions/runs/35010915893) 三端通过，其中 Android 编译仪器化测试 APK，实际设备测试在本机执行。Desktop 分发目录已构建，隐藏启动存活 8 秒、未输出错误；这不等于完成桌面视觉或声卡端到端验收。

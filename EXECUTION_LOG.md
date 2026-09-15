@@ -6,17 +6,18 @@
 
 - Updated: 2026-09-16
 - Active task: T501-T506 全量分块审查、优化与 GitHub Release
-- Status: 发布收尾中；T501-T504完成，T505打包校验中，T506待上传Release。
-- Next: 检查 artifacts 三个发布文件与SHA256SUMS；提交最终文档并推送；创建v0.3.0标签/预览Release，验证匿名下载后更新任务状态。
+- Status: completed；T501-T506 全部完成。v0.3.0 Preview 已公开发布并验证匿名下载。
+- Next: 本轮无未完成发布步骤；下一轮按 docs/known-issues.md 优先补真机锁屏/前台播放服务、独立下载失败恢复，再完善统一主题/无障碍。不要把预览版标成生产级或真机全面验收。
 - Baseline: 1aeede3，保留已有源码/UI改动；清除415个生成文件的Git索引跟踪但保留本地文件。
 - Implemented: 设备凭据/权限、协议、事务/恢复、传输校验、播放器/重连、导航/诊断、桌面缓存/播放器等修复。审查见 docs/review-2026-09-16.md，清点163文件，118生产/45测试。
 - Critical runtime fix: 父表REPLACE触发曲目外键级联删除；改@Upsert，真实Room设备用例连续三次恢复/异常关闭通过；最终签名包连续两次恢复也保留曲目。
-- Verified: 单元/服务集成134（backend39、Android85、shared6、desktop4）+真实Room设备1，共135通过。lint零错误/48警告/1提示；npm audit0。GitHub CI 35010915893 三端通过（源码05bb9ac）。
+- Verified: 单元/服务集成134（backend39、Android85、shared6、desktop4）+真实Room设备1，共135通过。lint零错误/48警告/1提示；npm audit0。GitHub CI 35012478206 三端通过（发布标签对应84fc8aa；功能源码最后修改05bb9ac）。
 - APK: 最终Release构建4m24s，RSA4096/v2签名通过。SHA256 6e4947a34737ecc94ce13c1411f741bab1b3f1e1af945958061c010cb0e8455b，证书未变，含LICENSE/THIRD_PARTY_NOTICES。
 - Runtime: A/B安装正式包；WAV上传/hash/Range206/匿名401；UI上传、缓存去重/next、暂停seek15.000s、EOF重播通过。Host停止时B重连中仍从33s播到38s，恢复后35s观测窗内自动连回并暂停15s；显式结束后重开无恢复卡。不是声学或真机长时验收。
 - Resume state: 测试房间SPUXHW已显式结束；A/B关闭释放内存，AVD定义保留。ignored .audit-tmp含失效测试会话/辅助脚本，禁止发布。
 - Tooling: Windows PowerShell7；S:映射当前工程；完整Temurin JDK21.0.11+10含jpackage。精确命令见docs/debugging.md，交接见docx/项目交接文档.md。
-- Publication: 用户已批准public、MIT、Release并完成workflow授权。仓库已公开，匿名API及网页HTTP200已验证；README/架构图/工程看板/使用文档已提交或待本次文档提交。
+- Publication: https://github.com/qiaodogbear/sync-listen/releases/tag/v0.3.0 ，公开MIT仓库；tag v0.3.0 ->84fc8aa。4附件均uploaded，服务端digest全部匹配；匿名APK下载及hash一致，Windows下载HEAD200。
+- Artifacts: artifacts/ 下APK 7,407,866B、Windows ZIP 139,259,418B、第三方源码ZIP 112,640,996B 与SHA256SUMS.txt。Windows ZIP解压后启动存活10s无stderr，非声卡/视觉端到端验证。全部产物Git忽略，通过Release分发。
 - Signing: 私钥与DPAPI文件仅在 $HOME/.synclisten/signing；不要重建旧密钥、公开密码或误把DPAPI文件当跨机密码备份。
 
 ## Decisions
