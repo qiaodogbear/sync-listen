@@ -124,3 +124,4 @@ restore state.
 - No periodic SYNC advances a scheduled command before its executeAtServerTimeMs.
 - SYNC omits the scheduled time and reports the current authoritative position.
 - Clients continue local playback while disconnected and apply the next snapshot/SYNC after reconnect.
+- Post-v0.3.0 clients additionally check the current timeline every 500ms locally. This does not add WebSocket traffic. On disconnect, stale state or poor clock quality they reset speed to 1.0 and suspend automatic correction. A repeated scheduled message is not treated as a new playback command.

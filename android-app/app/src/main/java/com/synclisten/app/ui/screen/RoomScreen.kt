@@ -72,9 +72,10 @@ fun RoomScreen(
     onOpenInvite: () -> Unit,
     onOpenSettings: () -> Unit,
     homeViewModel: HomeViewModel = hiltViewModel(),
-    roomViewModel: RoomViewModel = hiltViewModel(),
+    sessionViewModel: RoomViewModel = hiltViewModel(),
     uploadViewModel: UploadViewModel = hiltViewModel(),
 ) {
+    val roomViewModel = sessionViewModel.session
     val homeState by homeViewModel.state.collectAsState()
     val connection by roomViewModel.connection.collectAsState()
     val snapshot by roomViewModel.snapshot.collectAsState()
@@ -451,6 +452,10 @@ fun RoomScreen(
                 downloadQueueSize = downloads.queued,
                 cacheEntries = cacheSummary.entries,
                 cacheBytes = cacheSummary.physicalBytes,
+                clockUncertaintyMs = clock.uncertaintyMs,
+                checkpointCount = sync.checkpointCount,
+                correction = sync.correction,
+                syncConnected = sync.connected,
             )
 
             // Bottom actions

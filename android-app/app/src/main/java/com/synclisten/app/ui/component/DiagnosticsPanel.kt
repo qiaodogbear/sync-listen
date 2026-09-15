@@ -47,6 +47,10 @@ fun DiagnosticsPanel(
     downloadQueueSize: Int,
     cacheEntries: Int,
     cacheBytes: Long,
+    clockUncertaintyMs: Long = 0,
+    checkpointCount: Long = 0,
+    correction: String = "",
+    syncConnected: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -64,6 +68,7 @@ fun DiagnosticsPanel(
             DiagRow("WebSocket", webSocketStatus)
             DiagRow("RTT", "${rttMs}ms")
             DiagRow("服务器时钟偏移", "${serverOffsetMs}ms")
+            DiagRow("时钟不确定度估计", "${clockUncertaintyMs}ms（非声学误差）")
             DiagRow("服务器地址", serverUrl)
             DiagRow("本地 IP", localIp)
 
@@ -83,13 +88,14 @@ fun DiagnosticsPanel(
             // 第 3 段：同步状态
             SectionHeader("同步状态")
             DiagRow("播放位置", "%d.%03ds".format(positionMs / 1000, positionMs % 1000))
-            DiagRow("上次 SYNC 期望位置", "%d.%03ds".format(expectedPositionMs / 1000, expectedPositionMs % 1000))
-            DiagRow("上次同步误差", "${syncErrorMs}ms ${when {
-                kotlin.math.abs(syncErrorMs) < 80 -> "(正常)"
-                kotlin.math.abs(syncErrorMs) < 300 -> "(微调中)"
-                else -> "(需修正)"
-            }}")
+            DiagRow("最近检查点期望位置", "%d.%03ds".format(expectedPositionMs / 1000, expectedPositionMs % 1000))
+            DiagRow("最近采样软件误差", "${syncErrorMs}ms" +
+                if (syncConnected) "" else "（断线前采样，已过期）")
+            Text("当前进度与最近检查点采样时刻不同；软件误差不等于实际出声偏差。",
+                style = MaterialTheme.typography.bodySmall)
             DiagRow("播放速度", "${playbackSpeed}x")
+            DiagRow("500ms 检查点", "$checkpointCount")
+            DiagRow("纠偏策略", correction)
             DiagRow("最近下载计划", "$downloadQueueSize 首")
             DiagRow("缓存", "$cacheEntries 首 · ${cacheBytes / 1024} KB")
 
@@ -103,7 +109,8 @@ fun DiagnosticsPanel(
                         appendLine("播放器: $playerStatus | 曲目: ${currentTrack ?: "无"}")
                         appendLine("文件: ${localFilePath ?: "无"} (${if (fileExists) "存在" else "缺失"})")
                         appendLine("缓冲: ${bufferedMs}ms / ${durationMs}ms | 焦点: $audioFocus")
-                        appendLine("同步误差: ${syncErrorMs}ms | 速度: ${playbackSpeed}x | 队列: $downloadQueueSize")
+                        appendLine("最近软件误差: ${syncErrorMs}ms | 已连接: $syncConnected | 策略: $correction")
+                        appendLine("时钟不确定度: ${clockUncertaintyMs}ms | 检查点: $checkpointCount | 速度: ${playbackSpeed}x | 队列: $downloadQueueSize")
                         appendLine("缓存: $cacheEntries 首 | $cacheBytes bytes")
                     }
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager

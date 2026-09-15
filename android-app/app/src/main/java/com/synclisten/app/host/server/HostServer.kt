@@ -130,7 +130,11 @@ fun Application.hostServerModule(
                 put("serverTimeMs", clock())
             })
         }
-        get("/api/time") { call.respond(ServerTimeResponse(clock())) }
+        get("/api/time") {
+            val received = clock()
+            val sent = clock()
+            call.respond(ServerTimeResponse(sent, received, sent))
+        }
         post("/api/rooms") {
             val request = call.receive<CreateRoomRequest>()
             call.requireActor(request.userId)

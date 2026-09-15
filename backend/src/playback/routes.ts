@@ -20,7 +20,11 @@ export async function registerPlaybackRoutes(
   app: FastifyInstance,
   playback: PlaybackService,
 ): Promise<void> {
-  app.get("/api/time", async () => ({ serverTimeMs: Date.now() }));
+  app.get("/api/time", async () => {
+    const serverReceivedAtMs = Date.now();
+    const serverSentAtMs = Date.now();
+    return { serverTimeMs: serverSentAtMs, serverReceivedAtMs, serverSentAtMs };
+  });
 
   app.post<{ Params: { roomId: string } }>(
     "/api/rooms/:roomId/playback/play",

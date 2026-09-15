@@ -106,7 +106,8 @@ class DesktopAppState {
 
     fun getServerClock(): ServerClock {
         val repo = roomRepo ?: error("Not connected to a room")
-        return _serverClock ?: ServerClock(repo, LocalClock { System.currentTimeMillis() }).also {
+        return _serverClock ?: ServerClock(repo, com.synclisten.protocol.MonotonicEpochClock(
+            System.currentTimeMillis()) { System.nanoTime() / 1_000_000 }.let { LocalClock(it::nowMs) }).also {
             _serverClock = it
         }
     }
@@ -293,6 +294,12 @@ class DesktopAppState {
                 getServerClock().refresh()
                 delay(30_000)
             }
+        }
+        activeScope.launch {
+            while (isActive) { getSyncManager().checkpoint(); delay(500) }
+        }
+        activeScope.launch {
+            ws.connection.collect { getSyncManager().setConnected(it is com.synclisten.shared.data.RoomConnectionState.Connected) }
         }
         activeScope.launch {
             ws.snapshot.collect { snapshot ->

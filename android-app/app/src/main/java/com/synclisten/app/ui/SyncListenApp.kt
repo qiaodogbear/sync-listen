@@ -1,5 +1,8 @@
 package com.synclisten.app.ui
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
@@ -80,7 +83,16 @@ fun SyncListenApp() {
             )
         }
 
-        NavHost(navController = navController, startDestination = HOME) {
+        LaunchedEffect(homeState) {
+            if (homeState is HomeState.Idle && navController.currentDestination?.route == ROOM) {
+                navController.popBackStack(HOME, inclusive = false)
+            }
+            if (homeState is HomeState.InRoom && navController.currentDestination?.route != ROOM) {
+                navController.navigate(ROOM) { launchSingleTop = true; popUpTo(HOME) { inclusive = false } }
+            }
+        }
+        Column(Modifier.fillMaxSize()) {
+        NavHost(navController = navController, startDestination = HOME, modifier = Modifier.weight(1f)) {
             composable(
                 route = HOME,
                 enterTransition = { fadeIn(animationSpec = fadeSpring) },
@@ -203,6 +215,12 @@ fun SyncListenApp() {
             ) {
                 SettingsScreen(onBack = { navController.popBackStack() })
             }
+        }
+        com.synclisten.app.ui.component.ConvenienceBar(onOpenRoom = {
+            if (!navController.popBackStack(ROOM, inclusive = false)) {
+                navController.navigate(ROOM) { launchSingleTop = true; popUpTo(HOME) { inclusive = false } }
+            }
+        })
         }
     }
 }

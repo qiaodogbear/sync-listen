@@ -2,16 +2,18 @@ package com.synclisten.shared.playback
 
 import com.synclisten.shared.data.RepositoryResult
 import com.synclisten.shared.data.RoomRepository
-import com.synclisten.shared.util.AppLogger
+import com.synclisten.protocol.TimeSample
+import com.synclisten.protocol.estimateClock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withTimeoutOrNull
 
-fun interface LocalClock {
-    fun nowMs(): Long
-}
+fun interface LocalClock { fun nowMs(): Long }
 
 interface ServerTimeProvider {
     fun estimatedServerNowMs(): Long
+    fun uncertaintyMs(): Long = 0
+    fun isCalibrated(): Boolean = true
 }
 
 data class ServerClockState(
@@ -19,12 +21,8 @@ data class ServerClockState(
     val rttMs: Long = 0,
     val sampledAtMs: Long = 0,
     val error: String? = null,
-)
-
-private data class ClockSample(
-    val offsetMs: Long,
-    val rttMs: Long,
-    val sampledAtMs: Long,
+    val uncertaintyMs: Long = 0,
+    val sampleCount: Int = 0,
 )
 
 class ServerClock(
@@ -34,44 +32,30 @@ class ServerClock(
     private val mutableState = MutableStateFlow(ServerClockState())
     val state: StateFlow<ServerClockState> = mutableState
 
-    suspend fun refresh(sampleCount: Int = DEFAULT_SAMPLE_COUNT) {
+    suspend fun refresh(sampleCount: Int = 5) {
         val samples = buildList {
-            repeat(sampleCount.coerceAtLeast(1)) {
-                val startedAt = localClock.nowMs()
-                val response = repository.getServerTime()
-                val endedAt = localClock.nowMs()
-                val serverTime = (response as? RepositoryResult.Success)?.value?.serverTimeMs
-                if (serverTime != null && serverTime > 0 && endedAt >= startedAt) {
-                    val rtt = endedAt - startedAt
-                    val midpoint = startedAt + rtt / 2
-                    add(ClockSample(serverTime - midpoint, rtt, endedAt))
+            repeat(sampleCount.coerceIn(1, 8)) {
+                val start = localClock.nowMs()
+                val response = withTimeoutOrNull(3_000) { repository.getServerTime() }
+                val end = localClock.nowMs()
+                val time = (response as? RepositoryResult.Success)?.value
+                if (time != null) {
+                    TimeSample.from(start, time.serverReceivedAtMs ?: time.serverTimeMs,
+                        time.serverSentAtMs ?: time.serverTimeMs, end)?.let { add(it) }
                 }
             }
         }
-        val best = samples.minByOrNull { it.rttMs }
-        if (best == null) {
-            mutableState.value = mutableState.value.copy(error = "服务器时间校准失败")
-            AppLogger.error("ServerClock", "no valid server time samples")
-            return
-        }
-        mutableState.value = ServerClockState(best.offsetMs, best.rttMs, best.sampledAtMs)
-        AppLogger.debug("ServerClock", "offset=${best.offsetMs} rtt=${best.rttMs}")
+        val estimate = estimateClock(samples)
+        mutableState.value = if (estimate == null) state.value.copy(error = "服务器时间校准失败")
+        else ServerClockState(estimate.offsetMs, estimate.rttMs, estimate.sampledAtMs,
+            uncertaintyMs = estimate.uncertaintyMs, sampleCount = samples.size)
     }
 
-    fun isStale(): Boolean {
-        val sampledAt = mutableState.value.sampledAtMs
-        return sampledAt > 0 && (localClock.nowMs() - sampledAt) > MAX_AGE_MS
-    }
-
-    override fun estimatedServerNowMs(): Long {
-        if (isStale()) {
-            AppLogger.debug("ServerClock", "offset stale, scheduling refresh")
-        }
-        return localClock.nowMs() + mutableState.value.serverOffsetMs
-    }
-
-    private companion object {
-        const val DEFAULT_SAMPLE_COUNT = 5
-        const val MAX_AGE_MS = 300_000L // 5 minutes
-    }
+    fun reset() { mutableState.value = ServerClockState() }
+    fun isStale(): Boolean = state.value.sampleCount == 0 ||
+        localClock.nowMs() - state.value.sampledAtMs > 90_000
+    override fun isCalibrated(): Boolean = !isStale()
+    override fun uncertaintyMs(): Long = state.value.uncertaintyMs +
+        ((localClock.nowMs() - state.value.sampledAtMs).coerceAtLeast(0) / 10_000)
+    override fun estimatedServerNowMs(): Long = localClock.nowMs() + state.value.serverOffsetMs
 }

@@ -95,7 +95,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideLocalClock(): LocalClock = LocalClock(System::currentTimeMillis)
+    fun provideLocalClock(): LocalClock {
+        val clock = com.synclisten.protocol.MonotonicEpochClock(
+            System.currentTimeMillis(), android.os.SystemClock::elapsedRealtime)
+        return LocalClock(clock::nowMs)
+    }
 
     @Provides
     @Singleton

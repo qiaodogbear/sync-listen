@@ -38,7 +38,10 @@ class HostServerTest {
         val client = createClient { defaultRequest { header("X-User-Id", "host"); header("Authorization", "Bearer " + "a".repeat(64)) }; install(ContentNegotiation) { json(json) } }
 
         assertEquals(HttpStatusCode.OK, client.get("/health").status)
-        assertEquals(HttpStatusCode.OK, client.get("/api/time").status)
+        val time = client.get("/api/time").body<com.synclisten.app.data.ServerTimeResponse>()
+        assertTrue(time.serverReceivedAtMs!! > 0)
+        assertTrue(time.serverSentAtMs!! >= time.serverReceivedAtMs!!)
+        assertEquals(time.serverSentAtMs, time.serverTimeMs)
         val created = client.post("/api/rooms") {
             contentType(ContentType.Application.Json)
             setBody("""{"name":"Friday","userId":"host","displayName":"Alice"}""")

@@ -35,7 +35,11 @@ data class RoomSnapshot(
 data class PlaylistResponse(val playlist: List<Track>)
 
 @Serializable
-data class ServerTimeResponse(val serverTimeMs: Long)
+data class ServerTimeResponse(
+    val serverTimeMs: Long,
+    val serverReceivedAtMs: Long? = null,
+    val serverSentAtMs: Long? = null,
+)
 
 @Serializable
 data class TrackPlaybackCommand(val userId: String, val trackId: String, val positionMs: Long)

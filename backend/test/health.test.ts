@@ -23,6 +23,12 @@ describe("GET /health", () => {
         url: "/health",
       });
 
+      const time = await app.inject({ method: "GET", url: "/api/time" });
+      expect(time.statusCode).toBe(200);
+      const stamps = time.json<{ serverTimeMs: number; serverReceivedAtMs: number; serverSentAtMs: number }>();
+      expect(stamps.serverReceivedAtMs).toBeGreaterThan(0);
+      expect(stamps.serverSentAtMs).toBeGreaterThanOrEqual(stamps.serverReceivedAtMs);
+      expect(stamps.serverTimeMs).toBe(stamps.serverSentAtMs);
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual({
         status: "ok",

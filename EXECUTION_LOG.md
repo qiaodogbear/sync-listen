@@ -5,20 +5,26 @@
 ## Current
 
 - Updated: 2026-09-16
-- Active task: T501-T506 全量分块审查、优化与 GitHub Release
-- Status: completed；T501-T506 全部完成。v0.3.0 Preview 已公开发布并验证匿名下载。
-- Next: 本轮无未完成发布步骤；下一轮按 docs/known-issues.md 优先补真机锁屏/前台播放服务、独立下载失败恢复，再完善统一主题/无障碍。不要把预览版标成生产级或真机全面验收。
-- Baseline: 1aeede3，保留已有源码/UI改动；清除415个生成文件的Git索引跟踪但保留本地文件。
-- Implemented: 设备凭据/权限、协议、事务/恢复、传输校验、播放器/重连、导航/诊断、桌面缓存/播放器等修复。审查见 docs/review-2026-09-16.md，清点163文件，118生产/45测试。
-- Critical runtime fix: 父表REPLACE触发曲目外键级联删除；改@Upsert，真实Room设备用例连续三次恢复/异常关闭通过；最终签名包连续两次恢复也保留曲目。
-- Verified: 单元/服务集成134（backend39、Android85、shared6、desktop4）+真实Room设备1，共135通过。lint零错误/48警告/1提示；npm audit0。GitHub CI 35012478206 三端通过（发布标签对应84fc8aa；功能源码最后修改05bb9ac）。
-- APK: 最终Release构建4m24s，RSA4096/v2签名通过。SHA256 6e4947a34737ecc94ce13c1411f741bab1b3f1e1af945958061c010cb0e8455b，证书未变，含LICENSE/THIRD_PARTY_NOTICES。
-- Runtime: A/B安装正式包；WAV上传/hash/Range206/匿名401；UI上传、缓存去重/next、暂停seek15.000s、EOF重播通过。Host停止时B重连中仍从33s播到38s，恢复后35s观测窗内自动连回并暂停15s；显式结束后重开无恢复卡。不是声学或真机长时验收。
-- Resume state: 测试房间SPUXHW已显式结束；A/B关闭释放内存，AVD定义保留。ignored .audit-tmp含失效测试会话/辅助脚本，禁止发布。
-- Tooling: Windows PowerShell7；S:映射当前工程；完整Temurin JDK21.0.11+10含jpackage。精确命令见docs/debugging.md，交接见docx/项目交接文档.md。
-- Publication: https://github.com/qiaodogbear/sync-listen/releases/tag/v0.3.0 ，公开MIT仓库；tag v0.3.0 ->84fc8aa。4附件均uploaded，服务端digest全部匹配；匿名APK下载及hash一致，Windows下载HEAD200。
-- Artifacts: artifacts/ 下APK 7,407,866B、Windows ZIP 139,259,418B、第三方源码ZIP 112,640,996B 与SHA256SUMS.txt。Windows ZIP解压后启动存活10s无stderr，非声卡/视觉端到端验证。全部产物Git忽略，通过Release分发。
-- Signing: 私钥与DPAPI文件仅在 $HOME/.synclisten/signing；不要重建旧密钥、公开密码或误把DPAPI文件当跨机密码备份。
+- Status: T601-T604 complete；T605真机测量、T606 READY屏障/自适应提前量待做。开发分支feat/mvp，从29302e6开始；不覆盖旧v0.3.0附件。
+- Implemented: 四时间戳低RTT校时、单调时钟、预seek、500ms检查点、比例微调/迟滞/冷却、旧连接计划失效；统一RoomSessionController、迷你栏、可选mediaPlayback服务与悬浮窗；NSD前台发现/便捷加入/确认邀请。
+- Runtime fixes: 修正断线诊断误标正常、快重连旧计划复活、结束后旧恢复卡片残留；恢复检查增加时机约束、查询代数与显式清空。
+- Verified final code: Android102 + Node39 + shared8 + desktop4 =153项单元/服务集成；API35真实Room设备2项，共155通过。Android test/lint/assembleDebug/assembleDebugAndroidTest通过4m15s；设备测试1m26s；shared/desktop打包52s；Node lint/typecheck/build/audit0。lint零错误/50警告/1提示。
+- Device QA: docs/sync-nearby-validation.md。Emulator36.6.11共享Wi-Fi完成两机NSD发现、邀请、便捷加入、传输/鉴权/缓存、同步控制、后台播放、悬浮窗权限与拖动/关闭、断网重连。B一次软件误差12ms不代表声学偏差。
+- Final APK smoke: 从交付文件安装，单机房间/设置/迷你栏/新诊断文案/结束后立即无恢复卡片通过；无活动App Service，crash buffer为空。最终冷重开UI抓取null root，未计为成功；全双机矩阵未在最后显示/恢复修复后重复。
+- Artifact: artifacts/SyncListen-sync-nearby-debug.apk，19,450,385B；SHA256 90b1b03eacb4ab4b759082e6d847f7de08e476c8868833e7c6f5e2be509c9732。配套.sha256；包名com.synclisten.app.debug，与正式版并存，旧数据不互通。
+- Scope: 附近默认关闭、仅前台可见/收邀请、从不自动加入；HTTP可信LAN/IPv4。悬浮窗必须用户授权且再次开启；无完整MediaSession。服务器1500ms提前量保留，READY屏障尚未实现。
+- Resume state: L7ZQ9E与最终SW274S测试房间已显式结束；A/B停止、AVD定义保留、转发移除。临时特殊权限还原；B数据/Wi-Fi开启。ignored .audit-tmp是失效测试凭据、合成音频和辅助脚本，禁止发布。
+- Tooling: PowerShell7；S:映射工程；完整Temurin21.0.11+10。docs/debugging.md有共享Wi-Fi与旧NAT后备方案；交接见docx/项目交接文档.md。
+- Checkpoint: 待本轮本地提交；未推送此次变更或发布新Release。TASKS是唯一清单。
+- Next: 两台真机按测试记录采集输出差p50/p95/max、锁屏/蓝牙/热点表现，再实现T606；不要为降低等待直接删除1500ms准备余量。
+
+## Previous Release
+
+- Public MIT repository: https://github.com/qiaodogbear/sync-listen 。v0.3.0 Preview发布，tag84fc8aa，功能源码05bb9ac，发布后记录29302e6。
+- 验证：134单元/服务集成+1真实Room设备测试；CI35012478206三端通过。不要把本次开发功能写成旧附件已包含。
+- v0.3.0 APK: 7,407,866B；SHA256 6e4947a34737ecc94ce13c1411f741bab1b3f1e1af945958061c010cb0e8455b。
+- Windows ZIP: 139,259,418B；第三方源码ZIP:112,640,996B；四附件digest校验和匿名下载通过。旧产物在artifacts/，Git忽略。
+- Signing: 私钥与DPAPI文件仅在 $HOME/.synclisten/signing；不要重建密钥、输出密码或把DPAPI文件当跨机备份。
 
 ## Decisions
 

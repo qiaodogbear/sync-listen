@@ -32,6 +32,7 @@ class Media3PlayerEngine @Inject constructor(
     private fun createPlayer(): ExoPlayer = ExoPlayer.Builder(context).build().also { current ->
         current.setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true)
         current.setHandleAudioBecomingNoisy(true)
+        current.setWakeMode(C.WAKE_MODE_LOCAL)
         current.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (player !== current) return
@@ -40,6 +41,7 @@ class Media3PlayerEngine @Inject constructor(
                         listener(PlayerEngineEvent.Ready(current.duration.coerceAtLeast(0)))
                         emitPosition(current)
                     }
+                    Player.STATE_BUFFERING -> listener(PlayerEngineEvent.Buffering)
                     Player.STATE_ENDED -> {
                         emitPosition(current)
                         listener(PlayerEngineEvent.Ended)
@@ -67,6 +69,11 @@ class Media3PlayerEngine @Inject constructor(
         current.pause()
         current.setMediaItem(MediaItem.fromUri(localPath))
         current.prepare()
+    }
+
+    override fun currentPositionMs(): Long? {
+        check(Looper.myLooper() == Looper.getMainLooper()) { "Playback sampling must run on the player thread" }
+        return player?.currentPosition
     }
 
     override fun play() = onMain { player?.play() }

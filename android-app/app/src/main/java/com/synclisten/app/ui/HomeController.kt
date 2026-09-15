@@ -49,12 +49,24 @@ class HomeController @Inject constructor(
     val state: StateFlow<HomeState> = mutableState
     val hostServerState = hostServerController.state
 
+    private var recoveryGeneration = 0L
     private val mutableRecovery = MutableStateFlow<HostRecoverySnapshot?>(null)
     val recoverableRoom: StateFlow<HostRecoverySnapshot?> = mutableRecovery
 
     suspend fun checkRecovery() {
-        mutableRecovery.value = recoveryManager?.checkRecoverable()
+        if (!canCheckRecovery()) {
+            mutableRecovery.value = null
+            return
+        }
+        val generation = recoveryGeneration
+        val snapshot = recoveryManager?.checkRecoverable()
+        if (generation == recoveryGeneration && canCheckRecovery()) mutableRecovery.value = snapshot
     }
+
+    private fun canCheckRecovery(): Boolean =
+        state.value !is HomeState.InRoom && state.value !is HomeState.Loading &&
+            hostServerState.value !is HostServerState.Running &&
+            hostServerState.value !is HostServerState.Starting
 
     suspend fun recoverHostedRoom() {
         submit {
@@ -86,6 +98,7 @@ class HomeController @Inject constructor(
     }
 
     suspend fun dismissRecovery() {
+        recoveryGeneration++
         recoveryManager?.dismissRecovery()
         mutableRecovery.value = null
     }
@@ -136,8 +149,18 @@ class HomeController @Inject constructor(
     }
 
     suspend fun joinRoom(serverUrl: String, roomCode: String, displayName: String) {
-        settingsStore.update(serverUrl = serverUrl)
-        joinRoom(roomCode, displayName)
+        submit {
+            val previousServer = settingsStore.settings.first().serverUrl
+            settingsStore.update(serverUrl = serverUrl)
+            val identity = saveAndReadIdentity(displayName)
+            when (val result = repository.joinRoom(roomCode.trim(), identity.userId, identity.displayName)) {
+                is RepositoryResult.Success -> result.value.toHomeState(serverUrl)
+                is RepositoryResult.Failure -> {
+                    settingsStore.update(serverUrl = previousServer)
+                    HomeState.Error(result.message)
+                }
+            }
+        }
     }
 
     suspend fun joinRoom(link: JoinLink, displayName: String) {
@@ -164,9 +187,11 @@ class HomeController @Inject constructor(
 
     private suspend fun submit(block: suspend () -> HomeState) {
         if (mutableState.value is HomeState.InRoom || !submitMutex.tryLock()) return
+        recoveryGeneration++
         mutableState.value = HomeState.Loading
         try {
             mutableState.value = block()
+            if (mutableState.value is HomeState.InRoom) mutableRecovery.value = null
         } catch (error: kotlinx.coroutines.CancellationException) {
             mutableState.value = HomeState.Idle
             throw error
@@ -182,6 +207,8 @@ class HomeController @Inject constructor(
             .let { identityManager.ensureIdentity() }
 
     suspend fun stopHosting() {
+        recoveryGeneration++
+        mutableRecovery.value = null
         hostServerController.stop()
         previousHostingServer?.let { settingsStore.update(serverUrl = it) }
         previousHostingServer = null

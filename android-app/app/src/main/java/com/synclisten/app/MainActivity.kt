@@ -15,6 +15,7 @@ import com.synclisten.app.nearby.NfcJoinManager
 class MainActivity : ComponentActivity() {
     @Inject lateinit var joinLinkInbox: JoinLinkInbox
     @Inject lateinit var nfcJoinManager: NfcJoinManager
+    @Inject lateinit var nearbyManager: com.synclisten.app.nearby.LanNearbyManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,6 +25,16 @@ class MainActivity : ComponentActivity() {
                 SyncListenApp()
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        nearbyManager.setForeground(true)
+    }
+
+    override fun onStop() {
+        nearbyManager.setForeground(false)
+        super.onStop()
     }
 
     override fun onNewIntent(intent: Intent) {

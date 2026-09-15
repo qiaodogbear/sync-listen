@@ -42,6 +42,7 @@ sealed interface PlayerEngineEvent {
 }
 
 interface PlayerEngine {
+    fun currentPositionMs(): Long? = null
     fun setEventListener(listener: (PlayerEngineEvent) -> Unit)
     fun load(localPath: String)
     fun play()
@@ -52,6 +53,7 @@ interface PlayerEngine {
 }
 
 interface PlaybackPort {
+    fun currentPositionMs(): Long = state.value.positionMs
     val state: StateFlow<PlayerControllerState>
     suspend fun prepare(trackId: String)
     fun play()
@@ -92,6 +94,8 @@ class PlayerController @Inject constructor(
             update(status = PlayerStatus.ERROR, error = "音频准备超时，请检查文件格式")
         }
     }
+
+    override fun currentPositionMs(): Long = engine.currentPositionMs() ?: state.value.positionMs
 
     override fun play() {
         if (mutableState.value.status !in playableStatuses) return

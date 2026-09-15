@@ -40,6 +40,8 @@ class DesktopPlayerEngine(
         @Volatile var ended = false
         @Volatile var output: AudioOutput? = null
         @Volatile var stream: AudioInputStream? = null
+        @Volatile var frameRate: Float = 0f
+        @Volatile var offsetMs: Long = startMs
         var thread: Thread? = null
     }
 
@@ -48,6 +50,13 @@ class DesktopPlayerEngine(
     override fun setEventListener(listener: (PlayerEngineEvent) -> Unit) { this.listener = listener }
 
     override fun load(localPath: String) = startSession(File(localPath), 0, false)
+
+    override fun currentPositionMs(): Long? {
+        val current = session ?: return null
+        val output = current.output ?: return null
+        if (current.frameRate <= 0) return null
+        return current.offsetMs + (output.playedFrames * 1000 / current.frameRate).toLong()
+    }
 
     override fun play() {
         val current = session ?: return
@@ -112,6 +121,8 @@ class DesktopPlayerEngine(
                     val offsetMs = (skipped / pcm.frameSize * 1000 / pcm.frameRate).toLong()
                     val duration = if (input.frameLength > 0) (input.frameLength * 1000 / pcm.frameRate).toLong() else 0L
                     outputFactory(pcm).use { output ->
+                        current.frameRate = pcm.frameRate
+                        current.offsetMs = offsetMs
                         current.output = output
                         emit(current, PlayerEngineEvent.Ready(duration))
                         while (!current.stopped) {

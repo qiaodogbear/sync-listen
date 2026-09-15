@@ -2,7 +2,6 @@ package com.synclisten.shared.playback
 
 import com.synclisten.shared.domain.model.PlaybackState
 import com.synclisten.shared.domain.model.MemberRole
-import com.synclisten.shared.util.AppLogger
 import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,10 +16,10 @@ data class PlaybackSyncState(
     val syncErrorMs: Long = 0,
     val playbackSpeed: Float = NORMAL_SPEED,
     val connected: Boolean = true,
+    val checkpointCount: Long = 0,
+    val correction: String = "等待同步",
 ) {
-    companion object {
-        const val NORMAL_SPEED = 1.0f
-    }
+    companion object { const val NORMAL_SPEED = 1.0f }
 }
 
 class PlaybackSyncManager(
@@ -32,92 +31,162 @@ class PlaybackSyncManager(
     private val applyMutex = Mutex()
     private val mutableState = MutableStateFlow(PlaybackSyncState())
     val state: StateFlow<PlaybackSyncState> = mutableState
+    private var reference: PlaybackState? = null
+    private var receivedAt = 0L
+    private var scheduled: Triple<String, Long, Long>? = null
+    private var lastSeekAt: Long? = null
+    private var connectionEpoch = 0L
 
     suspend fun apply(authoritative: PlaybackState) = applyMutex.withLock {
-        val trackId = authoritative.trackId ?: run {
-            setSpeed(PlaybackSyncState.NORMAL_SPEED)
+        reference = authoritative
+        receivedAt = clock.estimatedServerNowMs()
+        correct(authoritative)
+    }
+
+    /** Local checkpoints reuse the timeline, never re-execute a scheduled command. */
+    suspend fun checkpoint() {
+        if (!state.value.connected || !applyMutex.tryLock()) return
+        try {
+            val target = reference ?: return
+            if (!clock.isCalibrated() || clock.estimatedServerNowMs() - receivedAt > 15_000) {
+                setSpeed(1f)
+                mutableState.value = state.value.copy(correction = "校时或状态过期，保持本地播放")
+                return
+            }
+            mutableState.value = state.value.copy(checkpointCount = state.value.checkpointCount + 1)
+            if (target.isPlaying || player.state.value.status == PlayerStatus.WAITING_FOR_CACHE) correct(target)
+        } finally { applyMutex.unlock() }
+    }
+
+    private suspend fun correct(authoritative: PlaybackState) {
+        val epoch = connectionEpoch
+        val track = authoritative.trackId ?: run {
+            setSpeed(1f)
             player.pause()
-            return@withLock
+            scheduled = null
+            return
         }
-        if (player.state.value.trackId != trackId || player.state.value.status == PlayerStatus.WAITING_FOR_CACHE) player.prepare(trackId)
-        if (player.state.value.status in setOf(PlayerStatus.WAITING_FOR_CACHE, PlayerStatus.ERROR)) return@withLock
+        if (player.state.value.trackId != track || player.state.value.status == PlayerStatus.WAITING_FOR_CACHE) {
+            scheduled = null
+            lastSeekAt = null
+            player.prepare(track)
+        }
+        if (epoch != connectionEpoch || player.state.value.status in setOf(PlayerStatus.WAITING_FOR_CACHE, PlayerStatus.ERROR)) return
         if (!authoritative.isPlaying) {
-            setSpeed(PlaybackSyncState.NORMAL_SPEED)
+            scheduled = null
+            setSpeed(1f)
             player.seekTo(authoritative.positionMs)
             player.pause()
-            update(authoritative.positionMs)
-            return@withLock
+            update(authoritative.positionMs, correction = "已暂停")
+            return
+        }
+        if (!clock.isCalibrated()) {
+            setSpeed(1f)
+            update(player.currentPositionMs(), correction = "等待时钟校准")
+            return
         }
         val executeAt = authoritative.executeAtServerTimeMs
-        if (executeAt != null) {
-            wait((executeAt - clock.estimatedServerNowMs()).coerceAtLeast(0))
-            val lateBy = (clock.estimatedServerNowMs() - executeAt).coerceAtLeast(0)
-            val target = (authoritative.positionMs + lateBy).let { position ->
-                val duration = player.state.value.durationMs
-                if (duration > 0) position.coerceAtMost(duration) else position
+        val key = executeAt?.let { Triple(track, it, authoritative.positionMs) }
+        if (executeAt != null && key != scheduled) {
+            setSpeed(1f)
+            val remaining = executeAt - clock.estimatedServerNowMs()
+            if (remaining > 0) {
+                if (player.state.value.status == PlayerStatus.PLAYING) player.pause()
+                // Seek/prepare ahead of the deadline; only play is left at the deadline.
+                player.seekTo(authoritative.positionMs)
+                wait((executeAt - clock.estimatedServerNowMs()).coerceAtLeast(0))
             }
-            setSpeed(PlaybackSyncState.NORMAL_SPEED)
-            player.seekTo(target)
+            if (!state.value.connected || epoch != connectionEpoch) return
+            val late = (clock.estimatedServerNowMs() - executeAt).coerceAtLeast(0)
+            val target = clamp(authoritative.positionMs + late)
+            if (remaining <= 0 || late > 40) player.seekTo(target)
+            scheduled = key
+            lastSeekAt = clock.estimatedServerNowMs()
             player.play()
-            update(target)
-            return@withLock
+            update(target, correction = "计划播放")
+            return
         }
-        val rawExpected = (
-            authoritative.positionMs +
-                (clock.estimatedServerNowMs() - authoritative.serverTimeMs).coerceAtLeast(0)
-            ).coerceAtLeast(0)
-        val playerState = player.state.value
-        val expected = if (playerState.durationMs > 0) {
-            rawExpected.coerceAtMost(playerState.durationMs)
-        } else {
-            rawExpected
+        val now = clock.estimatedServerNowMs()
+        val expected = clamp(authoritative.positionMs +
+            (now - (executeAt ?: authoritative.serverTimeMs)).coerceAtLeast(0))
+        val error = expected - player.currentPositionMs()
+        if (player.state.value.status == PlayerStatus.ENDED && expected >= player.state.value.durationMs) {
+            setSpeed(1f)
+            update(expected, error, "曲目结束")
+            return
         }
-        val error = expected - playerState.positionMs
-        if (playerState.status == PlayerStatus.ENDED && expected >= playerState.durationMs) {
-            update(expected, error)
-            return@withLock
-        }
+        val uncertainty = clock.uncertaintyMs()
+        val enter = maxOf(SPEED_THRESHOLD_MS, uncertainty * 2)
+        val exit = maxOf(20L, uncertainty * 2)
+        var action = "容差内"
         when {
-            abs(error) > FORCE_RESYNC_THRESHOLD_MS -> {
-                AppLogger.debug("PlaybackSync", "forcing resync error=$error")
-                setSpeed(PlaybackSyncState.NORMAL_SPEED)
+            uncertainty > 150 -> { setSpeed(1f); action = "网络不确定度过高，暂停纠偏" }
+            abs(error) > SEEK_THRESHOLD_MS && (lastSeekAt == null || now - lastSeekAt!! >= 2_000) -> {
+                setSpeed(1f)
                 player.seekTo(expected)
+                lastSeekAt = now
+                action = "大误差定位"
             }
-            abs(error) > SEEK_THRESHOLD_MS -> {
-                setSpeed(PlaybackSyncState.NORMAL_SPEED)
-                player.seekTo(expected)
+            !speedCorrectionEnabled -> {
+                setSpeed(1f)
+                if (abs(error) >= enter && (lastSeekAt == null || now - lastSeekAt!! >= 2_000)) {
+                    player.seekTo(expected)
+                    lastSeekAt = now
+                    action = "桌面定位纠偏"
+                }
             }
-            abs(error) >= SPEED_THRESHOLD_MS && !speedCorrectionEnabled -> player.seekTo(expected)
-            abs(error) >= SPEED_THRESHOLD_MS -> setSpeed(if (error > 0) CATCH_UP_SPEED else SLOW_DOWN_SPEED)
-            else -> setSpeed(PlaybackSyncState.NORMAL_SPEED)
+            abs(error) >= enter || (state.value.playbackSpeed != 1f && abs(error) > exit) -> {
+                setSpeed((1.0 + error / 5_000.0).coerceIn(0.98, 1.02).toFloat())
+                action = "比例速度微调"
+            }
+            else -> setSpeed(1f)
         }
         player.play()
-        update(expected, error)
+        update(expected, error, action)
     }
 
     fun setConnected(connected: Boolean) {
-        mutableState.value = mutableState.value.copy(connected = connected)
+        if (!connected) {
+            connectionEpoch++
+            setSpeed(1f)
+            reference = null
+            scheduled = null
+        }
+        mutableState.value = state.value.copy(
+            connected = connected,
+            correction = when {
+                !connected -> "已断线，保持本地播放"
+                !state.value.connected -> "等待新快照"
+                else -> state.value.correction
+            },
+        )
     }
 
-    private fun update(expected: Long, error: Long = expected - player.state.value.positionMs) {
-        mutableState.value = mutableState.value.copy(
-            expectedPositionMs = expected,
-            syncErrorMs = error,
-        )
-        AppLogger.debug(
-            "PlaybackSync",
-            "expected=$expected error=$error speed=${mutableState.value.playbackSpeed} connected=${mutableState.value.connected}",
-        )
+    fun reset() {
+        connectionEpoch++
+        setSpeed(1f)
+        reference = null
+        scheduled = null
+        lastSeekAt = null
+        mutableState.value = PlaybackSyncState()
+    }
+
+    private fun clamp(position: Long): Long = player.state.value.durationMs.let {
+        if (it > 0) position.coerceIn(0, it) else position.coerceAtLeast(0)
+    }
+
+    private fun update(expected: Long, error: Long = expected - player.currentPositionMs(), correction: String) {
+        mutableState.value = state.value.copy(expectedPositionMs = expected, syncErrorMs = error, correction = correction)
     }
 
     private fun setSpeed(speed: Float) {
-        if (mutableState.value.playbackSpeed == speed) return
+        if (state.value.playbackSpeed == speed) return
         player.setPlaybackSpeed(speed)
-        mutableState.value = mutableState.value.copy(playbackSpeed = speed)
+        mutableState.value = state.value.copy(playbackSpeed = speed)
     }
 
     companion object {
-        const val SPEED_THRESHOLD_MS = 80L
+        const val SPEED_THRESHOLD_MS = 40L
         const val SEEK_THRESHOLD_MS = 300L
         const val FORCE_RESYNC_THRESHOLD_MS = 1_000L
         const val CATCH_UP_SPEED = 1.02f

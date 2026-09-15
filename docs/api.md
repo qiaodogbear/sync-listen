@@ -210,7 +210,7 @@ PLAY, SEEK, and NEXT responses include a shared future `executeAtServerTimeMs`. 
 
 ### `GET /api/time`
 
-Returns `{ serverTimeMs }` for client clock offset estimation.
+Returns `{ serverTimeMs, serverReceivedAtMs?, serverSentAtMs? }` for client clock offset estimation. The optional receive/send timestamps are available in the post-v0.3.0 development branch; `serverTimeMs` remains the send timestamp for compatibility. Older responses without the optional fields are supported. See [clock and checkpoint design](sync-and-nearby.md).
 
 ## Playback request bodies
 

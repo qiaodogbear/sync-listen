@@ -117,11 +117,11 @@ class PlaybackSyncManagerTest {
 
         manager.apply(state(trackId = "track", positionMs = 1_150, isPlaying = true, serverTime = 2_000))
         player.commands.clear()
-        manager.apply(state(trackId = "track", positionMs = 1_050, isPlaying = true, serverTime = 2_000))
+        manager.apply(state(trackId = "track", positionMs = 1_010, isPlaying = true, serverTime = 2_000))
         assertEquals(listOf("speed:1.0", "play"), player.commands)
 
         player.commands.clear()
-        manager.apply(state(trackId = "track", positionMs = 1_050, isPlaying = true, serverTime = 2_000))
+        manager.apply(state(trackId = "track", positionMs = 1_010, isPlaying = true, serverTime = 2_000))
         assertEquals(listOf("play"), player.commands)
     }
 
@@ -136,6 +136,99 @@ class PlaybackSyncManagerTest {
 
         assertEquals(listOf("speed:1.0", "seek:2500", "play"), player.commands)
         assertEquals(1.0f, manager.state.value.playbackSpeed)
+    }
+
+    @Test fun checkpointUsesFreshPositionAndDoesNotRepeatScheduledSeek() = runBlocking {
+        var now = 1_000L
+        val player = FakePlaybackPort()
+        val manager = PlaybackSyncManager(player, object : ServerTimeProvider {
+            override fun estimatedServerNowMs() = now
+        }) { now += it }
+        manager.apply(state("track", 250, true, executeAt = 1_500))
+        player.commands.clear()
+        now = 2_000
+        player.mutableState.value = player.mutableState.value.copy(positionMs = 750)
+        manager.checkpoint()
+        assertEquals(listOf("play"), player.commands)
+        assertEquals(0, manager.state.value.syncErrorMs)
+        assertEquals(1, manager.state.value.checkpointCount)
+    }
+
+    @Test fun disconnectRestoresSpeedAndDisablesCheckpoints() = runBlocking {
+        val player = FakePlaybackPort(1_000)
+        val manager = PlaybackSyncManager(player, FixedServerTime(2_000)) {}
+        manager.apply(state("track", 1_150, true, serverTime = 2_000))
+        player.commands.clear()
+        manager.setConnected(false)
+        manager.checkpoint()
+        assertEquals(listOf("speed:1.0"), player.commands)
+        assertEquals("已断线，保持本地播放", manager.state.value.correction)
+        manager.setConnected(true)
+        assertEquals("等待新快照", manager.state.value.correction)
+    }
+
+    @Test fun poorClockQualityDoesNotCauseSeekOrSpeedThrashing() = runBlocking {
+        val player = FakePlaybackPort(1_000)
+        val manager = PlaybackSyncManager(player, object : ServerTimeProvider {
+            override fun estimatedServerNowMs() = 2_000L
+            override fun uncertaintyMs() = 200L
+        }) {}
+        manager.apply(state("track", 3_000, true, serverTime = 2_000))
+        assertEquals(listOf("play"), player.commands)
+    }
+
+    @Test fun seekHasCooldownAgainstPersistentJitter() = runBlocking {
+        val player = FakePlaybackPort(1_000)
+        val manager = PlaybackSyncManager(player, FixedServerTime(2_000)) {}
+        manager.apply(state("track", 2_000, true, serverTime = 2_000))
+        player.commands.clear()
+        player.mutableState.value = player.mutableState.value.copy(positionMs = 1_000)
+        manager.checkpoint()
+        assertFalse(player.commands.any { it.startsWith("seek") })
+    }
+
+    @Test fun proportionalCheckpointsConvergeWithClockDrift() = runBlocking {
+        var now = 1_000L
+        var actual = 800.0
+        var speed = 1f
+        val commands = FakePlaybackPort(800)
+        val player = object : PlaybackPort by commands {
+            override fun currentPositionMs() = actual.toLong()
+            override fun setPlaybackSpeed(value: Float) { speed = value }
+        }
+        val manager = PlaybackSyncManager(player, object : ServerTimeProvider {
+            override fun estimatedServerNowMs() = now
+        }) {}
+        repeat(80) { step ->
+            if (step % 10 == 0) manager.apply(state("track", now, true, serverTime = now))
+            else manager.checkpoint()
+            actual += 500 * speed * 1.0002
+            now += 500
+        }
+        org.junit.Assert.assertTrue(kotlin.math.abs(now - actual) < 40)
+        assertFalse(commands.commands.any { it.startsWith("seek") })
+    }
+
+    @Test fun samplesFreshEnginePositionInsteadOfUiTicker() = runBlocking {
+        val commands = FakePlaybackPort(1_000)
+        val player = object : PlaybackPort by commands {
+            override fun currentPositionMs() = 1_250L
+        }
+        val manager = PlaybackSyncManager(player, FixedServerTime(2_000)) {}
+        manager.apply(state("track", 1_250, true, serverTime = 2_000))
+        assertEquals(0, manager.state.value.syncErrorMs)
+        assertEquals(listOf("play"), commands.commands)
+    }
+
+    @Test fun reconnectCannotRevivePlanFromPreviousConnection() = runBlocking {
+        val player = FakePlaybackPort()
+        lateinit var manager: PlaybackSyncManager
+        manager = PlaybackSyncManager(player, FixedServerTime(1_000)) {
+            manager.setConnected(false)
+            manager.setConnected(true)
+        }
+        manager.apply(state("track", 250, true, executeAt = 1_500))
+        assertFalse(player.commands.contains("play"))
     }
 
     private fun state(

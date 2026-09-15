@@ -18,6 +18,17 @@
 
 > **v0.3.0 是面向可信局域网的预览版。** 它解决的是朋友之间共享本地歌曲与播放进度的问题，不是商业音乐服务、专业多音箱系统或公网文件服务器。真机后台稳定性、BLE/NFC 和声学同步仍需要进一步验证。
 
+## 开发分支新增内容
+
+**以下功能在 v0.3.0 发布之后实现，旧 Release 不包含。** 新同步检查点、应用内迷你栏、可选后台播放/跨应用悬浮窗，以及前台主动开启的局域网附近听友和邀请确认，详见 [同步与附近交互设计和用法](docs/sync-and-nearby.md)。真机声学偏差与长时后台表现尚待验收，不承诺逐采样同步。验证范围见 [本轮测试记录](docs/sync-nearby-validation.md)。
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/nearby-invitation-dev.png" width="220" alt="开发版：附近邀请确认"/><br/>附近邀请，确认后加入</td>
+    <td align="center"><img src="docs/images/playback-overlay-dev.png" width="220" alt="开发版：跨应用播放悬浮窗"/><br/>可关闭的播放悬浮窗</td>
+  </tr>
+</table>
+
 ## 为什么做它
 
 一起听本地音乐，往往需要反复发文件、报进度、倒数后各自点击播放；让电脑一直开着当服务器也不方便。
@@ -81,7 +92,7 @@ Sync Listen 把这些步骤放进一个房间：房主手机协调歌曲和播�
 android-app/    Android UI、客户端、本地播放、持久化手机服务器
 backend/        可选 Node.js / Fastify / SQLite 服务器
 shared/         桌面使用的 Kotlin 协议、网络、同步与内存服务端
-protocol/       Android 与 shared 共用的设备凭据计算
+protocol/       Android 与 shared 共用的设备凭据和校时纯算法
 desktop/        Compose Desktop、文件缓存与 Java Sound 播放
 docs/           使用、协议、调试、审查和测试证据
 scripts/        签名构建与审查文件清单
@@ -89,7 +100,7 @@ TASKS.md        唯一进度清单
 EXECUTION_LOG.md 轻量恢复日志
 ```
 
-Android 与 shared 尚未完全合并；本轮只提取了身份凭据这一必要公共逻辑。详细职责、技术债及后续拆分见 [架构文档](docs/architecture.md)。
+Android 与 shared 尚未完全合并；目前提取了身份凭据及校时算法公共逻辑。详细职责、技术债及后续拆分见 [架构文档](docs/architecture.md)。
 
 ## 本地开发
 

@@ -89,7 +89,21 @@ Invoke-RestMethod http://127.0.0.1:3000/health
 Get-NetTCPConnection -LocalPort 3000 -State Listen
 ```
 
-手机模式直接用 A 的界面创建房间，不需要 Node。模拟器存在 NAT，B 不能直接使用 A 的 10.0.2.15 地址：
+手机模式直接用 A 的界面创建房间，不需要 Node。Emulator 36.5+ 支持共享虚拟 Wi-Fi；本轮 36.6.11 已实际验证两个模拟器通过 NSD 发现和邀请，不依赖 adb 端口转发：
+
+```powershell
+# A/B 都使用这些额外参数启动，B 改 AVD 名和端口 5556。
+Start-Process -FilePath "$env:ANDROID_HOME\emulator\emulator.exe" -ArgumentList '-avd','SyncListen_A','-port','5554','-no-window','-no-audio','-no-snapshot-load','-feature','WiFiPacketStream','-memory','1536' -WindowStyle Hidden
+# 等待两台启动完成后，让两台都连到扫描中实际存在的 AndroidWifi。
+& $adb -s emulator-5554 shell cmd wifi connect-network AndroidWifi open
+& $adb -s emulator-5556 shell cmd wifi connect-network AndroidWifi open
+& $adb -s emulator-5554 shell ip -4 addr show wlan0
+& $adb -s emulator-5556 shell ip -4 addr show wlan0
+```
+
+本次分配 A=10.0.2.16、B=10.0.2.17，地址不应写死。附近功能必须双方打开“附近可见”且 App 在前台。系统版本和配置不同可能不支持共享 Wi-Fi，参见 [官方模拟器互联说明](https://developer.android.com/studio/run/emulator-networking-interconnect)。
+
+旧版或隔离 NAT 模式中，B 不能直接使用另一个模拟器的 10.0.2.15，此时可用以下后备方案。它只能测试手动加入，不代表 NSD 被测通：
 
 ```powershell
 & $adb -s emulator-5554 forward tcp:38571 tcp:38571
@@ -108,7 +122,7 @@ B 手动输入 `http://10.0.2.2:38571` 和 A 的房间码；真正手机不需�
 & $adb -s emulator-5554 pull /sdcard/screen.png .\screen.png
 ```
 
-房间「诊断信息」包含 WebSocket、缓存、serverOffsetMs、rttMs、syncErrorMs、playbackSpeed。Release 关闭 HTTP 正文日志，避免泄露设备凭据。提交日志前去除邀请 token、Authorization、设备 secret、个人音频和 IP 等不必要信息。
+房间「诊断信息」包含 WebSocket、缓存、serverOffsetMs、rttMs、syncErrorMs、playbackSpeed，以及检查点计数、时钟不确定度和纠偏策略。UI 当前进度与最近检查点不是同时取样，不可直接相减；断线时误差只作历史样本显示，不标“正常”。Release 关闭 HTTP 正文日志，避免泄露设备凭据。提交日志前去除邀请 token、Authorization、设备 secret、个人音频和 IP 等不必要信息。
 
 ## 恢复验收
 
@@ -120,7 +134,7 @@ $env:ANDROID_SERIAL='emulator-5554'
 .\gradlew.bat connectedDebugAndroidTest --no-daemon
 ```
 
-`HostRecoveryDatabaseTest` 覆盖连续三次恢复、异常关闭后恢复、曲目/凭据/暂停点保留与显式关闭清理。报告在 `app/build/reports/androidTests/connected`。必须连续恢复至少两次，单次恢复的内存快照可能掩盖父表 REPLACE 级联删除问题。
+`HostRecoveryDatabaseTest` 覆盖连续三次恢复、异常关闭后恢复、曲目/凭据/暂停点保留与显式关闭清理；`HomeRecoveryStateTest` 覆盖活动房间和显式结束之后不能残留恢复卡片。报告在 `app/build/reports/androidTests/connected`。必须连续恢复至少两次，单次恢复的内存快照可能掩盖父表 REPLACE 级联删除问题。
 
 在测试房间中先暂停并记录位置。对 Host 执行 `adb shell am force-stop com.synclisten.app`，重新启动后从首页恢复卡片恢复。核对房间码、列表、成员和暂停状态；恢复后成员重新连入。此操作模拟强制停止，不等同于系统自然回收。
 
