@@ -2,34 +2,43 @@ package com.synclisten.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Primary - 音乐紫罗兰
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
-val Purple40 = Color(0xFF7C4DFF)
-val PurpleGrey40 = Color(0xFF625B71)
-val Pink40 = Color(0xFF7D5260)
+// Aurora Flow Palette
 
-// Secondary - 暖橙
-val Orange80 = Color(0xFFFFB74D)
-val Orange40 = Color(0xFFFF9100)
+// Primary - Violet
+val Violet80 = Color(0xFFC4B5FD)
+val Violet60 = Color(0xFFA78BFA)
+val Violet40 = Color(0xFF8B5CF6)
+val Violet20 = Color(0xFF7C3AED)
 
-// Surface tones - 深色
-val DarkBackground = Color(0xFF121212)
-val DarkSurface = Color(0xFF1E1E1E)
-val DarkSurfaceVariant = Color(0xFF2C2C2C)
-val DarkOnSurface = Color(0xFFE0E0E0)
+// Secondary - Warm Orange
+val Orange80 = Color(0xFFFDBA74)
+val Orange60 = Color(0xFFFB923C)
+val Orange40 = Color(0xFFF97316)
+val Orange20 = Color(0xFFEA580C)
 
-// Surface tones - 浅色
-val LightBackground = Color(0xFFF8F8FF)
-val LightSurface = Color(0xFFFFFFFF)
-val LightSurfaceVariant = Color(0xFFF0EFFF)
-val LightOnSurface = Color(0xFF1C1B1F)
+// Tertiary - Teal
+val Teal60 = Color(0xFF2DD4BF)
+val Teal40 = Color(0xFF14B8A6)
 
-// Card accent
-val CreateCardTint = Color(0xFF7C4DFF)
-val JoinCardTint = Color(0xFFFF9100)
+// Background hierarchy (dark-first)
+val Bg950 = Color(0xFF09090B) // deep background
+val Bg900 = Color(0xFF18181B) // surface/cards
+val Bg800 = Color(0xFF27272A) // surface variant, inputs
+val Bg700 = Color(0xFF3F3F46) // dividers
 
-// Status colors
-val OnlineGreen = Color(0xFF4CAF50)
-val OfflineGrey = Color(0xFF9E9E9E)
+// Text on dark
+val TextPrimary = Color(0xFFFAFAFA)
+val TextSecondary = Color(0xFFA1A1AA)
+val TextMuted = Color(0xFF71717A)
+
+// Status
+val OnlineGreen = Color(0xFF4ADE80)
+val OfflineGrey = Color(0xFF71717A)
+val ErrorRed = Color(0xFFF87171)
+val SuccessGreen = Color(0xFF34D399)
+
+// Gradients (start → end)
+val GradientAuroraStart = Color(0xFF7C3AED)
+val GradientAuroraEnd = Color(0xFF2563EB)
+val GradientPlayStart = Color(0xFFBE185D)
+val GradientPlayEnd = Color(0xFFF97316)

@@ -122,19 +122,20 @@ class HomeControllerTest {
         remote: RoomRemoteDataSource,
         settings: FakeHomeSettingsStore,
         host: HostServerController = FakeHostServerController(HostServerState.Stopped),
-    ) = HomeController(RoomRepository(remote), settings, IdentityManager(settings) { "user-1" }, host)
+    ) = HomeController(RoomRepository(remote), settings, IdentityManager(settings, idFactory = { "user-1" }), host)
 }
 
 private class FakeHomeSettingsStore : SettingsStore {
     private val state = MutableStateFlow(AppSettings())
     override val settings: Flow<AppSettings> = state
 
-    override suspend fun update(userId: String?, displayName: String?, serverUrl: String?, recentNickname: String?, avatarEmoji: String?) {
+    override suspend fun update(userId: String?, displayName: String?, serverUrl: String?, recentNickname: String?, avatarEmoji: String?, deviceSecret: String?) {
         state.value = state.value.copy(
             userId = userId ?: state.value.userId,
             displayName = displayName ?: state.value.displayName,
             serverUrl = serverUrl ?: state.value.serverUrl,
             recentNickname = recentNickname ?: state.value.recentNickname,
+            deviceSecret = deviceSecret ?: state.value.deviceSecret,
             avatarEmoji = avatarEmoji ?: state.value.avatarEmoji,
         )
     }

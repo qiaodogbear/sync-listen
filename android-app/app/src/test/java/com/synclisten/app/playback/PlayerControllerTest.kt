@@ -33,6 +33,7 @@ class PlayerControllerTest {
         engine.emit(PlayerEngineEvent.Ready(durationMs = 5_000))
         preparing.await()
         assertEquals(file.path, engine.loadedPath)
+        assertEquals(file.path, controller.state.value.localFilePath)
         assertEquals("verified", controller.state.value.trackId)
     }
 
@@ -67,6 +68,8 @@ class PlayerControllerTest {
         delay(10)
         engine.emit(PlayerEngineEvent.Ready(durationMs = 5_000))
         preparing.await()
+        engine.emit(PlayerEngineEvent.Position(0, 5_000, 4_500))
+        assertEquals(4_500L, controller.state.value.bufferedMs)
         controller.play()
         controller.seekTo(1_250)
         controller.pause()
@@ -101,7 +104,13 @@ class PlayerControllerTest {
         controller.pause()
 
         assertEquals(listOf("play", "pause"), engine.commands)
+        engine.emit(PlayerEngineEvent.Ready(durationMs = 5_000))
         assertEquals(PlayerStatus.PAUSED, controller.state.value.status)
+        engine.emit(PlayerEngineEvent.Ended)
+        controller.seekTo(1_000)
+        controller.pause()
+        assertEquals(PlayerStatus.PAUSED, controller.state.value.status)
+        assertEquals(listOf("play", "pause", "seek:1000", "pause"), engine.commands)
     }
 
     @Test

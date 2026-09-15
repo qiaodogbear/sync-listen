@@ -47,7 +47,7 @@ export class PlaybackService {
   seek(roomId: string, userId: string, trackId: string, positionMs: number) {
     this.requireHostOrAdmin(roomId, userId);
     this.requireReadyTrack(roomId, trackId);
-    return this.schedule(roomId, "SEEK", trackId, positionMs);
+    return this.schedule(roomId, "SEEK", trackId, positionMs, this.getState(roomId).isPlaying);
   }
 
   pause(roomId: string, userId: string, trackId: string, positionMs: number) {
@@ -100,9 +100,10 @@ export class PlaybackService {
     type: "PLAY" | "SEEK" | "NEXT",
     trackId: string,
     positionMs: number,
+    isPlaying = true,
   ) {
     const executeAt = Date.now() + this.leadTimeMs;
-    this.updateState(roomId, trackId, positionMs, true, executeAt, executeAt);
+    this.updateState(roomId, trackId, positionMs, isPlaying, executeAt, executeAt);
     const state = this.getState(roomId);
     this.broadcaster.broadcast(roomId, type, state);
     return state;
@@ -160,6 +161,7 @@ export class PlaybackService {
       )
       .all() as PlaybackRow[];
     for (const row of rows) {
+      if (row.execute_at_server_time_ms !== null && now < row.execute_at_server_time_ms) continue;
       const positionMs = Math.max(0, row.position_ms + now - row.server_time_ms);
       this.broadcaster.broadcast(row.room_id, "SYNC", {
         trackId: row.track_id,

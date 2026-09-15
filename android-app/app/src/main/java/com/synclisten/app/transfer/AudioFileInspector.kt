@@ -10,6 +10,9 @@ import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ensureActive
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.withContext
 
 data class LocalAudioFile(
@@ -53,7 +56,7 @@ private const val MAX_FILE_SIZE_BYTES = 500L * 1024 * 1024
 fun isSupportedAudio(fileName: String, mimeType: String?): Boolean {
     val extension = fileName.substringAfterLast('.', "").lowercase()
     return extension in SUPPORTED_EXTENSIONS &&
-        (mimeType == null || mimeType in SUPPORTED_MIME_TYPES)
+        (mimeType == null || mimeType == "application/octet-stream" || mimeType in SUPPORTED_MIME_TYPES)
 }
 
 private const val DEFAULT_BUFFER_SIZE = 8192
@@ -74,10 +77,24 @@ class AudioFileInspector @Inject constructor(
             } ?: error("无法读取文件信息")
             val fileName = metadata.first ?: error("文件名不可用")
             val fileSize = metadata.second
-            if (fileSize > MAX_FILE_SIZE_BYTES) return@withContext AudioSelectionResult.Failed("文件过大（超过 200MB），请选择较小的音频文件")
+            if (fileSize > MAX_FILE_SIZE_BYTES) return@withContext AudioSelectionResult.Failed("文件过大（超过 500MB），请选择较小的音频文件")
             val mimeType = resolver.getType(uri)
             if (!isSupportedAudio(fileName, mimeType)) return@withContext AudioSelectionResult.Unsupported
-            val hash = resolver.openInputStream(uri)?.let(::sha256) ?: error("无法打开文件")
+            val digest = MessageDigest.getInstance("SHA-256")
+            var actualSize = 0L
+            resolver.openInputStream(uri)?.use { input ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                while (true) {
+                    coroutineContext.ensureActive()
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    actualSize += count
+                    require(actualSize <= MAX_FILE_SIZE_BYTES) { "文件过大（超过 500MB）" }
+                    digest.update(buffer, 0, count)
+                }
+            } ?: error("无法打开文件")
+            require(actualSize > 0) { "音频文件为空" }
+            val hash = digest.digest().joinToString("") { "%02x".format(it) }
             val retriever = MediaMetadataRetriever()
             val audioMetadata = try {
                 retriever.setDataSource(context, uri)
@@ -87,12 +104,17 @@ class AudioFileInspector @Inject constructor(
                     retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST),
                     retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L,
                 )
+            } catch (_: RuntimeException) {
+                Triple(fileName.substringBeforeLast('.'), null, 0L)
             } finally {
                 retriever.release()
             }
             AudioSelectionResult.Ready(
-                LocalAudioFile(uri, fileName, metadata.second, mimeType, audioMetadata.first, audioMetadata.second, audioMetadata.third, hash),
+                LocalAudioFile(uri, fileName, actualSize, mimeType, audioMetadata.first, audioMetadata.second, audioMetadata.third, hash),
             )
-        }.getOrElse { AudioSelectionResult.Failed(it.message ?: "读取音频失败") }
+        }.getOrElse {
+            if (it is CancellationException) throw it
+            AudioSelectionResult.Failed(it.message ?: "读取音频失败")
+        }
     }
 }

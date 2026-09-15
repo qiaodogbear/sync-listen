@@ -26,6 +26,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,8 +56,14 @@ fun CreateRoomScreen(
     val hostState by viewModel.hostServerState.collectAsState()
     val userSettings by viewModel.settings.collectAsState(initial = com.synclisten.app.data.AppSettings())
     var step by remember { mutableStateOf(0) }
-    var displayName by remember { mutableStateOf(userSettings.recentNickname) }
-    var roomName by remember { mutableStateOf("TestRoom") }
+    var displayName by remember { mutableStateOf("") }
+    var roomName by remember { mutableStateOf("一起听歌") }
+
+    LaunchedEffect(userSettings) {
+        if (displayName.isBlank() && userSettings.recentNickname.isNotBlank()) {
+            displayName = userSettings.recentNickname
+        }
+    }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -87,17 +94,19 @@ fun CreateRoomScreen(
                         label = { Text("你的昵称") },
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    OutlinedTextField(value = roomName, onValueChange = { roomName = it },
+                        label = { Text("房间名称") }, modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(24.dp))
                     Button(
                         onClick = { step = 1 },
-                        enabled = displayName.isNotBlank(),
+                        enabled = displayName.isNotBlank() && roomName.isNotBlank(),
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text("继续") }
                 }
                 1 -> {
                     // Step 2: 网络检查
                     val isRunning = hostState is HostServerState.Running
-                    NetworkCheckItem("Wi-Fi 网络", true, "已连接")
+                    Text("请确认所有设备连接同一 Wi-Fi，或其他设备已连接本机热点。")
                     NetworkCheckItem("通知权限",
                         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
@@ -132,9 +141,12 @@ fun CreateRoomScreen(
                 2 -> {
                     // Step 3: 完成
                     val hs = hostState
-                    when (hs) {
+                    if (state is HomeState.Error) {
+                        Text((state as HomeState.Error).message, color = MaterialTheme.colorScheme.error)
+                        TextButton(onClick = { step = 1 }) { Text("返回重试") }
+                    } else when (hs) {
                         is HostServerState.Running -> {
-                            Text("✅ 房间已创建！", style = MaterialTheme.typography.titleLarge)
+                            Text(if (state is HomeState.InRoom) "房间已创建" else "正在创建房间", style = MaterialTheme.typography.titleLarge)
                             Spacer(Modifier.height(8.dp))
                             // 显示房间码
                             val roomState = viewModel.state.collectAsState().value

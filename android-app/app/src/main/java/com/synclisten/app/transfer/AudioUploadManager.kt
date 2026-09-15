@@ -1,6 +1,7 @@
 package com.synclisten.app.transfer
 
 import android.content.Context
+import android.net.Uri
 import com.synclisten.app.data.SettingsStore
 import com.synclisten.app.domain.model.ErrorResponse
 import com.synclisten.app.domain.model.Track
@@ -8,11 +9,17 @@ import com.synclisten.app.util.AppLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -47,6 +54,23 @@ sealed interface UploadState {
 
 data class UploadProgress(val state: UploadState = UploadState.Idle, val progress: Int = 0)
 
+// Batch upload models — managed by UploadCoordinator to survive navigation
+enum class BatchItemState { Pending, Inspecting, Ready, Uploading, Done, Failed }
+
+data class BatchUploadItem(
+    val uri: Uri,
+    val fileName: String,
+    val fileSize: Long,
+    val state: BatchItemState,
+    val localFile: LocalAudioFile? = null,
+    val error: String? = null,
+)
+
+data class BatchUploadState(
+    val files: List<BatchUploadItem> = emptyList(),
+    val completedCount: Int = 0,
+)
+
 interface UploadTransport {
     suspend fun upload(request: UploadRequest, onProgress: (Int) -> Unit): UploadResult
 }
@@ -55,9 +79,15 @@ interface UploadTransport {
 class UploadCoordinator @Inject constructor(
     private val transport: UploadTransport,
 ) {
+    private val batchRunning = AtomicBoolean(false)
     private val runningHash = AtomicReference<String?>(null)
     private val mutableState = MutableStateFlow(UploadProgress())
     val state: StateFlow<UploadProgress> = mutableState
+
+    // Batch upload — survives navigation
+    private val uploadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val mutableBatch = MutableStateFlow(BatchUploadState())
+    val batchState: StateFlow<BatchUploadState> = mutableBatch
 
     suspend fun upload(request: UploadRequest): UploadState {
         if (!runningHash.compareAndSet(null, request.file.sha256)) return UploadState.AlreadyRunning
@@ -71,7 +101,10 @@ class UploadCoordinator @Inject constructor(
                 mutableState.value = UploadProgress(it, 100)
                 AppLogger.debug("Upload", "Completed ${request.file.fileName}")
             }
-        } catch (error: Throwable) {
+        } catch (error: CancellationException) {
+            mutableState.value = UploadProgress()
+            throw error
+        } catch (error: Exception) {
             UploadState.Failed(error.message ?: "上传失败").also {
                 mutableState.value = UploadProgress(it, mutableState.value.progress)
                 AppLogger.error("Upload", "Failed ${request.file.fileName}", error)
@@ -79,6 +112,63 @@ class UploadCoordinator @Inject constructor(
         } finally {
             runningHash.set(null)
         }
+    }
+
+    /** Enqueue a batch of files for upload. Call uploadBatch() to start. */
+    fun enqueueBatch(items: List<BatchUploadItem>) {
+        if (!batchRunning.get()) mutableBatch.value = BatchUploadState(files = items, completedCount = 0)
+    }
+
+    /** Start uploading all ready files in the batch. Runs in application scope — survives navigation. */
+    fun uploadBatch(roomId: String, uploaderId: String, uploaderName: String) {
+        val files = mutableBatch.value.files
+        if (files.any { it.state == BatchItemState.Pending || it.state == BatchItemState.Inspecting }) return
+        val readyFiles = files.filter { it.state == BatchItemState.Ready }
+        if (readyFiles.isEmpty() || !batchRunning.compareAndSet(false, true)) return
+
+        uploadScope.launch {
+            try {
+            var completed = mutableBatch.value.completedCount
+            val updated = mutableBatch.value.files.toMutableList()
+
+            for (item in readyFiles) {
+                val globalIndex = updated.indexOf(item)
+                if (globalIndex < 0) continue
+
+                val file = item.localFile ?: continue
+                updated[globalIndex] = item.copy(state = BatchItemState.Uploading)
+                mutableBatch.value = mutableBatch.value.copy(files = updated.toList())
+
+                val result = upload(
+                    UploadRequest(
+                        roomId = roomId,
+                        uploaderId = uploaderId,
+                        uploaderName = uploaderName,
+                        file = file,
+                    )
+                )
+
+                val newState = when (result) {
+                    is UploadState.Success -> BatchItemState.Done
+                    else -> BatchItemState.Failed
+                }
+                val error = (result as? UploadState.Failed)?.message
+                updated[globalIndex] = item.copy(state = newState, error = error)
+                completed++
+                mutableBatch.value = mutableBatch.value.copy(
+                    files = updated.toList(),
+                    completedCount = completed,
+                )
+            }
+            } finally {
+                batchRunning.set(false)
+            }
+        }
+    }
+
+    /** Clear the batch — called when user dismisses completed uploads. */
+    fun clearBatch() {
+        if (!batchRunning.get()) mutableBatch.value = BatchUploadState()
     }
 }
 
@@ -140,8 +230,9 @@ private class ContentUriRequestBody(
             while (true) {
                 val count = input.read(buffer)
                 if (count < 0) break
-                sink.write(buffer, 0, count)
                 sent += count
+                if (sent > file.fileSize) throw IOException("文件内容已改变，请重新选择")
+                sink.write(buffer, 0, count)
                 onProgress(((sent * 100) / total).toInt().coerceIn(0, 100))
             }
         } ?: throw IOException("无法打开文件")
@@ -156,7 +247,7 @@ private suspend fun Call.await(): Response = suspendCancellableCoroutine { conti
         }
 
         override fun onResponse(call: Call, response: Response) {
-            continuation.resume(response)
+            continuation.resume(response) { _, value, _ -> value.close() }
         }
     })
 }

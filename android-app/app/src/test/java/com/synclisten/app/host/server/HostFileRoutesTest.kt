@@ -2,6 +2,8 @@ package com.synclisten.app.host.server
 
 import com.synclisten.app.data.CreateRoomResponse
 import com.synclisten.app.domain.model.ErrorResponse
+import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.request.header
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.forms.MultiPartFormDataContent
@@ -34,7 +36,7 @@ class HostFileRoutesTest {
     fun uploadsDeduplicatesAndDownloadsReadyAudio() = testApplication {
         val root = createTempDir(prefix = "host-files-")
         application { hostServerModule(store(), HostRoomHub(), storage = HostStorage(root)) }
-        val client = createClient { install(ContentNegotiation) { json(json) } }
+        val client = createClient { defaultRequest { header("X-User-Id", "host"); header("Authorization", "Bearer " + "a".repeat(64)) }; install(ContentNegotiation) { json(json) } }
         val room = createRoom(client)
         val bytes = "fake mp3 bytes".encodeToByteArray()
         val hash = sha256(bytes)
@@ -56,7 +58,7 @@ class HostFileRoutesTest {
     fun rejectsHashMismatchAndDeletesTemporaryUpload() = testApplication {
         val root = createTempDir(prefix = "host-files-")
         application { hostServerModule(store(), HostRoomHub(), storage = HostStorage(root)) }
-        val client = createClient { install(ContentNegotiation) { json(json) } }
+        val client = createClient { defaultRequest { header("X-User-Id", "host"); header("Authorization", "Bearer " + "a".repeat(64)) }; install(ContentNegotiation) { json(json) } }
         val room = createRoom(client)
 
         val response = client.post("/api/rooms/${room.room.roomId}/tracks") {

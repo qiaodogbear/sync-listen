@@ -1,5 +1,47 @@
 # 测试与验收报告
 
+## 2026-09-16 / v0.3.0 本轮回归
+
+下方 2026-06 历史记录仅供追溯，不代替本次验证。当前完整审查见 [review-2026-09-16.md](review-2026-09-16.md)。
+
+### 自动化结果
+
+| 范围 | 本轮实际结果 | 证据 |
+|---|---|---|
+| backend | 39/39，通过；lint / typecheck / build 通过 | Vitest 4.1.11，12 个测试文件 |
+| Android | 85/85，通过；lint / assembleDebug 通过 | app/build/test-results/testDebugUnitTest |
+| shared | 6/6，通过 | shared/build/test-results/test |
+| desktop | 4/4，通过；createDistributable 通过 | desktop/build/test-results/test |
+| 合计 | 134 个执行用例，0 失败、0 错误 | 数量不是代码覆盖率 |
+| npm 依赖审计 | 完整 npm audit：0 vulnerabilities | 包括本轮升级的开发测试依赖 |
+| Android lint | 0 Error、46 Warning、1 Hint | app/build/reports/lint-results-debug.xml |
+
+Android 新增事务提交失败恢复内存状态测试；PlayerController 测试补充了本地路径/缓冲上报、曲终 seek 后仍能暂停、重复 Ready 保持暂停。shared 同样覆盖结束后暂停。Desktop 使用假音频输出覆盖生命周期，不依赖测试机真实声卡。
+
+### 正式版模拟运行
+
+环境：SyncListen_A / emulator-5554 与 SyncListen_B / emulator-5556，Pixel 6、API 35 Google APIs x86_64。手机内置 Ktor 托管，未使用 Node 服务；adb forward 仅绕过模拟器 NAT。安装包为 com.synclisten.app，不是 Debug 包。
+
+已执行：A 创建房间 SPUXHW；B 通过带服务器地址的深链进入确认对话框、输入 Bob 后加入；两端成员在线状态更新；Host 长按 Lab 成员晋升 Admin，B 同步显示新角色。
+
+测试音频：自行生成的 45 秒、16 kHz、16-bit 单声道 PCM WAV，1,440,044 字节，SHA-256：
+
+`88afa2731e4221b9be840733ef0f50683f8aff8dddd04a2fe2bfd5bb85655628`
+
+经过认证的测试客户端上传，A/B 自动缓存；B 显示 1 首 / 1406 KB 并实际进入 PLAYING。下载完整 hash 匹配；Range bytes=10-19 返回 206 和 10 字节；匿名房间快照返回 401。
+
+B 曾显示 RTT 17ms、serverOffset -619ms、上次 syncError 155ms、速度 1.02x。它是一次软件诊断采样，不是稳定误差分布、双端同时采样或声学测量。
+
+首轮运行发现曲终后 seek 暂停未真正传入引擎、重播使用结束位置、诊断路径/缓冲缺失。已修复并通过新增/扩展自动测试；最终签名包的设备复测结果在本节收尾更新，未复测前不标记运行闭环完成。
+
+### 产物与验证边界
+
+首次正式签名构建通过，apksigner 验证 v2 签名与 RSA4096 证书；最终重新构建与产物 SHA-256 在发布收尾记录。Desktop 分发目录已构建，隐藏启动存活 8 秒、未输出错误；这不等于完成桌面视觉或声卡端到端验收。
+
+未验证：真机物理扫码/BLE/NFC、Android API26 设备、两小时锁屏播放、厂商省电、真实 Android SQLite 迁移故障、音箱声学延迟、Windows 广泛格式兼容。低内存并发启动模拟器时出现过 Launcher/System UI ANR；已关闭模拟器后进行构建并冷启动恢复，不能记为 App 自身崩溃。
+
+## 历史记录
+
 ## 2026-06-13 P0 验收
 
 ### 环境

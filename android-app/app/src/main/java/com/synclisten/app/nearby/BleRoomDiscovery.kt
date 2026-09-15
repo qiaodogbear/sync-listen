@@ -31,6 +31,7 @@ object BleInviteCodec {
         val code = invite.roomCode.trim().uppercase().takeIf(roomCode::matches)
             ?: error("Invalid room code")
         val uri = URI(invite.serverUrl ?: error("Server URL is required"))
+        require(uri.scheme == "http" && uri.port != 0 && uri.port <= 65535) { "BLE only supports local HTTP IPv4 invitations" }
         val octets = uri.host.split(".").map(String::toInt)
         require(octets.size == 4 && octets.all { it in 0..255 })
         val port = if (uri.port >= 0) uri.port else 80
@@ -51,6 +52,7 @@ object BleInviteCodec {
         buffer.get()
         val host = (0 until 4).joinToString(".") { buffer.get().toUByte().toString() }
         val port = buffer.short.toUShort().toInt()
+        if (port == 0) return null
         val code = ByteArray(6).also(buffer::get).decodeToString()
         return code.takeIf(roomCode::matches)?.let { BleInvite(it, "http://$host:$port") }
     }
@@ -137,18 +139,22 @@ class AndroidBleRoomDiscovery @Inject constructor(
             .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_LOW)
             .setConnectable(false)
             .build()
+        val payload = runCatching { BleInviteCodec.encode(invite) }.getOrElse {
+            mutableState.value = BleRoomDiscoveryState(BleDiscoveryStatus.ERROR, message = "此地址不支持 BLE 邀请，请使用二维码或链接")
+            return
+        }
         val data = AdvertiseData.Builder()
             .addServiceUuid(serviceUuid)
             .build()
         val scanResponse = AdvertiseData.Builder()
-            .addServiceData(serviceUuid, BleInviteCodec.encode(invite))
+            .addServiceData(serviceUuid, payload)
             .build()
         advertiser.startAdvertising(settings, data, scanResponse, advertiseCallback)
     }
 
     @Suppress("MissingPermission")
     override fun stopAdvertising() {
-        adapter?.bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback)
+        if (requiredPermissions(advertise = true).isEmpty()) runCatching { adapter?.bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback) }
         if (mutableState.value.status == BleDiscoveryStatus.ADVERTISING) {
             mutableState.value = BleRoomDiscoveryState()
         }
@@ -168,7 +174,7 @@ class AndroidBleRoomDiscovery @Inject constructor(
 
     @Suppress("MissingPermission")
     override fun stopScanning() {
-        adapter?.bluetoothLeScanner?.stopScan(scanCallback)
+        if (requiredPermissions(advertise = false).isEmpty()) runCatching { adapter?.bluetoothLeScanner?.stopScan(scanCallback) }
         if (mutableState.value.status == BleDiscoveryStatus.SCANNING) {
             mutableState.value = BleRoomDiscoveryState()
         }

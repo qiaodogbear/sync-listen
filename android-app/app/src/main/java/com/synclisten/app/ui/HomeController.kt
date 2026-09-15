@@ -43,6 +43,7 @@ class HomeController @Inject constructor(
     private val hostServerController: HostServerController,
     private val recoveryManager: HostRecoveryManager? = null,
 ) {
+    private var previousHostingServer: String? = null
     private val submitMutex = Mutex()
     private val mutableState = MutableStateFlow<HomeState>(HomeState.Idle)
     val state: StateFlow<HomeState> = mutableState
@@ -59,31 +60,21 @@ class HomeController @Inject constructor(
         submit {
             val snapshot = mutableRecovery.value ?: return@submit HomeState.Error("没有可恢复的房间")
             val previousServer = settingsStore.settings.first().serverUrl
+            previousHostingServer = previousServer.takeUnless { it == "http://127.0.0.1:38571" } ?: com.synclisten.app.BuildConfig.DEFAULT_SERVER_URL
             when (val host = recoveryManager?.launchRecovery() ?: return@submit HomeState.Error("恢复功能不可用")) {
                 is HostServerState.Running -> {
                     settingsStore.update(serverUrl = host.localUrl)
                     val identity = identityManager.ensureIdentity()
-                    mutableRecovery.value = null
-                    HomeState.InRoom(
-                        room = Room(
-                            roomId = snapshot.roomId,
-                            roomCode = snapshot.roomCode,
-                            name = snapshot.roomName,
-                            hostUserId = identity.userId,
-                            status = RoomStatus.ACTIVE,
-                            createdAt = 0,
-                        ),
-                        member = Member(
-                            userId = identity.userId,
-                            displayName = identity.displayName,
-                            role = MemberRole.HOST,
-                            connected = false,
-                            joinedAt = 0,
-                        ),
-                        joinToken = null,
-                        inviteServerUrl = host.advertisedUrl,
-                        hostedLocally = true,
-                    )
+                    when (val joined = repository.joinRoom(snapshot.roomCode, identity.userId, identity.displayName)) {
+                        is RepositoryResult.Success -> {
+                            mutableRecovery.value = null
+                            joined.value.toHomeState(host.advertisedUrl).copy(hostedLocally = true)
+                        }
+                        is RepositoryResult.Failure -> {
+                            settingsStore.update(serverUrl = previousServer)
+                            HomeState.Error(joined.message)
+                        }
+                    }
                 }
                 is HostServerState.Error -> {
                     settingsStore.update(serverUrl = previousServer)
@@ -113,6 +104,7 @@ class HomeController @Inject constructor(
     suspend fun createHostedRoom(name: String, displayName: String) {
         submit {
             val previousServer = settingsStore.settings.first().serverUrl
+            previousHostingServer = previousServer.takeUnless { it == "http://127.0.0.1:38571" } ?: com.synclisten.app.BuildConfig.DEFAULT_SERVER_URL
             when (val host = hostServerController.start()) {
                 is HostServerState.Running -> {
                     settingsStore.update(serverUrl = host.localUrl)
@@ -171,10 +163,15 @@ class HomeController @Inject constructor(
     }
 
     private suspend fun submit(block: suspend () -> HomeState) {
-        if (!submitMutex.tryLock()) return
+        if (mutableState.value is HomeState.InRoom || !submitMutex.tryLock()) return
         mutableState.value = HomeState.Loading
         try {
             mutableState.value = block()
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            mutableState.value = HomeState.Idle
+            throw error
+        } catch (error: Exception) {
+            mutableState.value = HomeState.Error(error.message ?: "操作失败，请重试")
         } finally {
             submitMutex.unlock()
         }
@@ -184,7 +181,11 @@ class HomeController @Inject constructor(
         settingsStore.update(displayName = displayName.trim(), recentNickname = displayName.trim())
             .let { identityManager.ensureIdentity() }
 
-    suspend fun stopHosting() = hostServerController.stop()
+    suspend fun stopHosting() {
+        hostServerController.stop()
+        previousHostingServer?.let { settingsStore.update(serverUrl = it) }
+        previousHostingServer = null
+    }
 
     private fun CreateRoomResponse.toHomeState(serverUrl: String, hostedLocally: Boolean = false) =
         HomeState.InRoom(room, member, joinToken, serverUrl, hostedLocally)

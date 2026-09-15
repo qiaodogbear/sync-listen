@@ -5,6 +5,7 @@ import type { WebSocket } from "ws";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { inject, injectWS } from "./client.js";
 import { buildApp } from "../src/app.js";
 import { initializeDatabase } from "../src/db/database.js";
 
@@ -69,7 +70,7 @@ afterEach(async () => {
 describe("room websocket", () => {
   it("sends a snapshot and broadcasts member connection changes", async () => {
     const app = await createTestApp();
-    const created = await app.inject({
+    const created = await inject(app, {
       method: "POST",
       url: "/api/rooms",
       payload: { name: "Room", userId: "host", displayName: "Alice" },
@@ -78,14 +79,14 @@ describe("room websocket", () => {
       room: { roomId: string };
       joinToken: string;
     }>();
-    await app.inject({
+    await inject(app, {
       method: "POST",
       url: `/api/rooms/${room.roomId}/join`,
       payload: { userId: "member", displayName: "Bob", joinToken },
     });
 
     const hostEvents = eventCollector();
-    const host = await app.injectWS(
+    const host = await injectWS(app,
       `/ws/rooms/${room.roomId}?token=${joinToken}&userId=host`,
       undefined,
       { onInit: hostEvents.onInit },
@@ -94,7 +95,7 @@ describe("room websocket", () => {
     expect(hostSnapshot.type).toBe("ROOM_JOINED");
 
     const memberEvents = eventCollector();
-    const member = await app.injectWS(
+    const member = await injectWS(app,
       `/ws/rooms/${room.roomId}?token=${joinToken}&userId=member`,
       undefined,
       { onInit: memberEvents.onInit },
@@ -122,7 +123,7 @@ describe("room websocket", () => {
 
   it("rejects an invalid identity before websocket connection", async () => {
     const app = await createTestApp();
-    const created = await app.inject({
+    const created = await inject(app, {
       method: "POST",
       url: "/api/rooms",
       payload: { name: "Room", userId: "host", displayName: "Alice" },
@@ -130,7 +131,7 @@ describe("room websocket", () => {
     const { room } = created.json<{ room: { roomId: string } }>();
 
     await expect(
-      app.injectWS(`/ws/rooms/${room.roomId}?token=wrong&userId=host`),
+      injectWS(app, `/ws/rooms/${room.roomId}?token=wrong&userId=host`),
     ).rejects.toThrow();
 
     await app.close();
@@ -138,7 +139,7 @@ describe("room websocket", () => {
 
   it("keeps a member online while another socket for the same user remains open", async () => {
     const app = await createTestApp();
-    const created = await app.inject({
+    const created = await inject(app, {
       method: "POST",
       url: "/api/rooms",
       payload: { name: "Room", userId: "host", displayName: "Alice" },
@@ -147,17 +148,17 @@ describe("room websocket", () => {
       room: { roomId: string };
       joinToken: string;
     }>();
-    await app.inject({
+    await inject(app, {
       method: "POST",
       url: `/api/rooms/${room.roomId}/join`,
       payload: { userId: "member", displayName: "Bob", joinToken },
     });
-    const first = await app.injectWS(`/ws/rooms/${room.roomId}?token=${joinToken}&userId=member`);
-    const second = await app.injectWS(`/ws/rooms/${room.roomId}?token=${joinToken}&userId=member`);
+    const first = await injectWS(app, `/ws/rooms/${room.roomId}?token=${joinToken}&userId=member`);
+    const second = await injectWS(app, `/ws/rooms/${room.roomId}?token=${joinToken}&userId=member`);
 
     first.terminate();
     await new Promise((resolve) => setTimeout(resolve, 50));
-    const snapshot = await app.inject({ method: "GET", url: `/api/rooms/${room.roomId}` });
+    const snapshot = await inject(app, { method: "GET", url: `/api/rooms/${room.roomId}` });
 
     expect(snapshot.json()).toMatchObject({
       members: expect.arrayContaining([

@@ -40,6 +40,10 @@ import com.synclisten.app.data.AVATAR_EMOJIS
 import com.synclisten.app.ui.SettingsViewModel
 import com.synclisten.app.ui.component.MemberAvatar
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.rememberCoroutineScope
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -52,6 +56,8 @@ fun SettingsScreen(
     var serverUrl by remember { mutableStateOf("") }
     var showEmojiPicker by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var shareError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(settings) {
         displayName = settings.displayName
@@ -100,8 +106,10 @@ fun SettingsScreen(
             )
             OutlinedTextField(
                 value = serverUrl, onValueChange = { serverUrl = it },
+                enabled = !viewModel.sessionActive,
                 label = { Text("服务器地址（云端或局域网）") }, modifier = Modifier.fillMaxWidth(),
             )
+            if (viewModel.sessionActive) Text("房间连接期间不能修改服务器地址。", style = MaterialTheme.typography.bodySmall)
             Button(
                 onClick = { viewModel.save(displayName, serverUrl) },
                 modifier = Modifier.fillMaxWidth(),
@@ -111,19 +119,29 @@ fun SettingsScreen(
 
             OutlinedButton(
                 onClick = {
-                    val apkFile = File(context.applicationInfo.sourceDir)
-                    val uri = FileProvider.getUriForFile(
-                        context, "${context.packageName}.fileprovider", apkFile,
-                    )
-                    context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                        type = "application/vnd.android.package-archive"
-                        putExtra(Intent.EXTRA_STREAM, uri)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }, "分享 Sync Listen"))
+                    scope.launch {
+                        try {
+                            val apkFile = withContext(Dispatchers.IO) {
+                                val directory = File(context.cacheDir, "shared-apk").apply { mkdirs() }
+                                File(context.applicationInfo.sourceDir).copyTo(File(directory, "SyncListen.apk"), overwrite = true)
+                            }
+                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", apkFile)
+                            context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                                type = "application/vnd.android.package-archive"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }, "分享 Sync Listen"))
+                        } catch (error: kotlinx.coroutines.CancellationException) {
+                            throw error
+                        } catch (_: Exception) {
+                            shareError = "分享失败，请从 GitHub Release 下载 APK。"
+                        }
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("📤 分享应用给朋友") }
 
+            shareError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             TextButton(onClick = onBack) { Text("← 返回") }
         }
     }

@@ -27,6 +27,7 @@ class PlaybackSyncManager(
     private val player: PlaybackPort,
     private val clock: ServerTimeProvider,
     private val wait: suspend (Long) -> Unit = { delay(it) },
+    private val speedCorrectionEnabled: Boolean = true,
 ) {
     private val applyMutex = Mutex()
     private val mutableState = MutableStateFlow(PlaybackSyncState())
@@ -38,7 +39,8 @@ class PlaybackSyncManager(
             player.pause()
             return@withLock
         }
-        if (player.state.value.trackId != trackId) player.prepare(trackId)
+        if (player.state.value.trackId != trackId || player.state.value.status == PlayerStatus.WAITING_FOR_CACHE) player.prepare(trackId)
+        if (player.state.value.status in setOf(PlayerStatus.WAITING_FOR_CACHE, PlayerStatus.ERROR)) return@withLock
         if (!authoritative.isPlaying) {
             setSpeed(PlaybackSyncState.NORMAL_SPEED)
             player.seekTo(authoritative.positionMs)
@@ -85,6 +87,7 @@ class PlaybackSyncManager(
                 setSpeed(PlaybackSyncState.NORMAL_SPEED)
                 player.seekTo(expected)
             }
+            abs(error) >= SPEED_THRESHOLD_MS && !speedCorrectionEnabled -> player.seekTo(expected)
             abs(error) >= SPEED_THRESHOLD_MS -> setSpeed(if (error > 0) CATCH_UP_SPEED else SLOW_DOWN_SPEED)
             else -> setSpeed(PlaybackSyncState.NORMAL_SPEED)
         }

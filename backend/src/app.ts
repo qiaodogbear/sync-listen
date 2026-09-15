@@ -9,6 +9,7 @@ import { ZodError } from "zod";
 import { loadServerConfig } from "./config.js";
 import { initializeDatabase } from "./db/database.js";
 import { AppError } from "./errors.js";
+import { registerAuthentication } from "./auth.js";
 import { PlaybackService } from "./playback/playbackService.js";
 import { registerPlaybackRoutes } from "./playback/routes.js";
 import { registerRoomRoutes } from "./rooms/routes.js";
@@ -30,7 +31,10 @@ export async function buildApp(
   options: BuildAppOptions = {},
 ): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: process.env.NODE_ENV !== "test",
+    logger: process.env.NODE_ENV === "test" ? false : {
+      redact: ["req.headers.authorization"],
+      serializers: { req: (request) => ({ method: request.method, url: request.url.split("?")[0] ?? "" }) },
+    },
   });
   const config = loadServerConfig();
   const database =
@@ -63,7 +67,7 @@ export async function buildApp(
     void reply.status(statusCode).send({
       error: {
         code,
-        message: error.message,
+        message: statusCode >= 500 ? "Internal server error" : error.message,
         ...(error instanceof AppError && error.details !== undefined
           ? { details: error.details }
           : {}),
@@ -76,11 +80,12 @@ export async function buildApp(
     serverTimeMs: Date.now(),
   }));
 
-  await registerRoomRoutes(app, database);
   const roomHub = new RoomHub(database);
+  registerAuthentication(app, database);
+  await registerRoomRoutes(app, database, roomHub);
   roomHub.register(app);
   const playlistService = new PlaylistService(database, roomHub);
-  await registerPlaylistRoutes(app, playlistService);
+  await registerPlaylistRoutes(app, playlistService, database);
   await registerTrackFileRoutes(app, database, playlistService, {
     audioStoragePath: options.storage?.audioStoragePath ?? config.audioStoragePath,
     tempUploadPath: options.storage?.tempUploadPath ?? config.tempUploadPath,

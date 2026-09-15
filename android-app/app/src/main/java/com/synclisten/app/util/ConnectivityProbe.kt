@@ -40,7 +40,7 @@ object ConnectivityProbe {
         try {
             withTimeout(8_000) {
                 val request = Request.Builder().url("$normalized/health").build()
-                val response = client.newCall(request).execute()
+                client.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
                     ProbeResult.Reachable
                 } else {
@@ -48,7 +48,10 @@ object ConnectivityProbe {
                         UnreachableReason.SERVER_ERROR, "服务器返回错误 ${response.code}"
                     )
                 }
+                }
             }
+        } catch (e: IllegalArgumentException) {
+            ProbeResult.Unreachable(UnreachableReason.INVALID_ADDRESS, "服务器地址格式无效")
         } catch (e: UnknownHostException) {
             ProbeResult.Unreachable(UnreachableReason.NETWORK_UNREACHABLE, "设备可能不在同一网络")
         } catch (e: ConnectException) {

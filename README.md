@@ -1,118 +1,133 @@
+<div align="center">
+
 # Sync Listen
+### 同一份音乐，一起按下播放
 
-Sync Listen 是一个 Android 多人同步听歌原型。成员加入同一房间后共享播放列表，
-将 MP3/FLAC 上传到中心服务器并自动缓存到各设备；Host 统一控制播放，各设备从
-本地已校验文件播放，并通过服务器时钟、计划执行、周期 SYNC、seek 和轻微变速保持同步。
+用一台 Android 手机托管房间，让朋友的设备同步播放本地歌曲。<br/>
+不要求电脑在场，不接入音乐账号，不转播实时音频。
 
-## 功能
+[下载 Android / Windows](https://github.com/qiaodogbear/sync-listen/releases/tag/v0.3.0) · [使用指南](docs/getting-started.md) · [问题反馈](https://github.com/qiaodogbear/sync-listen/issues) · [架构与审查](docs/review-2026-09-16.md)
 
-- 临时昵称创建/加入房间，Host/Member 权限。
-- 手动房间码、二维码、深链、BLE 房间码发现和 NFC 加入链接。
-- MP3/FLAC 上传、SHA-256 去重、自动下载、校验和缓存清理。
-- Media3 本地播放，统一播放/暂停/seek/next。
-- 断线继续播放、自动重连、同步误差与下载队列调试信息。
-- 可由一台 Android 手机在同一 Wi-Fi 或手机热点内托管房间，无需电脑后端。
+![Version](https://img.shields.io/badge/version-0.3.0_preview-14b8a6)
+![Android](https://img.shields.io/badge/Android-8.0%2B-3ddc84)
+![Windows](https://img.shields.io/badge/Windows-x64-0078d4)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Build and Test](https://github.com/qiaodogbear/sync-listen/actions/workflows/ci.yml/badge.svg)](https://github.com/qiaodogbear/sync-listen/actions/workflows/ci.yml)
 
-## 架构与目录
+</div>
+
+> **v0.3.0 是面向可信局域网的预览版。** 它解决的是朋友之间共享本地歌曲与播放进度的问题，不是商业音乐服务、专业多音箱系统或公网文件服务器。真机后台稳定性、BLE/NFC 和声学同步仍需要进一步验证。
+
+## 为什么做它
+
+一起听本地音乐，往往需要反复发文件、报进度、倒数后各自点击播放；让电脑一直开着当服务器也不方便。
+
+Sync Listen 把这些步骤放进一个房间：房主手机协调歌曲和播放状态，成员自动缓存同一份文件，再在各自设备上播放。上传完成后，播放控制只同步少量状态，不持续传送实时音频。
+
+适合朋友在同一 Wi-Fi 或手机热点内分享自己有权使用的本地音乐。**无需互联网不等于无需网络**：设备之间仍须可以互相访问，房主也必须在线。
+
+## 界面
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/android-home.png" width="240" alt="Android 首页：创建房间与加入房间"/><br/>从创建或加入开始</td>
+    <td align="center"><img src="docs/images/android-room.png" width="240" alt="Android 房间：成员、歌曲缓存和播放控制"/><br/>房间、缓存与同步播放</td>
+  </tr>
+</table>
+
+截图来自本轮 API 35 模拟器实机运行，演示音频为自行生成的测试音，不代表第三方音乐内容。
+
+## 三步开始
+
+1. **连接同一网络**：两台手机连接同一 Wi-Fi，或一台开启热点，其他设备连入。
+2. **创建和加入**：房主点击「创建房间」，填写昵称和房间名称，允许托管通知。成员扫码加入，或填写房主地址与六位房间码。
+3. **添加并播放**：在房间点击「添加」，选择本地音频。等待设备显示缓存就绪，再由房主选择歌曲播放。
+
+手机托管使用 TCP `38571`。普通用户无需安装 Node.js、配置数据库或准备电脑。二维码中的地址必须是其他设备可达的局域网地址，不能用 `127.0.0.1`。
+
+## 已有能力
+
+| 能力 | 当前实现 |
+|---|---|
+| 手机独立托管 | Android 内置 Ktor 服务，房间状态保存在本机 |
+| Windows 一起听 | 独立桌面客户端，连接手机房主或 Node 后端 |
+| 房间与权限 | 临时昵称，Host / Admin / Member；服务端校验控制权限 |
+| 文件共享 | 流式上传、SHA-256 去重、自动下载、长度与 hash 校验 |
+| 同步控制 | 播放、暂停、seek、下一首；服务器时钟、计划执行、周期纠偏 |
+| 本地播放 | Android 使用 Media3；桌面使用 Java Sound |
+| 重新连接 | WebSocket 重试并恢复权威快照；有缓存时短时断线继续播放 |
+| 托管恢复 | 房主异常退出后再次打开，可恢复原房间并以暂停状态继续 |
+| 多种邀请 | 房间码、二维码与深链；BLE/NFC 邀请入口已实现，真机待补验 |
+
+**格式说明**：Android 建议先使用 MP3 / FLAC / WAV；其他容器和编码组合以设备解码器为准。Windows 本轮验证了 PCM WAV，集成了 MP3 解码支持但未完成广泛格式验证。文件可上传不等于每个平台都能解码。
+
+## 下载与升级
+
+| 平台 | 文件 | 使用方式 |
+|---|---|---|
+| Android 8.0+ | `SyncListen-v0.3.0-android.apk` | 在手机安装，按系统提示允许来自所用文件管理器或浏览器的安装 |
+| Windows x64 | `SyncListen-v0.3.0-windows-x64.zip` | 解压整个文件夹后运行 `SyncListen.exe`，内含 Java 运行时 |
+| 校验文件 | `SHA256SUMS.txt` | 用 SHA-256 核对下载文件 |
+
+从 [v0.3.0 Release](https://github.com/qiaodogbear/sync-listen/releases/tag/v0.3.0) 获取文件。Windows 包尚未配置 Authenticode 签名，系统可能提示未知发布者；请核对来源和校验值，不要关闭系统安全防护。
+
+本版引入设备凭据协议，**不兼容旧版无鉴权房间**，请所有设备一起升级并重新创建房间。旧 Debug 包与正式包使用不同 applicationId，可以并存；若此前安装过同包名、不同签名的测试包，需要先备份所需音频再卸载旧包。
+
+## 架构
+
+![Sync Listen 架构](docs/images/architecture.png)
 
 ```text
-sync-listen/
-  android-app/        Kotlin、Compose、Media3、Room、WorkManager、Hilt
-  backend/            Node.js、TypeScript、Fastify、SQLite、本地音频目录
-  docs/               API、WebSocket、架构、调试、已知问题和测试报告
-  .env.example        后端环境变量示例
-  TASKS.md            唯一任务与进度清单
-  EXECUTION_LOG.md    轻量恢复日志
+android-app/    Android UI、客户端、本地播放、持久化手机服务器
+backend/        可选 Node.js / Fastify / SQLite 服务器
+shared/         桌面使用的 Kotlin 协议、网络、同步与内存服务端
+protocol/       Android 与 shared 共用的设备凭据计算
+desktop/        Compose Desktop、文件缓存与 Java Sound 播放
+docs/           使用、协议、调试、审查和测试证据
+scripts/        签名构建与审查文件清单
+TASKS.md        唯一进度清单
+EXECUTION_LOG.md 轻量恢复日志
 ```
 
-详细数据流见 [docs/architecture.md](docs/architecture.md)。
+Android 与 shared 尚未完全合并；本轮只提取了身份凭据这一必要公共逻辑。详细职责、技术债及后续拆分见 [架构文档](docs/architecture.md)。
 
-## 环境要求
+## 本地开发
 
-- Node.js 22 或更新版本，npm。
-- JDK 17；推荐 Android Studio 内置 JBR。
-- Android SDK 35、Android Emulator。
-- 首次验收推荐两个 Pixel 6 / API 35 Google APIs x86_64 AVD。
-
-## 启动后端
+需要 Node.js 22.13+（本轮使用 24）、完整 JDK 21、Android SDK 35。Windows 中文路径建议映射到空闲 ASCII 盘符。工具位置、模拟器创建、安装、调试和签名命令见 [开发与调试指南](docs/debugging.md)。
 
 ```powershell
+# 可选的电脑后端
 cd backend
-npm install
-Copy-Item ..\.env.example .env
-npm run db:migrate
+npm ci
 npm run dev
+# 另一个终端：http://127.0.0.1:3000/health
 ```
-
-健康检查：`http://127.0.0.1:3000/health`。生产式运行使用
-`npm run build` 后执行 `npm start`。
-
-## 构建与安装 Android
-
-Windows 中文路径下建议使用 ASCII 驱动器映射：
 
 ```powershell
-subst S: C:\Users\15224\Desktop\工程\sync-listen
-$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
-cd S:\android-app
-.\gradlew.bat testDebugUnitTest lintDebug assembleDebug
-adb install -r app\build\outputs\apk\debug\app-debug.apk
+# Android 独立构建
+cd android-app
+.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon
 ```
-
-Debug APK 位于 `android-app/app/build/outputs/apk/debug/app-debug.apk`。
-
-使用电脑后端时，Debug App 默认连接 `http://10.0.2.2:3000`。真机需在“调试设置”
-中改为后端电脑的局域网地址，例如 `http://192.168.1.10:3000`。
-
-## 手机托管模式
-
-1. 让两台手机连接同一 Wi-Fi，或让成员手机连接 Host 手机创建的热点。
-2. Host 输入昵称和房间名，点击“手机托管房间”，并允许通知权限。
-3. Host 保持 Sync Listen 前台托管通知运行；成员通过二维码、深链、BLE、NFC，或输入
-   Host 地址和房间码加入。
-4. 后续上传、下载、缓存和同步播放操作与电脑后端模式相同。
-
-手机托管服务监听 TCP `38571`。不需要电脑或互联网，但 Host 与成员必须能通过局域网
-互相访问；厂商热点若启用了客户端隔离会导致成员无法加入。
-
-**Host 房间恢复**：若 Host 进程被系统终止或 App 崩溃，重新打开 App 后首页会显示
-"发现上次托管的房间"卡片，点击恢复可沿用原房间码、播放列表和缓存文件，
-播放状态自动恢复为暂停。用户主动停止托管或离开房间后不保留可恢复数据。
-
-## 双设备使用
-
-1. 选择手机托管模式，或启动电脑后端并确认两个 Android 设备能访问 `/health`。
-2. A 输入昵称和房间名并创建房间。
-3. B 使用房间码、二维码、深链、BLE 发现或 NFC 邀请加入。
-4. 任一成员通过“上传歌曲”选择 MP3/FLAC；各设备自动下载并校验。
-5. Host 点击“播放此曲”，再使用暂停、前进 5 秒和下一首控制。
-6. 房间页查看缓存、队列、WebSocket、`serverOffsetMs`、`rttMs`、
-   `syncErrorMs` 和 `playbackSpeed`。
-
-二维码/深链/NFC 可携带加入令牌；手机托管模式的 BLE 邀请还携带 Host IPv4 和端口。
-
-## 网络测试
-
-- 模拟器到宿主机：使用 `http://10.0.2.2:3000`。
-- 双模拟器测试手机托管：使用 `adb -s emulator-5554 forward tcp:38571 tcp:38571`，
-  B 输入 `http://10.0.2.2:38571`；这只用于绕过模拟器 NAT。
-- 局域网真机：开放 TCP 3000，并使用宿主机局域网 IP。
-- 手机托管真机：使用 Host 页面/邀请显示的局域网 IPv4，端口为 TCP 38571。
-- 公网：当前无 TLS、账号或反向代理内置支持；必须自行放在 HTTPS/WSS 反向代理后，
-  且不应直接公开本原型服务。
-
-## 验证
 
 ```powershell
-cd backend
-npm run lint
-npm run typecheck
-npm test
-npm run build
-
-cd ..\android-app
-.\gradlew.bat clean testDebugUnitTest lintDebug assembleDebug
+# 根目录构建桌面客户端；须使用带 jpackage 的完整 JDK 21
+.\gradlew.bat :shared:test :desktop:test :desktop:createDistributable --no-daemon
 ```
 
-完整结果见 [docs/test-report.md](docs/test-report.md)。故障排查见
-[docs/debugging.md](docs/debugging.md)，限制见 [docs/known-issues.md](docs/known-issues.md)。
+## 质量与边界
+
+本轮按八个模块分块审查，修复了身份冒用、角色权限遗漏、重排冲突、恢复一致性、取消传播、重复上传、桌面自动播放和释放后无法再次使用等问题。新增后端、共享模块和桌面回归测试，并建立三端 CI。
+
+- [审查报告与改进记录](docs/review-2026-09-16.md)
+- [测试报告：自动测试与实际模拟运行分开记录](docs/test-report.md)
+- [工程审查看板](outputs/review-2026-09-16/SyncListen-Review.xlsx)
+- [已知问题与下一阶段优化](docs/known-issues.md)
+- [REST API](docs/api.md) / [WebSocket](docs/websocket.md)
+
+当前不支持主机迁移、完全无网络组网、Mesh、实时音频转播、iOS 或第三方音乐 App 音频捕获。蓝牙音箱、耳机和不同声卡输出延迟会影响听感，软件位置接近不代表声学输出精确同步。
+
+## 参与与许可
+
+欢迎提交包含平台、版本、复现步骤和脱敏日志的 Issue。请勿上传设备密钥、房间邀请令牌或无权分发的音乐。
+
+本项目自有代码采用 [MIT 许可证](LICENSE)。第三方组件保留各自许可证，详见 [第三方组件说明](THIRD_PARTY_NOTICES.md)。安全边界与漏洞报告方式见 [SECURITY.md](SECURITY.md)。

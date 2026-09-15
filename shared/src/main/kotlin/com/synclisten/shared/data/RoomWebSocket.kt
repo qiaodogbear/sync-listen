@@ -1,6 +1,7 @@
 package com.synclisten.shared.data
 
 import com.synclisten.shared.domain.model.Member
+import com.synclisten.shared.domain.model.MemberRole
 import com.synclisten.shared.domain.model.PlaybackState
 import com.synclisten.shared.domain.model.WebSocketEnvelope
 import com.synclisten.shared.domain.model.WebSocketEventType
@@ -29,6 +30,8 @@ sealed interface RoomEvent {
     data class Snapshot(val value: RoomSnapshot, val serverTimeMs: Long) : RoomEvent
     data class MemberJoined(val member: Member) : RoomEvent
     data class MemberLeft(val userId: String) : RoomEvent
+    data class RoleChanged(val userId: String, val newRole: MemberRole) : RoomEvent
+    data class TrackRemoved(val trackId: String) : RoomEvent
     data class Playlist(val value: PlaylistResponse, val serverTimeMs: Long) : RoomEvent
     data class Playback(val value: PlaybackState) : RoomEvent
     data class Other(val envelope: WebSocketEnvelope) : RoomEvent
@@ -44,6 +47,12 @@ class RoomEventParser(private val json: Json) {
                 RoomEvent.MemberJoined(json.decodeFromJsonElement<MemberPayload>(envelope.payload).member)
             WebSocketEventType.MEMBER_LEFT ->
                 RoomEvent.MemberLeft(json.decodeFromJsonElement<MemberLeftPayload>(envelope.payload).userId)
+            WebSocketEventType.ROLE_CHANGED -> {
+                val p = json.decodeFromJsonElement<RoleChangedPayload>(envelope.payload)
+                RoomEvent.RoleChanged(p.userId, p.role)
+            }
+            WebSocketEventType.TRACK_REMOVED ->
+                RoomEvent.TrackRemoved(json.decodeFromJsonElement<TrackRemovedPayload>(envelope.payload).trackId)
             WebSocketEventType.PLAYLIST_UPDATED ->
                 RoomEvent.Playlist(json.decodeFromJsonElement(envelope.payload), envelope.serverTimeMs)
             WebSocketEventType.PLAY,
@@ -63,6 +72,12 @@ private data class MemberPayload(val member: Member)
 @kotlinx.serialization.Serializable
 private data class MemberLeftPayload(val userId: String)
 
+@kotlinx.serialization.Serializable
+private data class RoleChangedPayload(val userId: String, val role: MemberRole)
+
+@kotlinx.serialization.Serializable
+private data class TrackRemovedPayload(val trackId: String)
+
 class RoomEventReducer {
     private var latestPlaylistServerTimeMs = Long.MIN_VALUE
 
@@ -78,6 +93,14 @@ class RoomEventReducer {
             members = current.members.map {
                 if (it.userId == event.userId) it.copy(connected = false) else it
             },
+        )
+        is RoomEvent.RoleChanged -> current?.copy(
+            members = current.members.map {
+                if (it.userId == event.userId) it.copy(role = event.newRole) else it
+            },
+        )
+        is RoomEvent.TrackRemoved -> current?.copy(
+            playlist = current.playlist.filter { it.trackId != event.trackId },
         )
         is RoomEvent.Playlist -> if (event.serverTimeMs < latestPlaylistServerTimeMs) {
             current
@@ -179,6 +202,8 @@ class RoomWebSocketClient(
         reconnectJob = null
         reconnectGate.reset()
         target = null
+        mutableSnapshot.value = null
+        mutableLastEvent.value = null
         socket?.close(1000, "Client disconnect")
         socket = null
         mutableConnection.value = RoomConnectionState.Disconnected
@@ -227,6 +252,11 @@ class RoomWebSocketClient(
         override fun onFailure(webSocket: WebSocket, error: Throwable, response: Response?) {
             if (webSocket !== socket) return
             AppLogger.error("WebSocket", "Connection failed", error)
+            if (response?.code in listOf(401, 403, 404, 410)) {
+                shouldReconnect.set(false)
+                mutableConnection.value = RoomConnectionState.Failed("房间已关闭或身份失效，请返回首页重新加入")
+                return
+            }
             scheduleReconnect(error.message ?: "WebSocket connection failed")
         }
     }
@@ -241,9 +271,6 @@ class RoomWebSocketClient(
         mutableConnection.value = RoomConnectionState.Reconnecting(attempt)
         reconnectJob = scope.launch {
             // 如果网络不可用，等待恢复
-            if (!networkAvailable.value) {
-                networkAvailable.first { it }
-            }
             delay(reconnectDelayMs(attempt - 1))
             reconnectGate.complete()
             if (shouldReconnect.get()) open() else mutableConnection.value = RoomConnectionState.Failed(message)

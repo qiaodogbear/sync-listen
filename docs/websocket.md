@@ -8,7 +8,7 @@ Endpoint:
 /ws/rooms/{roomId}?token=JOIN_TOKEN&userId=USER_ID
 ```
 
-The server validates the room, join token, and user before accepting the connection.
+The handshake must also carry `X-User-Id: USER_ID` and `Authorization: Bearer LOWERCASE_64_HEX_CREDENTIAL`. The server validates device membership, room, invitation token and matching actor before accepting the connection. Query tokens are invitation data, not user credentials. Native clients support these headers; a browser WebSocket client needs an explicitly designed authentication bridge, not removal of the server checks.
 
 ## Common envelope
 
@@ -18,7 +18,7 @@ Every event uses the same envelope:
 {
   "type": "TRACK_READY",
   "payload": {
-    "trackId": "track-1"
+    "track": { "trackId": "track-1", "...": "remaining Track fields" }
   },
   "serverTimeMs": 1710000000000
 }
@@ -34,6 +34,7 @@ Every event uses the same envelope:
 ROOM_JOINED
 MEMBER_JOINED
 MEMBER_LEFT
+ROLE_CHANGED
 TRACK_ADDED
 TRACK_UPLOAD_PROGRESS
 TRACK_READY
@@ -106,9 +107,12 @@ user during reconnect; the member remains online until the final socket closes.
 | `ROOM_JOINED` | Full `{ room, members, playlist, playbackState }` snapshot |
 | `MEMBER_JOINED` | `{ member }` |
 | `MEMBER_LEFT` | `{ userId }` |
+| `ROLE_CHANGED` | `{ userId, role }`; clients update the current user's effective permissions too |
 | `TRACK_ADDED`, `TRACK_READY` | `{ track }` |
 | `PLAYLIST_UPDATED` | `{ playlist }` |
 | `PLAY`, `PAUSE`, `SEEK`, `NEXT`, `SYNC` | `PlaybackState` |
+
+Not every reserved event in the enum is emitted by every server. Clients should rely on snapshots for convergence, not assume upload-progress or download-hint messages are always sent.
 
 Current clients treat unrecognized protocol events as no-ops so a later authoritative snapshot can
 restore state.
@@ -116,6 +120,7 @@ restore state.
 ## Playback timing
 
 - PLAY, SEEK and NEXT include a future `executeAtServerTimeMs`.
-- PAUSE is applied immediately.
+- PAUSE is applied immediately. SEEK preserves the preceding paused/playing state.
+- No periodic SYNC advances a scheduled command before its executeAtServerTimeMs.
 - SYNC omits the scheduled time and reports the current authoritative position.
 - Clients continue local playback while disconnected and apply the next snapshot/SYNC after reconnect.

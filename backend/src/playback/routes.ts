@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
+import { requireActor } from "../auth.js";
+
 import type { PlaybackService } from "./playbackService.js";
 
 const trackCommandSchema = z.object({
@@ -24,6 +26,7 @@ export async function registerPlaybackRoutes(
     "/api/rooms/:roomId/playback/play",
     async (request) => {
       const body = trackCommandSchema.parse(request.body);
+      requireActor(request, body.userId);
       return { state: playback.play(request.params.roomId, body.userId, body.trackId, body.positionMs) };
     },
   );
@@ -31,6 +34,7 @@ export async function registerPlaybackRoutes(
     "/api/rooms/:roomId/playback/pause",
     async (request) => {
       const body = trackCommandSchema.parse(request.body);
+      requireActor(request, body.userId);
       return { state: playback.pause(request.params.roomId, body.userId, body.trackId, body.positionMs) };
     },
   );
@@ -38,6 +42,7 @@ export async function registerPlaybackRoutes(
     "/api/rooms/:roomId/playback/seek",
     async (request) => {
       const body = trackCommandSchema.parse(request.body);
+      requireActor(request, body.userId);
       return { state: playback.seek(request.params.roomId, body.userId, body.trackId, body.positionMs) };
     },
   );
@@ -45,8 +50,8 @@ export async function registerPlaybackRoutes(
     "/api/rooms/:roomId/playback/next",
     async (request) => {
       const body = nextCommandSchema.parse(request.body);
+      requireActor(request, body.userId);
       return { state: playback.next(request.params.roomId, body.userId, body.positionMs) };
     },
   );
 }
-

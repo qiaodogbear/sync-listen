@@ -83,7 +83,8 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideHostPersistenceDatabase(@ApplicationContext context: Context): HostPersistenceDatabase =
-        Room.databaseBuilder(context, HostPersistenceDatabase::class.java, "host-persistence.db").build()
+        Room.databaseBuilder(context, HostPersistenceDatabase::class.java, "host-persistence.db")
+            .addMigrations(HostPersistenceDatabase.MIGRATION_1_2).build()
 
     @Provides
     fun provideHostDao(database: HostPersistenceDatabase): HostDao = database.hostDao()
@@ -111,14 +112,15 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideIdentityManager(settingsStore: SettingsStore): IdentityManager =
-        IdentityManager(settingsStore) { UUID.randomUUID().toString() }
+        IdentityManager(settingsStore, idFactory = { UUID.randomUUID().toString() })
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
+    fun provideOkHttpClient(settingsStore: SettingsStore): OkHttpClient {
         val logger = HttpLoggingInterceptor { AppLogger.debug("HTTP", it) }
-            .apply { level = HttpLoggingInterceptor.Level.BASIC }
+            .apply { level = HttpLoggingInterceptor.Level.NONE }
         return OkHttpClient.Builder()
+            .addInterceptor(DeviceAuthInterceptor(settingsStore))
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
@@ -130,8 +132,9 @@ object NetworkModule {
     @Provides
     @Singleton
     @javax.inject.Named("download")
-    fun provideDownloadOkHttpClient(): OkHttpClient {
+    fun provideDownloadOkHttpClient(settingsStore: SettingsStore): OkHttpClient {
         return OkHttpClient.Builder()
+            .addInterceptor(DeviceAuthInterceptor(settingsStore))
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)

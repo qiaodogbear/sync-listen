@@ -35,7 +35,7 @@ data class PlayerControllerState(
 
 sealed interface PlayerEngineEvent {
     data class Ready(val durationMs: Long) : PlayerEngineEvent
-    data class Position(val positionMs: Long, val durationMs: Long) : PlayerEngineEvent
+    data class Position(val positionMs: Long, val durationMs: Long, val bufferedMs: Long = 0) : PlayerEngineEvent
     data object Ended : PlayerEngineEvent
     data object Buffering : PlayerEngineEvent
     data class Error(val message: String) : PlayerEngineEvent
@@ -80,13 +80,17 @@ class PlayerController @Inject constructor(
             AppLogger.debug("Player", "waiting for verified cache track=$trackId")
             return
         }
-        mutableState.value = PlayerControllerState(trackId, PlayerStatus.PREPARING)
+        mutableState.value = PlayerControllerState(trackId, PlayerStatus.PREPARING, localFilePath = cache.localPath)
         AppLogger.debug("Player", "prepare track=$trackId path=${cache.localPath}")
         val ready = CompletableDeferred<Unit>()
         pendingReady?.cancel()
         pendingReady = ready
         engine.load(cache.localPath)
-        ready.await()
+        try {
+            kotlinx.coroutines.withTimeout(15_000) { ready.await() }
+        } catch (_: kotlinx.coroutines.TimeoutCancellationException) {
+            update(status = PlayerStatus.ERROR, error = "音频准备超时，请检查文件格式")
+        }
     }
 
     override fun play() {
@@ -96,14 +100,16 @@ class PlayerController @Inject constructor(
     }
 
     override fun pause() {
-        if (mutableState.value.status != PlayerStatus.PLAYING) return
+        if (mutableState.value.trackId == null || mutableState.value.status in
+            setOf(PlayerStatus.IDLE, PlayerStatus.WAITING_FOR_CACHE, PlayerStatus.ERROR)) return
         engine.pause()
         update(status = PlayerStatus.PAUSED)
     }
 
     override fun seekTo(positionMs: Long) {
         if (mutableState.value.trackId == null) return
-        val target = positionMs.coerceIn(0, mutableState.value.durationMs.coerceAtLeast(positionMs))
+        val duration = mutableState.value.durationMs
+        val target = if (duration > 0) positionMs.coerceIn(0, duration) else positionMs.coerceAtLeast(0)
         engine.seekTo(target)
         update(positionMs = target)
     }
@@ -123,8 +129,8 @@ class PlayerController @Inject constructor(
         when (event) {
             is PlayerEngineEvent.Ready -> {
                 update(
-                    status = if (mutableState.value.status == PlayerStatus.PLAYING) {
-                        PlayerStatus.PLAYING
+                    status = if (mutableState.value.status in setOf(PlayerStatus.PLAYING, PlayerStatus.PAUSED)) {
+                        mutableState.value.status
                     } else {
                         PlayerStatus.READY
                     },
@@ -137,6 +143,7 @@ class PlayerController @Inject constructor(
             is PlayerEngineEvent.Position -> update(
                 positionMs = event.positionMs,
                 durationMs = event.durationMs,
+                bufferedMs = event.bufferedMs,
             )
             PlayerEngineEvent.Buffering -> update(status = PlayerStatus.BUFFERING)
             PlayerEngineEvent.Ended -> update(status = PlayerStatus.ENDED)
@@ -153,12 +160,14 @@ class PlayerController @Inject constructor(
         positionMs: Long = mutableState.value.positionMs,
         durationMs: Long = mutableState.value.durationMs,
         error: String? = mutableState.value.error,
+        bufferedMs: Long = mutableState.value.bufferedMs,
     ) {
         mutableState.value = mutableState.value.copy(
             status = status,
             positionMs = positionMs,
             durationMs = durationMs,
             error = error,
+            bufferedMs = bufferedMs,
         )
         AppLogger.debug("Player", "track=${mutableState.value.trackId} status=$status position=$positionMs")
     }

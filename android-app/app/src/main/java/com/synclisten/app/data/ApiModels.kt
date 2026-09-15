@@ -45,3 +45,15 @@ data class NextPlaybackCommand(val userId: String, val positionMs: Long = 0)
 
 @Serializable
 data class PlaybackResponse(val state: PlaybackState)
+
+@Serializable
+data class ChangeRoleRequest(val role: String)
+
+@Serializable
+data class ChangeRoleResponse(val userId: String, val role: String)
+
+@Serializable
+data class ReorderRequest(val orderedTrackIds: List<String>)
+
+@Serializable
+data class ReorderResponse(val ok: Boolean)

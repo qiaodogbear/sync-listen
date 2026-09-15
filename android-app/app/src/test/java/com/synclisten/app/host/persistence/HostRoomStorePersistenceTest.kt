@@ -21,6 +21,25 @@ import org.junit.Test
 class HostRoomStorePersistenceTest {
 
     @Test
+    fun `failed commit restores in-memory tracks and playback`() = runBlocking {
+        var failCommit = false
+        val s = HostRoomStore(transaction = { block ->
+            block()
+            if (failCommit) error("Simulated commit failure")
+        })
+        val room = s.createRoom(CreateRoomRequest("Test", "host", "Alice"))
+        val song = s.addReadyTrack(track(room.room.roomId, "Song"))
+        val before = s.snapshot(room.room.roomId)
+        failCommit = true
+        assertTrue(runCatching { s.addReadyTrack(track(room.room.roomId, "Failed")) }.isFailure)
+        assertEquals(before, s.snapshot(room.room.roomId))
+        assertTrue(runCatching {
+            s.play(room.room.roomId, TrackPlaybackCommand("host", song.trackId, 100))
+        }.isFailure)
+        assertEquals(before, s.snapshot(room.room.roomId))
+    }
+
+    @Test
     fun `create room persists and is recoverable after emergency shutdown`() = runBlocking {
         val dao = FakeHostDao()
         val s = store(dao)
@@ -169,7 +188,7 @@ class HostRoomStorePersistenceTest {
         s.createRoom(CreateRoomRequest("Party", "host", "Alice"))
         s.closeAndCleanup()
 
-        assertError("ROOM_NOT_FOUND") { store(dao).recoverRoom() }
+        assertError("ROOM_NOT_RECOVERABLE") { store(dao).recoverRoom() }
     }
 
     @Test

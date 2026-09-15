@@ -8,6 +8,7 @@ plugins {
 }
 
 android {
+    sourceSets.getByName("main").java.srcDir("../../protocol/src/main/kotlin")
     namespace = "com.synclisten.app"
     compileSdk = 35
 
@@ -15,8 +16,8 @@ android {
         applicationId = "com.synclisten.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 3
+        versionName = "0.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "DEFAULT_SERVER_URL", "\"http://10.0.2.2:3000\"")
@@ -49,7 +50,7 @@ android {
             signingConfig = if (signingConfigs.getByName("release").storeFile != null) {
                 signingConfigs.getByName("release")
             } else {
-                signingConfigs.getByName("debug")
+                null // Unsigned builds are never silently signed with the public debug key.
             }
         }
     }
@@ -72,6 +73,14 @@ android {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
 }
+
+val prepareNotices by tasks.registering(Sync::class) {
+    from(rootProject.projectDir.resolve("../LICENSE"))
+    from(rootProject.projectDir.resolve("../THIRD_PARTY_NOTICES.md"))
+    into(layout.buildDirectory.dir("generated/noticeAssets"))
+}
+android.sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/noticeAssets"))
+tasks.named("preBuild").configure { dependsOn(prepareNotices) }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
@@ -107,6 +116,7 @@ dependencies {
     implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.server.websockets)
     implementation(libs.ktor.server.status.pages)
+    implementation("io.ktor:ktor-server-partial-content:3.1.3")
     implementation(libs.ktor.serialization.kotlinx.json)
 
     debugImplementation(libs.androidx.compose.ui.tooling)

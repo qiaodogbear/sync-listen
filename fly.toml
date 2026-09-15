@@ -24,4 +24,4 @@ primary_region = "hkg"
 
 [mounts]
   source = "sync_listen_data"
-  destination = "/app/data"
+  destination = "/data"

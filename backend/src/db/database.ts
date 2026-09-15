@@ -35,6 +35,7 @@ const initialMigration = `
     connected INTEGER NOT NULL DEFAULT 0,
     joined_at INTEGER NOT NULL,
     last_seen_at INTEGER NOT NULL,
+    credential_hash TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (room_id, user_id),
     FOREIGN KEY (room_id) REFERENCES rooms(room_id) ON DELETE CASCADE
   );
@@ -80,6 +81,11 @@ export function initializeDatabase(paths: DatabasePaths): DatabaseSync {
 
   const database = new DatabaseSync(paths.databasePath);
   database.exec(initialMigration);
+  const memberColumns = database.prepare("PRAGMA table_info(members)").all() as { name: string }[];
+  if (!memberColumns.some((column) => column.name === "credential_hash")) {
+    database.exec("ALTER TABLE members ADD COLUMN credential_hash TEXT NOT NULL DEFAULT ''");
+  }
+  database.exec("UPDATE members SET connected = 0");
   database
     .prepare(
       "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
@@ -88,4 +94,3 @@ export function initializeDatabase(paths: DatabasePaths): DatabaseSync {
 
   return database;
 }
-

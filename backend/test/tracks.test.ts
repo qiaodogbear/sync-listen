@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import FormData from "form-data";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { inject } from "./client.js";
 import { buildApp } from "../src/app.js";
 import { initializeDatabase } from "../src/db/database.js";
 
@@ -22,7 +23,7 @@ async function setup() {
   };
   const database = initializeDatabase(paths);
   const app = await buildApp({ database, storage: paths });
-  const created = await app.inject({
+  const created = await inject(app, {
     method: "POST",
     url: "/api/rooms",
     payload: { name: "Room", userId: "host", displayName: "Alice" },
@@ -58,14 +59,14 @@ describe("track upload and download", () => {
     const hash = createHash("sha256").update(content).digest("hex");
     const form = uploadForm(content, hash);
 
-    const uploaded = await app.inject({
+    const uploaded = await inject(app, {
       method: "POST",
       url: `/api/rooms/${roomId}/tracks`,
       headers: form.getHeaders(),
       payload: form.getBuffer(),
     });
     const track = uploaded.json<{ track: { trackId: string; fileHash: string } }>().track;
-    const downloaded = await app.inject({
+    const downloaded = await inject(app, {
       method: "GET",
       url: `/api/tracks/${track.trackId}/download`,
     });
@@ -84,7 +85,7 @@ describe("track upload and download", () => {
 
     for (let index = 0; index < 2; index += 1) {
       const form = uploadForm(content, hash);
-      const response = await app.inject({
+      const response = await inject(app, {
         method: "POST",
         url: `/api/rooms/${roomId}/tracks`,
         headers: form.getHeaders(),
@@ -106,7 +107,7 @@ describe("track upload and download", () => {
     const responses = await Promise.all(
       Array.from({ length: 8 }, () => {
         const form = uploadForm(content, hash);
-        return app.inject({
+        return inject(app, {
           method: "POST",
           url: `/api/rooms/${roomId}/tracks`,
           headers: form.getHeaders(),
@@ -114,9 +115,11 @@ describe("track upload and download", () => {
         });
       }),
     );
-    const playlist = await app.inject({ method: "GET", url: `/api/rooms/${roomId}/playlist` });
+    const playlist = await inject(app, { method: "GET", url: `/api/rooms/${roomId}/playlist` });
 
-    expect(responses.every((response) => response.statusCode === 201)).toBe(true);
+    expect(responses.map((response) => ({ status: response.statusCode, body: response.json() })))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ status: 201 })]));
+    expect(responses.filter((response) => response.statusCode !== 201).map((response) => response.body)).toEqual([]);
     expect((await readdir(paths.audioStoragePath)).length).toBe(1);
     expect(
       playlist.json<{ playlist: Array<{ orderIndex: number }> }>().playlist.map((track) => track.orderIndex),
@@ -128,7 +131,7 @@ describe("track upload and download", () => {
     const { app, paths, roomId } = await setup();
     const form = uploadForm(Buffer.from("bad hash"), "a".repeat(64));
 
-    const response = await app.inject({
+    const response = await inject(app, {
       method: "POST",
       url: `/api/rooms/${roomId}/tracks`,
       headers: form.getHeaders(),

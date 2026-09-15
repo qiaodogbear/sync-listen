@@ -14,8 +14,10 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsStore: SettingsStore,
+    private val homeController: HomeController,
     identityManager: IdentityManager,
 ) : ViewModel() {
+    val sessionActive get() = homeController.state.value is HomeState.InRoom
     val settings = settingsStore.settings.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -30,7 +32,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsStore.update(
                 displayName = displayName.trim(),
-                serverUrl = serverUrl,
+                serverUrl = if (sessionActive) null else serverUrl,
                 recentNickname = displayName.trim(),
             )
         }

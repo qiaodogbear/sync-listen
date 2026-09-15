@@ -5,6 +5,7 @@ plugins {
 
 kotlin {
     jvmToolchain(21)
+    sourceSets.getByName("main").kotlin.srcDir("../protocol/src/main/kotlin")
 }
 
 dependencies {
@@ -18,6 +19,7 @@ dependencies {
     implementation("io.ktor:ktor-server-content-negotiation:3.1.3")
     implementation("io.ktor:ktor-server-websockets:3.1.3")
     implementation("io.ktor:ktor-server-status-pages:3.1.3")
+    implementation("io.ktor:ktor-server-partial-content:3.1.3")
     implementation("io.ktor:ktor-serialization-kotlinx-json:3.1.3")
     implementation("com.google.zxing:core:3.5.3")
     testImplementation("junit:junit:4.13.2")

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { inject } from "./client.js";
 import { buildApp } from "../src/app.js";
 import { initializeDatabase } from "../src/db/database.js";
 import { PlaylistService } from "../src/tracks/playlistService.js";
@@ -19,7 +20,7 @@ async function setup() {
     tempUploadPath: join(root, "data", "tmp"),
   });
   const app = await buildApp({ database });
-  const created = await app.inject({
+  const created = await inject(app, {
     method: "POST",
     url: "/api/rooms",
     payload: { name: "Room", userId: "host", displayName: "Alice" },
@@ -78,7 +79,7 @@ describe("playlist", () => {
       uploaderName: "Alice",
     });
 
-    const response = await app.inject({
+    const response = await inject(app, {
       method: "GET",
       url: `/api/rooms/${roomId}/playlist`,
     });

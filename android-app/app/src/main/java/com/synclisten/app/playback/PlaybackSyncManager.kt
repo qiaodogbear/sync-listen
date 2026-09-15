@@ -38,7 +38,8 @@ class PlaybackSyncManager(
             player.pause()
             return@withLock
         }
-        if (player.state.value.trackId != trackId) player.prepare(trackId)
+        if (player.state.value.trackId != trackId || player.state.value.status == PlayerStatus.WAITING_FOR_CACHE) player.prepare(trackId)
+        if (player.state.value.status in setOf(PlayerStatus.WAITING_FOR_CACHE, PlayerStatus.ERROR)) return@withLock
         if (!authoritative.isPlaying) {
             setSpeed(PlaybackSyncState.NORMAL_SPEED)
             player.seekTo(authoritative.positionMs)

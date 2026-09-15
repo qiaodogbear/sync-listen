@@ -4,6 +4,8 @@ import com.synclisten.app.data.CreateRoomResponse
 import com.synclisten.app.data.JoinRoomResponse
 import com.synclisten.app.data.RoomSnapshot
 import com.synclisten.app.domain.model.ErrorResponse
+import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.request.header
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.websocket.WebSockets
@@ -33,7 +35,7 @@ class HostServerTest {
     @Test
     fun servesHealthTimeAndRoomLifecycle() = testApplication {
         application { hostServerModule(store(), HostRoomHub()) }
-        val client = createClient { install(ContentNegotiation) { json(json) } }
+        val client = createClient { defaultRequest { header("X-User-Id", "host"); header("Authorization", "Bearer " + "a".repeat(64)) }; install(ContentNegotiation) { json(json) } }
 
         assertEquals(HttpStatusCode.OK, client.get("/health").status)
         assertEquals(HttpStatusCode.OK, client.get("/api/time").status)
@@ -41,23 +43,29 @@ class HostServerTest {
             contentType(ContentType.Application.Json)
             setBody("""{"name":"Friday","userId":"host","displayName":"Alice"}""")
         }.body<CreateRoomResponse>()
-        val joined = client.post("/api/rooms/join") {
+        val memberClient = createClient {
+            defaultRequest { header("X-User-Id", "member"); header("Authorization", "Bearer " + "a".repeat(64)) }
+            install(ContentNegotiation) { json(json) }
+        }
+        val joinResponse = memberClient.post("/api/rooms/join") {
             contentType(ContentType.Application.Json)
             setBody("""{"userId":"member","displayName":"Bob","roomCode":"${created.room.roomCode}"}""")
-        }.body<JoinRoomResponse>()
+        }
+        assertEquals(joinResponse.bodyAsText(), HttpStatusCode.OK, joinResponse.status)
+        val joined = joinResponse.body<JoinRoomResponse>()
 
         assertEquals("member", joined.member.userId)
         assertEquals(2, client.get("/api/rooms/${created.room.roomId}").body<RoomSnapshot>().members.size)
         assertEquals(
             HttpStatusCode.NoContent,
-            client.delete("/api/rooms/${created.room.roomId}/members/member").status,
+            memberClient.delete("/api/rooms/${created.room.roomId}/members/member").status,
         )
     }
 
     @Test
     fun mapsHostErrorsToExistingErrorEnvelope() = testApplication {
         application { hostServerModule(store(), HostRoomHub()) }
-        val response = client.get("/api/rooms/missing")
+        val response = client.get("/api/rooms/missing") { header("X-User-Id", "host"); header("Authorization", "Bearer " + "a".repeat(64)) }
 
         assertEquals(HttpStatusCode.NotFound, response.status)
         assertEquals("ROOM_NOT_FOUND", json.decodeFromString<ErrorResponse>(response.bodyAsText()).error.code)
@@ -67,12 +75,12 @@ class HostServerTest {
     fun websocketAuthenticatesAndSendsAuthoritativeSnapshot() = testApplication {
         val store = store()
         application { hostServerModule(store, HostRoomHub()) }
-        val api = createClient { install(ContentNegotiation) { json(json) } }
+        val api = createClient { defaultRequest { header("X-User-Id", "host"); header("Authorization", "Bearer " + "a".repeat(64)) }; install(ContentNegotiation) { json(json) } }
         val created = api.post("/api/rooms") {
             contentType(ContentType.Application.Json)
             setBody("""{"name":"Friday","userId":"host","displayName":"Alice"}""")
         }.body<CreateRoomResponse>()
-        val socket = createClient { install(WebSockets) }
+        val socket = createClient { defaultRequest { header("X-User-Id", "host"); header("Authorization", "Bearer " + "a".repeat(64)) }; install(WebSockets) }
 
         socket.webSocket(
             "/ws/rooms/${created.room.roomId}?token=${created.joinToken}&userId=host",
@@ -91,12 +99,12 @@ class HostServerTest {
         val store = store()
         val hub = HostRoomHub()
         application { hostServerModule(store, hub) }
-        val api = createClient { install(ContentNegotiation) { json(json) } }
+        val api = createClient { defaultRequest { header("X-User-Id", "host"); header("Authorization", "Bearer " + "a".repeat(64)) }; install(ContentNegotiation) { json(json) } }
         val created = api.post("/api/rooms") {
             contentType(ContentType.Application.Json)
             setBody("""{"name":"Friday","userId":"host","displayName":"Alice"}""")
         }.body<CreateRoomResponse>()
-        val socket = createClient { install(WebSockets) }
+        val socket = createClient { defaultRequest { header("X-User-Id", "host"); header("Authorization", "Bearer " + "a".repeat(64)) }; install(WebSockets) }
 
         socket.webSocket(
             "/ws/rooms/${created.room.roomId}?token=${created.joinToken}&userId=host",

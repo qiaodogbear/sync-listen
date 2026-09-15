@@ -4,6 +4,9 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -55,7 +58,7 @@ fun DiagnosticsPanel(
     ) { Text(if (expanded) "▼ 诊断信息" else "▶ 诊断信息") }
 
     AnimatedVisibility(visible = expanded) {
-        Column(modifier = Modifier.padding(8.dp)) {
+        Column(modifier = Modifier.heightIn(max = 280.dp).verticalScroll(rememberScrollState()).padding(8.dp)) {
             // 第 1 段：连接状态
             SectionHeader("连接状态")
             DiagRow("WebSocket", webSocketStatus)
@@ -70,7 +73,7 @@ fun DiagnosticsPanel(
             SectionHeader("音频状态")
             DiagRow("播放器", playerStatus)
             DiagRow("当前曲目", currentTrack ?: "无")
-            DiagRow("本地文件", localFilePath ?: "无")
+            DiagRow("本地文件", localFilePath?.substringAfterLast('/') ?: "无")
             DiagRow("文件存在", if (fileExists) "是" else "否")
             DiagRow("缓冲进度", if (durationMs > 0) "${bufferedMs * 100 / durationMs}% (${bufferedMs / 1000}s / ${durationMs / 1000}s)" else "未知")
             DiagRow("音频焦点", audioFocus)
@@ -79,15 +82,15 @@ fun DiagnosticsPanel(
 
             // 第 3 段：同步状态
             SectionHeader("同步状态")
-            DiagRow("播放位置", "${positionMs / 1000}:${(positionMs % 1000) / 10}s")
-            DiagRow("期望位置", "${expectedPositionMs / 1000}:${(expectedPositionMs % 1000) / 10}s")
-            DiagRow("同步误差", "${syncErrorMs}ms ${when {
+            DiagRow("播放位置", "%d.%03ds".format(positionMs / 1000, positionMs % 1000))
+            DiagRow("上次 SYNC 期望位置", "%d.%03ds".format(expectedPositionMs / 1000, expectedPositionMs % 1000))
+            DiagRow("上次同步误差", "${syncErrorMs}ms ${when {
                 kotlin.math.abs(syncErrorMs) < 80 -> "(正常)"
                 kotlin.math.abs(syncErrorMs) < 300 -> "(微调中)"
                 else -> "(需修正)"
             }}")
             DiagRow("播放速度", "${playbackSpeed}x")
-            DiagRow("下载队列", "$downloadQueueSize 首")
+            DiagRow("最近下载计划", "$downloadQueueSize 首")
             DiagRow("缓存", "$cacheEntries 首 · ${cacheBytes / 1024} KB")
 
             // 复制按钮

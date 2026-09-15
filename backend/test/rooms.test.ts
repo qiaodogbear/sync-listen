@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { inject } from "./client.js";
 import { buildApp } from "../src/app.js";
 import { initializeDatabase } from "../src/db/database.js";
 
@@ -32,14 +33,14 @@ afterEach(async () => {
 describe("room API", () => {
   it("joins an active room using only its room code", async () => {
     const app = await createTestApp();
-    const created = await app.inject({
+    const created = await inject(app, {
       method: "POST",
       url: "/api/rooms",
       payload: { name: "Room", userId: "host", displayName: "Alice" },
     });
     const { room } = created.json<{ room: { roomId: string; roomCode: string } }>();
 
-    const joined = await app.inject({
+    const joined = await inject(app, {
       method: "POST",
       url: "/api/rooms/join",
       payload: { userId: "member", displayName: "Bob", roomCode: room.roomCode },
@@ -57,7 +58,7 @@ describe("room API", () => {
   it("creates a room with the creator as host", async () => {
     const app = await createTestApp();
 
-    const response = await app.inject({
+    const response = await inject(app, {
       method: "POST",
       url: "/api/rooms",
       payload: {
@@ -87,7 +88,7 @@ describe("room API", () => {
 
   it("joins a room and returns an authoritative snapshot", async () => {
     const app = await createTestApp();
-    const created = await app.inject({
+    const created = await inject(app, {
       method: "POST",
       url: "/api/rooms",
       payload: {
@@ -100,7 +101,7 @@ describe("room API", () => {
       room: { roomId: string; roomCode: string };
     }>();
 
-    const joined = await app.inject({
+    const joined = await inject(app, {
       method: "POST",
       url: `/api/rooms/${room.roomId}/join`,
       payload: {
@@ -109,7 +110,7 @@ describe("room API", () => {
         roomCode: room.roomCode,
       },
     });
-    const snapshot = await app.inject({
+    const snapshot = await inject(app, {
       method: "GET",
       url: `/api/rooms/${room.roomId}`,
     });
@@ -128,7 +129,7 @@ describe("room API", () => {
 
   it("rejects an invalid join token", async () => {
     const app = await createTestApp();
-    const created = await app.inject({
+    const created = await inject(app, {
       method: "POST",
       url: "/api/rooms",
       payload: {
@@ -139,7 +140,7 @@ describe("room API", () => {
     });
     const { room } = created.json<{ room: { roomId: string } }>();
 
-    const response = await app.inject({
+    const response = await inject(app, {
       method: "POST",
       url: `/api/rooms/${room.roomId}/join`,
       payload: {
@@ -160,7 +161,7 @@ describe("room API", () => {
   it("returns a clear error for a missing room", async () => {
     const app = await createTestApp();
 
-    const response = await app.inject({
+    const response = await inject(app, {
       method: "GET",
       url: "/api/rooms/missing-room",
     });
@@ -175,7 +176,7 @@ describe("room API", () => {
 
   it("closes the room when the host leaves", async () => {
     const app = await createTestApp();
-    const created = await app.inject({
+    const created = await inject(app, {
       method: "POST",
       url: "/api/rooms",
       payload: {
@@ -186,11 +187,11 @@ describe("room API", () => {
     });
     const { room } = created.json<{ room: { roomId: string } }>();
 
-    const leave = await app.inject({
+    const leave = await inject(app, {
       method: "DELETE",
       url: `/api/rooms/${room.roomId}/members/user-host`,
     });
-    const snapshot = await app.inject({
+    const snapshot = await inject(app, {
       method: "GET",
       url: `/api/rooms/${room.roomId}`,
     });

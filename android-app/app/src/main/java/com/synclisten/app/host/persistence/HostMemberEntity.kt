@@ -13,4 +13,5 @@ data class HostMemberEntity(
     val role: String,
     val connected: Boolean,
     val joinedAt: Long,
+    @androidx.room.ColumnInfo(defaultValue = "''") val credentialHash: String = "",
 )

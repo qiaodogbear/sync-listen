@@ -3,6 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "ws";
 
+import { requireActor } from "../auth.js";
 import { AppError } from "../errors.js";
 import {
   findActiveRoom,
@@ -40,6 +41,7 @@ export class RoomHub {
           if (room.join_token !== token) {
             throw new AppError(403, "INVALID_JOIN_TOKEN", "Join token is invalid");
           }
+          requireActor(request, userId);
           findMember(this.database, roomId, userId);
         },
       },
@@ -61,10 +63,12 @@ export class RoomHub {
         this.send(socket, "ROOM_JOINED", getRoomSnapshot(this.database, roomId));
         this.broadcast(roomId, "MEMBER_JOINED", { member: toMember(member) }, socket);
 
+        let alive = true;
+        socket.on("pong", () => { alive = true; });
         const heartbeat = setInterval(() => {
-          if (socket.readyState === socket.OPEN) {
-            socket.ping();
-          }
+          if (!alive) { socket.terminate(); return; }
+          alive = false;
+          if (socket.readyState === socket.OPEN) socket.ping();
         }, 30_000);
         heartbeat.unref();
 
@@ -90,6 +94,17 @@ export class RoomHub {
         });
       },
     );
+  }
+
+  closeRoom(roomId: string): void {
+    for (const client of this.rooms.get(roomId) ?? []) client.socket.close(1000, "Room closed");
+  }
+
+  removeMember(roomId: string, userId: string): void {
+    for (const client of this.rooms.get(roomId) ?? []) {
+      if (client.userId === userId) client.socket.close(1000, "Member left");
+    }
+    this.broadcast(roomId, "MEMBER_LEFT", { userId });
   }
 
   shutdown(): void {

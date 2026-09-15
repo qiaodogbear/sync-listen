@@ -9,6 +9,8 @@ import { pipeline } from "node:stream/promises";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
+import { requireActor } from "../auth.js";
+import { parseByteRange } from "./range.js";
 import { AppError } from "../errors.js";
 import type { TrackRow } from "./model.js";
 import type { PlaylistService } from "./playlistService.js";
@@ -44,7 +46,7 @@ export async function registerTrackFileRoutes(
 
       try {
         for await (const part of request.parts({
-          limits: { fileSize: storage.maxUploadBytes ?? 500 * 1024 * 1024, files: 20 },
+          limits: { fileSize: storage.maxUploadBytes ?? 500 * 1024 * 1024, files: 1 },
         })) {
           if (part.type === "field") {
             fields[part.fieldname] = String(part.value);
@@ -75,6 +77,7 @@ export async function registerTrackFileRoutes(
           throw new AppError(400, "FILE_REQUIRED", "Audio file is required");
         }
         const metadata = metadataSchema.parse(fields);
+        requireActor(request, metadata.uploaderId);
         if (metadata.fileHash !== actualHash) {
           throw new AppError(422, "HASH_MISMATCH", "Uploaded file hash does not match");
         }
@@ -84,12 +87,18 @@ export async function registerTrackFileRoutes(
             "SELECT storage_path FROM tracks WHERE file_hash = ? AND storage_path IS NOT NULL LIMIT 1",
           )
           .get(actualHash) as { storage_path: string } | undefined;
+        const usableExisting = existing && existsSync(existing.storage_path) ? existing : undefined;
         const storagePath =
-          existing?.storage_path ??
+          usableExisting?.storage_path ??
           join(storage.audioStoragePath, `${actualHash}${extname(fileName).toLowerCase()}`);
-        if (existing === undefined && !existsSync(storagePath)) {
-          await rename(tempPath, storagePath);
-          tempPath = undefined;
+        if (usableExisting === undefined && !existsSync(storagePath)) {
+          try {
+            await rename(tempPath, storagePath);
+            tempPath = undefined;
+          } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code;
+            if (!["EEXIST", "EPERM", "EACCES"].includes(code ?? "") || !existsSync(storagePath)) throw error;
+          }
         }
         const info = await stat(storagePath);
         const track = await playlistService.addReadyTrack({
@@ -104,7 +113,7 @@ export async function registerTrackFileRoutes(
           uploaderId: metadata.uploaderId,
           uploaderName: metadata.uploaderName,
         });
-        return reply.status(201).send({ track, deduplicated: existing !== undefined });
+        return reply.status(201).send({ track, deduplicated: usableExisting !== undefined });
       } finally {
         if (tempPath !== undefined) {
           await rm(tempPath, { force: true });
@@ -123,8 +132,8 @@ export async function registerTrackFileRoutes(
         throw new AppError(404, "TRACK_FILE_NOT_FOUND", "Track file does not exist");
       }
       const storagePath: string = track.storage_path;
-      const stat = await import("node:fs/promises").then((f) => f.stat(storagePath));
-      const fileSize = Number(stat.size);
+      const info = await stat(storagePath);
+      const fileSize = Number(info.size);
       reply.header("accept-ranges", "bytes");
       reply.header("content-type", "application/octet-stream");
       reply.header(
@@ -132,17 +141,14 @@ export async function registerTrackFileRoutes(
         `attachment; filename*=UTF-8''${encodeURIComponent(track.file_name)}`,
       );
 
-      const rangeHeader = request.headers.range;
-      if (rangeHeader) {
-        const match = rangeHeader.match(/bytes=(\d+)-/);
-        if (match && match[1]) {
-          const start = parseInt(match[1], 10);
-          const end = fileSize - 1;
-          reply.header("content-range", `bytes ${start}-${end}/${fileSize}`);
-          reply.header("content-length", end - start + 1);
-          reply.code(206);
-          return reply.send(createReadStream(storagePath, { start, end }));
+      if (request.headers.range) {
+        const range = parseByteRange(request.headers.range, fileSize);
+        if (!range) {
+          return reply.code(416).header("content-range", `bytes */${fileSize}`).send();
         }
+        reply.header("content-range", `bytes ${range.start}-${range.end}/${fileSize}`);
+        reply.header("content-length", range.end - range.start + 1);
+        return reply.code(206).send(createReadStream(storagePath, range));
       }
       reply.header("content-length", fileSize);
       return reply.send(createReadStream(storagePath));

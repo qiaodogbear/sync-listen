@@ -11,8 +11,16 @@ kotlin {
     jvmToolchain(21)
 }
 
+// The upstream JLayer POM accidentally exposes its old test dependency at runtime.
+configurations.configureEach {
+    if (name == "runtimeClasspath") exclude(group = "junit", module = "junit")
+}
+
 dependencies {
     implementation(project(":shared"))
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.9.0")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 
     // Compose Desktop
     implementation(compose.desktop.currentOs)
@@ -40,10 +48,24 @@ compose.desktop {
     application {
         mainClass = "com.synclisten.desktop.MainKt"
 
+        jvmArgs(
+            "--add-opens", "java.desktop/java.awt=ALL-UNNAMED",
+            "--add-opens", "java.desktop/java.awt.event=ALL-UNNAMED",
+            "--add-opens", "java.desktop/java.awt.peer=ALL-UNNAMED",
+            "--add-opens", "java.desktop/sun.awt=ALL-UNNAMED",
+            "--add-opens", "java.desktop/sun.java2d=ALL-UNNAMED",
+            "--add-opens", "java.desktop/sun.swing=ALL-UNNAMED",
+            "--add-opens", "java.desktop/javax.swing=ALL-UNNAMED",
+            // Software rendering — bypass GPU driver issues
+            "-Dskiko.renderApi=SOFTWARE",
+            "-Dsun.java2d.opengl=false",
+        )
+
         nativeDistributions {
             targetFormats(TargetFormat.Exe, TargetFormat.Msi)
             packageName = "SyncListen"
-            packageVersion = "0.2.0"
+            packageVersion = "0.3.0"
+            includeAllModules = true
 
             windows {
                 menuGroup = "Sync Listen"

@@ -16,6 +16,7 @@ backend/tmp/
 *.sqlite-wal
 
 # Android / Gradle
+**/build/
 .gradle/
 .kotlin/
 android-app/.idea/
@@ -30,3 +31,14 @@ android-app/local.properties
 .DS_Store
 Thumbs.db
 emulator-*.log
+
+# Private signing material and local release artifacts
+*.jks
+*.keystore
+*.p12
+*.pfx
+signing.properties
+artifacts/
+.tools/
+.audit-tmp/
+outputs/**/*.inspect.ndjson

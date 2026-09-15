@@ -4,6 +4,7 @@ import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 
 interface SyncListenApi {
@@ -39,4 +40,23 @@ interface SyncListenApi {
 
     @POST("api/rooms/{roomId}/playback/next")
     suspend fun next(@Path("roomId") roomId: String, @Body command: NextPlaybackCommand): PlaybackResponse
+
+    @PUT("api/rooms/{roomId}/members/{userId}/role")
+    suspend fun changeMemberRole(
+        @Path("roomId") roomId: String,
+        @Path("userId") userId: String,
+        @Body body: ChangeRoleRequest,
+    ): ChangeRoleResponse
+
+    @DELETE("api/rooms/{roomId}/tracks/{trackId}")
+    suspend fun deleteTrack(
+        @Path("roomId") roomId: String,
+        @Path("trackId") trackId: String,
+    )
+
+    @PUT("api/rooms/{roomId}/playlist/reorder")
+    suspend fun reorderPlaylist(
+        @Path("roomId") roomId: String,
+        @Body body: ReorderRequest,
+    ): ReorderResponse
 }

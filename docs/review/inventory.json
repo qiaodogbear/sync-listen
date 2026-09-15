@@ -1,0 +1,1009 @@
+{
+  "date": "2026-09-16",
+  "statistics": [
+    {
+      "module": "android-app",
+      "sourceFiles": 66,
+      "testFiles": 26,
+      "lines": 9673
+    },
+    {
+      "module": "backend",
+      "sourceFiles": 20,
+      "testFiles": 13,
+      "lines": 2646
+    },
+    {
+      "module": "shared",
+      "sourceFiles": 19,
+      "testFiles": 3,
+      "lines": 2218
+    },
+    {
+      "module": "desktop",
+      "sourceFiles": 12,
+      "testFiles": 2,
+      "lines": 2283
+    },
+    {
+      "module": "protocol",
+      "sourceFiles": 1,
+      "testFiles": 0,
+      "lines": 17
+    }
+  ],
+  "files": [
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/cache/CacheCleanup.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 33
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/cache/CacheDatabase.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 79
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/cache/CacheIndex.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 46
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/data/ApiModels.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 59
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/data/DataModule.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 145
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/data/DeviceAuthInterceptor.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 21
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/data/RetrofitRoomRemoteDataSource.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 72
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/data/RoomRepository.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 114
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/data/RoomWebSocket.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 282
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/data/SettingsStore.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 99
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/data/SyncListenApi.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 62
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/domain/model/ProtocolModels.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 118
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/host/AndroidHostServerController.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 112
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/host/HostAddressResolver.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 39
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/host/HostServerService.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 161
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/host/HostServerState.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 23
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/host/persistence/HostDao.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 68
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/host/persistence/HostMemberEntity.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 17
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/host/persistence/HostPersistenceDatabase.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 29
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/host/persistence/HostPlaybackEntity.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 14
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/host/persistence/HostRoomEntity.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 15
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/host/persistence/HostTrackEntity.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 36
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/host/persistence/RecoveryMarkerEntity.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 15
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/host/server/HostRoomHub.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 69
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/host/server/HostRoomStore.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 607
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/host/server/HostServer.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 355
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/host/server/HostServerError.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 7
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/invite/JoinLink.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 68
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/invite/QrCodeCodec.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 23
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/MainActivity.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 34
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/nearby/BleRoomDiscovery.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 212
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/nearby/NfcJoinManager.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 100
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/playback/AudioFocusManager.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 88
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/playback/Media3PlayerEngine.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 91
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/playback/PlaybackSyncManager.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 124
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/playback/PlayerController.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 183
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/playback/ServerClock.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 80
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/SyncListenApplication.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 7
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/transfer/AudioFileInspector.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 120
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/transfer/AudioUploadManager.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 253
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/transfer/DownloadQueue.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 245
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/component/DiagnosticsPanel.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 136
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/component/EmptyState.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 47
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/component/MemberAvatar.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 51
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/component/RecoveryCard.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 67
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/HomeController.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 195
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/HomeViewModel.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 78
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/InviteViewModel.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 52
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/RoomViewModel.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 218
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/screen/CreateRoomScreen.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 190
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/screen/HomeScreen.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 207
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/screen/InviteScreen.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 86
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/screen/JoinRoomScreen.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 229
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/screen/RoomScreen.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 475
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/screen/SettingsScreen.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 148
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/screen/UploadScreen.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 218
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/SettingsViewModel.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 46
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/SyncListenApp.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 208
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/theme/Color.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 44
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/theme/Theme.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 80
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/theme/Type.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 96
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/ui/UploadViewModel.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 139
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/util/AppLogger.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 13
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/util/ConnectivityProbe.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 65
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/util/NetworkMonitor.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 50
+    },
+    {
+      "path": "android-app/app/src/main/java/com/synclisten/app/util/SystemSettingsHelper.kt",
+      "module": "android-app",
+      "kind": "source",
+      "lines": 40
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/cache/CacheCleanupTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 50
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/cache/CacheIndexTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 67
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/data/IdentityManagerTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 41
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/data/RoomRepositoryTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 103
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/data/RoomWebSocketTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 153
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/domain/model/ProtocolModelsTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 51
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/host/HostAddressResolverTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 52
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/host/HostServerControllerTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 64
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/host/persistence/HostRoomStorePersistenceTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 289
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/host/server/HostAuthorizationTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 54
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/host/server/HostFileRoutesTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 98
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/host/server/HostRoomStoreTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 147
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/host/server/HostServerTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 128
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/invite/JoinLinkTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 24
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/invite/QrCodeCodecTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 18
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/nearby/BleRoomDiscoveryTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 39
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/nearby/NfcJoinManagerTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 15
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/PlaceholderTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 11
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/playback/PlaybackPermissionTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 14
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/playback/PlaybackSyncManagerTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 189
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/playback/PlayerControllerTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 197
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/playback/ServerClockTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 53
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/transfer/AudioFileInspectorTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 27
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/transfer/DownloadQueuePlannerTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 45
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/transfer/UploadCoordinatorTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 80
+    },
+    {
+      "path": "android-app/app/src/test/java/com/synclisten/app/ui/HomeControllerTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 161
+    },
+    {
+      "path": "backend/src/app.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 111
+    },
+    {
+      "path": "backend/src/auth.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 60
+    },
+    {
+      "path": "backend/src/config.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 33
+    },
+    {
+      "path": "backend/src/db/database.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 96
+    },
+    {
+      "path": "backend/src/db/migrate.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 12
+    },
+    {
+      "path": "backend/src/errors.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 13
+    },
+    {
+      "path": "backend/src/playback/playbackService.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 174
+    },
+    {
+      "path": "backend/src/playback/routes.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 57
+    },
+    {
+      "path": "backend/src/protocol/models.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 100
+    },
+    {
+      "path": "backend/src/rooms/routes.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 203
+    },
+    {
+      "path": "backend/src/rooms/snapshot.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 120
+    },
+    {
+      "path": "backend/src/server.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 28
+    },
+    {
+      "path": "backend/src/tracks/cleanup.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 19
+    },
+    {
+      "path": "backend/src/tracks/fileRoutes.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 157
+    },
+    {
+      "path": "backend/src/tracks/model.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 34
+    },
+    {
+      "path": "backend/src/tracks/playlistService.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 124
+    },
+    {
+      "path": "backend/src/tracks/range.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 14
+    },
+    {
+      "path": "backend/src/tracks/routes.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 37
+    },
+    {
+      "path": "backend/src/websocket/roomHub.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 138
+    },
+    {
+      "path": "backend/test/authorization.test.ts",
+      "module": "backend",
+      "kind": "test",
+      "lines": 85
+    },
+    {
+      "path": "backend/test/cleanup.test.ts",
+      "module": "backend",
+      "kind": "test",
+      "lines": 26
+    },
+    {
+      "path": "backend/test/client.ts",
+      "module": "backend",
+      "kind": "test",
+      "lines": 22
+    },
+    {
+      "path": "backend/test/database.test.ts",
+      "module": "backend",
+      "kind": "test",
+      "lines": 62
+    },
+    {
+      "path": "backend/test/health.test.ts",
+      "module": "backend",
+      "kind": "test",
+      "lines": 36
+    },
+    {
+      "path": "backend/test/playback.test.ts",
+      "module": "backend",
+      "kind": "test",
+      "lines": 143
+    },
+    {
+      "path": "backend/test/playlist.test.ts",
+      "module": "backend",
+      "kind": "test",
+      "lines": 93
+    },
+    {
+      "path": "backend/test/protocol.test.ts",
+      "module": "backend",
+      "kind": "test",
+      "lines": 64
+    },
+    {
+      "path": "backend/test/range.test.ts",
+      "module": "backend",
+      "kind": "test",
+      "lines": 11
+    },
+    {
+      "path": "backend/test/rooms.test.ts",
+      "module": "backend",
+      "kind": "test",
+      "lines": 207
+    },
+    {
+      "path": "backend/test/sync.test.ts",
+      "module": "backend",
+      "kind": "test",
+      "lines": 39
+    },
+    {
+      "path": "backend/test/tracks.test.ts",
+      "module": "backend",
+      "kind": "test",
+      "lines": 147
+    },
+    {
+      "path": "backend/test/websocket.test.ts",
+      "module": "backend",
+      "kind": "test",
+      "lines": 171
+    },
+    {
+      "path": "backend/vitest.config.ts",
+      "module": "backend",
+      "kind": "source",
+      "lines": 10
+    },
+    {
+      "path": "desktop/src/main/kotlin/com/synclisten/desktop/AppState.kt",
+      "module": "desktop",
+      "kind": "source",
+      "lines": 453
+    },
+    {
+      "path": "desktop/src/main/kotlin/com/synclisten/desktop/audio/DesktopCacheResolver.kt",
+      "module": "desktop",
+      "kind": "source",
+      "lines": 89
+    },
+    {
+      "path": "desktop/src/main/kotlin/com/synclisten/desktop/audio/DesktopPlayerEngine.kt",
+      "module": "desktop",
+      "kind": "source",
+      "lines": 147
+    },
+    {
+      "path": "desktop/src/main/kotlin/com/synclisten/desktop/Main.kt",
+      "module": "desktop",
+      "kind": "source",
+      "lines": 69
+    },
+    {
+      "path": "desktop/src/main/kotlin/com/synclisten/desktop/ui/component/EmptyState.kt",
+      "module": "desktop",
+      "kind": "source",
+      "lines": 53
+    },
+    {
+      "path": "desktop/src/main/kotlin/com/synclisten/desktop/ui/component/MemberAvatar.kt",
+      "module": "desktop",
+      "kind": "source",
+      "lines": 55
+    },
+    {
+      "path": "desktop/src/main/kotlin/com/synclisten/desktop/ui/CreateScreen.kt",
+      "module": "desktop",
+      "kind": "source",
+      "lines": 159
+    },
+    {
+      "path": "desktop/src/main/kotlin/com/synclisten/desktop/ui/HomeScreen.kt",
+      "module": "desktop",
+      "kind": "source",
+      "lines": 222
+    },
+    {
+      "path": "desktop/src/main/kotlin/com/synclisten/desktop/ui/JoinScreen.kt",
+      "module": "desktop",
+      "kind": "source",
+      "lines": 127
+    },
+    {
+      "path": "desktop/src/main/kotlin/com/synclisten/desktop/ui/RoomScreen.kt",
+      "module": "desktop",
+      "kind": "source",
+      "lines": 552
+    },
+    {
+      "path": "desktop/src/main/kotlin/com/synclisten/desktop/ui/SettingsScreen.kt",
+      "module": "desktop",
+      "kind": "source",
+      "lines": 152
+    },
+    {
+      "path": "desktop/src/main/kotlin/com/synclisten/desktop/ui/theme/Theme.kt",
+      "module": "desktop",
+      "kind": "source",
+      "lines": 80
+    },
+    {
+      "path": "desktop/src/test/kotlin/com/synclisten/desktop/audio/DesktopCacheResolverTest.kt",
+      "module": "desktop",
+      "kind": "test",
+      "lines": 49
+    },
+    {
+      "path": "desktop/src/test/kotlin/com/synclisten/desktop/audio/DesktopPlayerEngineTest.kt",
+      "module": "desktop",
+      "kind": "test",
+      "lines": 76
+    },
+    {
+      "path": "protocol/src/main/kotlin/com/synclisten/protocol/DeviceCredential.kt",
+      "module": "protocol",
+      "kind": "source",
+      "lines": 17
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/data/ApiModels.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 62
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/data/DeviceAuthInterceptor.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 21
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/data/RetrofitRoomRemoteDataSource.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 68
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/data/RoomRepository.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 111
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/data/RoomWebSocket.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 279
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/data/SettingsStore.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 149
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/data/SyncListenApi.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 79
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/domain/model/ProtocolModels.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 118
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/host/server/HostRoomHub.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 69
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/host/server/HostRoomStore.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 233
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/host/server/HostServer.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 355
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/host/server/HostServerError.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 7
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/invite/JoinLink.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 65
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/invite/QrCodeCodec.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 10
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/playback/PlaybackSyncManager.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 126
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/playback/PlayerController.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 179
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/playback/ServerClock.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 77
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/util/AppLogger.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 12
+    },
+    {
+      "path": "shared/src/main/kotlin/com/synclisten/shared/util/ConnectivityProbe.kt",
+      "module": "shared",
+      "kind": "source",
+      "lines": 65
+    },
+    {
+      "path": "shared/src/test/kotlin/com/synclisten/shared/data/SettingsStoreTest.kt",
+      "module": "shared",
+      "kind": "test",
+      "lines": 42
+    },
+    {
+      "path": "shared/src/test/kotlin/com/synclisten/shared/host/server/HostAuthorizationTest.kt",
+      "module": "shared",
+      "kind": "test",
+      "lines": 54
+    },
+    {
+      "path": "shared/src/test/kotlin/com/synclisten/shared/PlayerStateTest.kt",
+      "module": "shared",
+      "kind": "test",
+      "lines": 37
+    }
+  ]
+}

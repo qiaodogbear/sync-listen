@@ -14,6 +14,7 @@ export type RoomRow = {
 };
 
 type MemberRow = {
+  credential_hash: string;
   user_id: string;
   display_name: string;
   role: "HOST" | "ADMIN" | "MEMBER";

@@ -27,6 +27,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,6 +58,10 @@ fun JoinRoomScreen(
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
+    DisposableEffect(Unit) { onDispose { viewModel.stopBleScan() } }
+    LaunchedEffect(state) {
+        if (state is HomeState.InRoom) onJoinedRoom()
+    }
     val bleState by viewModel.bleState.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -63,8 +69,14 @@ fun JoinRoomScreen(
     var roomCode by remember { mutableStateOf("") }
     var hostAddress by remember { mutableStateOf("") }
     var advancedExpanded by remember { mutableStateOf(false) }
-    var displayName by remember { mutableStateOf(userSettings.recentNickname) }
+    var displayName by remember { mutableStateOf("") }
     var probeResult by remember { mutableStateOf<ProbeResult?>(null) }
+
+    LaunchedEffect(userSettings) {
+        if (displayName.isBlank() && userSettings.recentNickname.isNotBlank()) {
+            displayName = userSettings.recentNickname
+        }
+    }
     var probing by remember { mutableStateOf(false) }
 
     // QR scanner
@@ -114,7 +126,7 @@ fun JoinRoomScreen(
             // 附近房间 (BLE)
             Text("附近房间", style = MaterialTheme.typography.titleMedium)
             if (bleState.invites.isEmpty()) {
-                Text("正在扫描附近房间...", style = MaterialTheme.typography.bodySmall,
+                Text(if (bleState.status == com.synclisten.app.nearby.BleDiscoveryStatus.SCANNING) "正在扫描附近房间..." else (bleState.message ?: "点击刷新扫描，或使用下方房间码"), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             bleState.invites.forEach { invite ->
@@ -200,13 +212,14 @@ fun JoinRoomScreen(
                         if (hostAddress.isBlank()) viewModel.joinRoom(roomCode, displayName)
                         else viewModel.joinRoom(hostAddress, roomCode, displayName)
                     }, modifier = Modifier.fillMaxWidth(),
-                        enabled = displayName.isNotBlank() && roomCode.isNotBlank()) {
+                        enabled = displayName.isNotBlank() && roomCode.length == 6 && state !is HomeState.Loading) {
                         Text("加入")
                     }
                 }
             }
 
             Spacer(Modifier.height(16.dp))
+            (state as? HomeState.Error)?.let { Text(it.message, color = MaterialTheme.colorScheme.error) }
             if (state is HomeState.Loading) {
                 CircularProgressIndicator(Modifier.size(32.dp))
             }

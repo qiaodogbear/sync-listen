@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 
+import { AppError } from "../errors.js";
 import { findActiveRoom } from "../rooms/snapshot.js";
 import type { RoomHub } from "../websocket/roomHub.js";
 import { toTrack, type TrackRow } from "./model.js";
@@ -91,15 +92,24 @@ export class PlaylistService {
 
   removeTrack(roomId: string, trackId: string) {
     findActiveRoom(this.database, roomId);
-    this.database.prepare("DELETE FROM tracks WHERE track_id = ? AND room_id = ?").run(trackId, roomId);
+    const current = this.database.prepare("SELECT track_id FROM playback_states WHERE room_id = ?").get(roomId) as { track_id: string | null };
+    if (current.track_id === trackId) throw new AppError(409, "CURRENT_TRACK_PROTECTED", "Switch tracks before removing the current track");
+    const result = this.database.prepare("DELETE FROM tracks WHERE track_id = ? AND room_id = ?").run(trackId, roomId);
+    if (result.changes === 0) throw new AppError(404, "TRACK_NOT_FOUND", "Track does not exist");
     this.roomHub?.broadcast(roomId, "TRACK_REMOVED", { trackId });
     this.roomHub?.broadcast(roomId, "PLAYLIST_UPDATED", { playlist: this.getPlaylist(roomId) });
   }
 
   reorderPlaylist(roomId: string, orderedTrackIds: string[]) {
-    findActiveRoom(this.database, roomId);
+    const current = this.getPlaylist(roomId);
+    const ids = new Set(orderedTrackIds);
+    if (orderedTrackIds.length !== current.length || ids.size !== current.length || current.some((track) => !ids.has(track.trackId))) {
+      throw new AppError(409, "PLAYLIST_CONFLICT", "Reorder must contain each current track exactly once");
+    }
     this.database.exec("BEGIN IMMEDIATE");
     try {
+      // Move all rows outside the final index range before applying a permutation.
+      this.database.prepare("UPDATE tracks SET order_index = -order_index - 1 WHERE room_id = ?").run(roomId);
       for (let i = 0; i < orderedTrackIds.length; i++) {
         this.database.prepare("UPDATE tracks SET order_index = ? WHERE track_id = ? AND room_id = ?")
           .run(i, orderedTrackIds[i]!, roomId);

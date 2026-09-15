@@ -14,6 +14,7 @@ import com.synclisten.shared.domain.model.Room
 import com.synclisten.shared.domain.model.RoomStatus
 import com.synclisten.shared.domain.model.Track
 import com.synclisten.shared.domain.model.TrackStatus
+import com.synclisten.protocol.DeviceCredential
 import java.util.UUID
 import kotlin.random.Random
 import kotlinx.coroutines.sync.Mutex
@@ -43,12 +44,16 @@ class HostRoomStore(
     private val mutex = Mutex()
     private var room: Room? = null
     private var joinToken: String? = null
+    private val credentials = mutableMapOf<String, String>()
     private val members = linkedMapOf<String, Member>()
     private val tracks = mutableListOf<StoredHostTrack>()
     private var playback = PlaybackState(null, 0, false, clock(), null)
 
-    suspend fun createRoom(request: CreateRoomRequest): CreateRoomResponse = mutex.withLock {
+    suspend fun createRoom(request: CreateRoomRequest, credential: String = ""): CreateRoomResponse = mutex.withLock {
         if (room?.status == RoomStatus.ACTIVE) fail(409, "ACTIVE_ROOM_EXISTS")
+        if (request.name.trim().length !in 1..80 || request.displayName.trim().length !in 1..40 || request.userId.length !in 1..128) fail(400, "VALIDATION_ERROR")
+        credentials.clear()
+        credentials[request.userId] = DeviceCredential.hash(credential)
         val now = clock()
         val created = Room(idFactory(), roomCodeFactory(), request.name.trim(), request.userId, RoomStatus.ACTIVE, now)
         val host = Member(request.userId, request.displayName.trim(), MemberRole.HOST, false, now)
@@ -57,14 +62,16 @@ class HostRoomStore(
         CreateRoomResponse(created, host, joinToken!!)
     }
 
-    suspend fun joinByCode(request: JoinRoomRequest): JoinRoomResponse = mutex.withLock {
-        join(requireActiveRoom(), request)
+    suspend fun joinByCode(request: JoinRoomRequest, credential: String = ""): JoinRoomResponse = mutex.withLock {
+        val active = requireActiveRoom()
+        if (request.roomCode?.uppercase() != active.roomCode) invalidJoin()
+        join(active, request, credential)
     }
 
-    suspend fun joinById(roomId: String, request: JoinRoomRequest): JoinRoomResponse = mutex.withLock {
+    suspend fun joinById(roomId: String, request: JoinRoomRequest, credential: String = ""): JoinRoomResponse = mutex.withLock {
         val active = requireActiveRoom(roomId)
         if (request.joinToken != joinToken && request.roomCode?.uppercase() != active.roomCode) invalidJoin()
-        join(active, request)
+        join(active, request, credential)
     }
 
     suspend fun snapshot(roomId: String): RoomSnapshot = mutex.withLock {
@@ -94,9 +101,9 @@ class HostRoomStore(
     suspend fun addReadyTrack(input: AddHostTrack): Track = mutex.withLock {
         requireActiveRoom(input.roomId)
         members[input.uploaderId] ?: fail(404, "MEMBER_NOT_FOUND")
-        Track(input.roomId, input.roomId, input.title, input.artist, input.durationMs,
+        Track(idFactory(), input.roomId, input.title, input.artist, input.durationMs,
             input.fileName, input.fileSize, input.fileHash, input.uploaderId, input.uploaderName,
-            tracks.size, TrackStatus.READY, clock()).also { tracks += StoredHostTrack(it, input.storagePath) }
+            (tracks.maxOfOrNull { it.track.orderIndex } ?: -1) + 1, TrackStatus.READY, clock()).also { tracks += StoredHostTrack(it, input.storagePath) }
     }
 
     suspend fun playlist(roomId: String): List<Track> = mutex.withLock {
@@ -115,7 +122,7 @@ class HostRoomStore(
 
     suspend fun seek(roomId: String, command: TrackPlaybackCommand): PlaybackState = mutex.withLock {
         requireHostOrAdmin(roomId, command.userId); requireReadyTrack(roomId, command.trackId)
-        schedule(command.trackId, command.positionMs)
+        schedule(command.trackId, command.positionMs, playback.isPlaying)
     }
 
     suspend fun pause(roomId: String, command: TrackPlaybackCommand): PlaybackState = mutex.withLock {
@@ -134,7 +141,7 @@ class HostRoomStore(
 
     suspend fun syncState(): Pair<String, PlaybackState>? = mutex.withLock {
         val a = room?.takeIf { it.status == RoomStatus.ACTIVE } ?: return@withLock null
-        if (!playback.isPlaying) return@withLock null; a.roomId to currentPlayback()
+        if (!playback.isPlaying || clock() < (playback.executeAtServerTimeMs ?: Long.MIN_VALUE)) return@withLock null; a.roomId to currentPlayback()
     }
 
     suspend fun close() = mutex.withLock {
@@ -144,30 +151,37 @@ class HostRoomStore(
 
     fun loadRecoverableRoom(): HostRecoverySnapshot? = null
 
-    suspend fun changeRole(roomId: String, targetUserId: String, newRole: MemberRole) = mutex.withLock {
-        requireHost(roomId, requireActiveRoom(roomId).hostUserId)
+    suspend fun changeRole(roomId: String, targetUserId: String, newRole: MemberRole, actorId: String) = mutex.withLock {
+        requireHost(roomId, actorId)
+        if (targetUserId == requireActiveRoom(roomId).hostUserId || newRole == MemberRole.HOST) fail(400, "INVALID_ROLE")
         val m = members[targetUserId] ?: fail(404, "MEMBER_NOT_FOUND")
         members[targetUserId] = m.copy(role = newRole)
         members[targetUserId]!!
     }
 
-    suspend fun removeTrack(roomId: String, trackId: String) = mutex.withLock {
-        requireActiveRoom(roomId)
+    suspend fun removeTrack(roomId: String, trackId: String, actorId: String) = mutex.withLock {
+        requireHostOrAdmin(roomId, actorId)
+        if (playback.trackId == trackId) fail(409, "CURRENT_TRACK_PROTECTED")
+        if (tracks.none { it.track.trackId == trackId }) fail(404, "TRACK_NOT_FOUND")
         tracks.removeAll { it.track.trackId == trackId }
     }
 
-    suspend fun reorderPlaylist(roomId: String, orderedTrackIds: List<String>) = mutex.withLock {
-        requireActiveRoom(roomId)
+    suspend fun reorderPlaylist(roomId: String, orderedTrackIds: List<String>, actorId: String) = mutex.withLock {
+        requireHostOrAdmin(roomId, actorId)
+        if (orderedTrackIds.size != tracks.size || orderedTrackIds.toSet() != tracks.map { it.track.trackId }.toSet()) fail(409, "PLAYLIST_CONFLICT")
         val reordered = orderedTrackIds.mapNotNull { id -> tracks.firstOrNull { it.track.trackId == id } }
         tracks.clear(); tracks.addAll(reordered)
         // Fix orderIndex
         tracks.forEachIndexed { i, stored -> tracks[i] = stored.copy(track = stored.track.copy(orderIndex = i)) }
     }
 
-    private suspend fun join(active: Room, request: JoinRoomRequest): JoinRoomResponse {
+    private suspend fun join(active: Room, request: JoinRoomRequest, credential: String): JoinRoomResponse {
+        if (request.displayName.trim().length !in 1..40 || request.userId.length !in 1..128) fail(400, "VALIDATION_ERROR")
+        if (members.containsKey(request.userId) && !DeviceCredential.matches(credentials[request.userId], credential)) fail(403, "INVALID_CREDENTIAL")
+        credentials[request.userId] = DeviceCredential.hash(credential)
         val now = clock(); val ex = members[request.userId]
         val member = Member(request.userId, request.displayName.trim(),
-            if (request.userId == active.hostUserId) MemberRole.HOST else MemberRole.MEMBER,
+            ex?.role ?: MemberRole.MEMBER,
             ex?.connected ?: false, ex?.joinedAt ?: now)
         members[member.userId] = member
         return JoinRoomResponse(active, member, joinToken!!)
@@ -194,16 +208,23 @@ class HostRoomStore(
             ?.takeIf { it.track.status == TrackStatus.READY } ?: fail(409, "TRACK_NOT_READY")
     }
 
-    private fun schedule(trackId: String, positionMs: Long): PlaybackState {
+    private fun schedule(trackId: String, positionMs: Long, isPlaying: Boolean = true): PlaybackState {
         val t = clock() + leadTimeMs
-        return PlaybackState(trackId, positionMs.coerceAtLeast(0), true, t, t).also { playback = it }
+        return PlaybackState(trackId, positionMs.coerceAtLeast(0), isPlaying, t, t).also { playback = it }
     }
 
     private fun currentPlayback(): PlaybackState {
-        if (!playback.isPlaying) return playback
+        if (!playback.isPlaying || clock() < (playback.executeAtServerTimeMs ?: Long.MIN_VALUE)) return playback
         val now = clock()
         return playback.copy(positionMs = (playback.positionMs + now - playback.serverTimeMs).coerceAtLeast(0),
             serverTimeMs = now, executeAtServerTimeMs = null)
+    }
+
+    suspend fun authorize(roomId: String, userId: String, credential: String): Member = mutex.withLock {
+        requireActiveRoom(roomId)
+        val member = members[userId] ?: fail(403, "INVALID_MEMBER", "User is not a room member")
+        if (!DeviceCredential.matches(credentials[userId], credential)) fail(403, "INVALID_CREDENTIAL", "Member credential is invalid")
+        member
     }
 
     private fun invalidJoin(): Nothing = fail(403, "INVALID_JOIN_TOKEN")

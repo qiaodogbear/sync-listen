@@ -15,20 +15,24 @@ import kotlinx.coroutines.flow.StateFlow
 class NetworkMonitor @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
+    private val networks = java.util.concurrent.ConcurrentHashMap.newKeySet<Network>()
     private val mutableAvailable = MutableStateFlow(true)
     val isAvailable: StateFlow<Boolean> = mutableAvailable
 
     private val callback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
+            networks.add(network)
             mutableAvailable.value = true
         }
 
         override fun onLost(network: Network) {
-            mutableAvailable.value = false
+            networks.remove(network)
+            mutableAvailable.value = networks.isNotEmpty()
         }
 
         override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
-            mutableAvailable.value = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            networks.add(network)
+            mutableAvailable.value = networks.isNotEmpty()
         }
     }
 
@@ -36,7 +40,9 @@ class NetworkMonitor @Inject constructor(
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
         cm?.registerNetworkCallback(
             NetworkRequest.Builder()
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
+                .removeCapability(NetworkCapabilities.NET_CAPABILITY_TRUSTED)
+                .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
                 .build(),
             callback,
         )

@@ -76,6 +76,7 @@ export const websocketEventTypeSchema = z.enum([
   "ROOM_JOINED",
   "MEMBER_JOINED",
   "MEMBER_LEFT",
+  "ROLE_CHANGED",
   "TRACK_ADDED",
   "TRACK_UPLOAD_PROGRESS",
   "TRACK_READY",
@@ -97,4 +98,3 @@ export const websocketEnvelopeSchema = z.object({
   serverTimeMs: z.number().int().nonnegative(),
 });
 export type WebSocketEnvelope = z.infer<typeof websocketEnvelopeSchema>;
-

@@ -59,4 +59,14 @@ class RetrofitRoomRemoteDataSource @Inject constructor(
 
     override suspend fun next(roomId: String, command: NextPlaybackCommand): PlaybackResponse =
         api().next(roomId, command)
+
+    override suspend fun changeMemberRole(roomId: String, userId: String, role: String): ChangeRoleResponse =
+        api().changeMemberRole(roomId, userId, ChangeRoleRequest(role))
+
+    override suspend fun deleteTrack(roomId: String, trackId: String) {
+        api().deleteTrack(roomId, trackId)
+    }
+
+    override suspend fun reorderPlaylist(roomId: String, orderedTrackIds: List<String>): ReorderResponse =
+        api().reorderPlaylist(roomId, ReorderRequest(orderedTrackIds))
 }

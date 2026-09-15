@@ -1,12 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import type { DatabaseSync } from "node:sqlite";
+import { requireRole } from "../auth.js";
 import type { PlaylistService } from "./playlistService.js";
 
-const reorderBody = z.object({ orderedTrackIds: z.array(z.string().min(1)).min(1) });
+const reorderBody = z.object({ orderedTrackIds: z.array(z.string().min(1)) });
 
 export async function registerPlaylistRoutes(
   app: FastifyInstance,
   playlistService: PlaylistService,
+  database: DatabaseSync,
 ): Promise<void> {
   app.get<{ Params: { roomId: string } }>(
     "/api/rooms/:roomId/playlist",
@@ -17,6 +20,7 @@ export async function registerPlaylistRoutes(
     "/api/rooms/:roomId/playlist/reorder",
     async (request, reply) => {
       const { orderedTrackIds } = reorderBody.parse(request.body);
+      requireRole(database, request, request.params.roomId, ["HOST", "ADMIN"]);
       playlistService.reorderPlaylist(request.params.roomId, orderedTrackIds);
       return reply.code(200).send({ ok: true });
     },
@@ -25,6 +29,7 @@ export async function registerPlaylistRoutes(
   app.delete<{ Params: { roomId: string; trackId: string } }>(
     "/api/rooms/:roomId/tracks/:trackId",
     async (request, reply) => {
+      requireRole(database, request, request.params.roomId, ["HOST", "ADMIN"]);
       playlistService.removeTrack(request.params.roomId, request.params.trackId);
       return reply.code(204).send();
     },

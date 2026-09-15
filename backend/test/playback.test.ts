@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { inject } from "./client.js";
 import { buildApp } from "../src/app.js";
 import { initializeDatabase } from "../src/db/database.js";
 import { PlaylistService } from "../src/tracks/playlistService.js";
@@ -19,7 +20,7 @@ async function setup() {
     tempUploadPath: join(root, "data", "tmp"),
   });
   const app = await buildApp({ database, playback: { leadTimeMs: 100, syncIntervalMs: 1000 } });
-  const created = await app.inject({
+  const created = await inject(app, {
     method: "POST",
     url: "/api/rooms",
     payload: { name: "Room", userId: "host", displayName: "Alice" },
@@ -69,17 +70,17 @@ describe("playback API", () => {
     const { app, roomId, first, second } = await setup();
     const before = Date.now();
 
-    const play = await app.inject({
+    const play = await inject(app, {
       method: "POST",
       url: `/api/rooms/${roomId}/playback/play`,
       payload: { userId: "host", trackId: first.trackId, positionMs: 0 },
     });
-    const seek = await app.inject({
+    const seek = await inject(app, {
       method: "POST",
       url: `/api/rooms/${roomId}/playback/seek`,
       payload: { userId: "host", trackId: first.trackId, positionMs: 500 },
     });
-    const next = await app.inject({
+    const next = await inject(app, {
       method: "POST",
       url: `/api/rooms/${roomId}/playback/next`,
       payload: { userId: "host", positionMs: 0 },
@@ -93,7 +94,7 @@ describe("playback API", () => {
     expect(seek.json()).toMatchObject({ state: { positionMs: 500 } });
     expect(next.json()).toMatchObject({ state: { trackId: second.trackId } });
 
-    const snapshot = await app.inject({ method: "GET", url: `/api/rooms/${roomId}` });
+    const snapshot = await inject(app, { method: "GET", url: `/api/rooms/${roomId}` });
     expect(snapshot.json()).toMatchObject({
       playbackState: { trackId: second.trackId, isPlaying: true },
     });
@@ -102,35 +103,35 @@ describe("playback API", () => {
 
   it("rejects member playback control and exposes server time", async () => {
     const { app, roomId, joinToken, first } = await setup();
-    await app.inject({
+    await inject(app, {
       method: "POST",
       url: `/api/rooms/${roomId}/join`,
       payload: { userId: "member", displayName: "Bob", joinToken },
     });
 
     const responses = await Promise.all([
-      app.inject({
+      inject(app, {
         method: "POST",
         url: `/api/rooms/${roomId}/playback/play`,
         payload: { userId: "member", trackId: first.trackId, positionMs: 100 },
       }),
-      app.inject({
+      inject(app, {
         method: "POST",
         url: `/api/rooms/${roomId}/playback/pause`,
         payload: { userId: "member", trackId: first.trackId, positionMs: 100 },
       }),
-      app.inject({
+      inject(app, {
         method: "POST",
         url: `/api/rooms/${roomId}/playback/seek`,
         payload: { userId: "member", trackId: first.trackId, positionMs: 100 },
       }),
-      app.inject({
+      inject(app, {
         method: "POST",
         url: `/api/rooms/${roomId}/playback/next`,
         payload: { userId: "member", positionMs: 0 },
       }),
     ]);
-    const time = await app.inject({ method: "GET", url: "/api/time" });
+    const time = await inject(app, { method: "GET", url: "/api/time" });
 
     expect(responses.map((response) => response.statusCode)).toEqual([403, 403, 403, 403]);
     for (const response of responses) {

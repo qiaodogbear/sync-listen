@@ -11,6 +11,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.map
 
 data class AppSettings(
@@ -19,12 +21,13 @@ data class AppSettings(
     val serverUrl: String = BuildConfig.DEFAULT_SERVER_URL,
     val recentNickname: String = "",
     val avatarEmoji: String = "",
+    val deviceSecret: String = "",
 )
 
 interface SettingsStore {
     val settings: Flow<AppSettings>
 
-    suspend fun update(userId: String? = null, displayName: String? = null, serverUrl: String? = null, recentNickname: String? = null, avatarEmoji: String? = null)
+    suspend fun update(userId: String? = null, displayName: String? = null, serverUrl: String? = null, recentNickname: String? = null, avatarEmoji: String? = null, deviceSecret: String? = null)
 }
 
 private val Context.settingsDataStore by preferencesDataStore(name = "settings")
@@ -40,16 +43,18 @@ class PreferenceSettingsStore @Inject constructor(
             serverUrl = preferences[SERVER_URL] ?: BuildConfig.DEFAULT_SERVER_URL,
             recentNickname = preferences[RECENT_NICKNAME].orEmpty(),
             avatarEmoji = preferences[AVATAR_EMOJI].orEmpty(),
+            deviceSecret = preferences[DEVICE_SECRET].orEmpty(),
         )
     }
 
-    override suspend fun update(userId: String?, displayName: String?, serverUrl: String?, recentNickname: String?, avatarEmoji: String?) {
+    override suspend fun update(userId: String?, displayName: String?, serverUrl: String?, recentNickname: String?, avatarEmoji: String?, deviceSecret: String?) {
         context.settingsDataStore.edit { preferences ->
             userId?.let { preferences[USER_ID] = it }
             displayName?.let { preferences[DISPLAY_NAME] = it }
             serverUrl?.let { preferences[SERVER_URL] = normalizeServerUrl(it) }
             recentNickname?.let { preferences[RECENT_NICKNAME] = it }
             avatarEmoji?.let { preferences[AVATAR_EMOJI] = it }
+            deviceSecret?.let { preferences[DEVICE_SECRET] = it }
         }
     }
 
@@ -58,6 +63,7 @@ class PreferenceSettingsStore @Inject constructor(
         val DISPLAY_NAME = stringPreferencesKey("display_name")
         val SERVER_URL = stringPreferencesKey("server_url")
         val RECENT_NICKNAME = stringPreferencesKey("recent_nickname")
+        val DEVICE_SECRET = stringPreferencesKey("device_secret")
         val AVATAR_EMOJI = stringPreferencesKey("avatar_emoji")
     }
 }
@@ -69,13 +75,19 @@ class IdentityManager(
     private val idFactory: () -> String = { UUID.randomUUID().toString() },
     private val emojiFactory: () -> String = { AVATAR_EMOJIS.random() },
 ) {
-    suspend fun ensureIdentity(): AppSettings {
+    suspend fun ensureIdentity(): AppSettings = identityLock.withLock {
         val current = settingsStore.settings.first()
-        if (current.userId.isNotBlank()) return current
-        settingsStore.update(userId = idFactory(), avatarEmoji = emojiFactory())
-        return settingsStore.settings.first()
+        if (current.userId.isNotBlank() && current.deviceSecret.isNotBlank()) return@withLock current
+        settingsStore.update(
+            userId = current.userId.ifBlank { idFactory() },
+            avatarEmoji = current.avatarEmoji.ifBlank { emojiFactory() },
+            deviceSecret = current.deviceSecret.ifBlank { UUID.randomUUID().toString() + UUID.randomUUID() },
+        )
+        settingsStore.settings.first()
     }
 }
+
+private val identityLock = Mutex()
 
 fun normalizeServerUrl(value: String): String {
     val trimmed = value.trim().trimEnd('/')

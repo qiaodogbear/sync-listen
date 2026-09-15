@@ -17,12 +17,22 @@ class HostRoomHub(
 ) {
     private val sessions = ConcurrentHashMap<String, MutableSet<DefaultWebSocketServerSession>>()
 
-    fun add(roomId: String, session: DefaultWebSocketServerSession) {
+    private val identities = ConcurrentHashMap<DefaultWebSocketServerSession, String>()
+
+    fun add(roomId: String, session: DefaultWebSocketServerSession, userId: String = "") {
+        identities[session] = userId
         sessions.computeIfAbsent(roomId) { ConcurrentHashMap.newKeySet() }.add(session)
     }
 
     fun remove(roomId: String, session: DefaultWebSocketServerSession) {
         sessions[roomId]?.remove(session)
+        identities.remove(session)
+    }
+
+    fun isConnected(roomId: String, userId: String): Boolean = sessions[roomId].orEmpty().any { identities[it] == userId }
+
+    suspend fun closeMember(roomId: String, userId: String) {
+        sessions[roomId].orEmpty().filter { identities[it] == userId }.forEach { it.close(CloseReason(CloseReason.Codes.NORMAL, "Member left")) }
     }
 
     suspend fun send(
@@ -41,7 +51,7 @@ class HostRoomHub(
         }
         dead.forEach { session ->
             runCatching { session.close(CloseReason(CloseReason.Codes.GOING_AWAY, "Send failed")) }
-            sessions[roomId]?.remove(session)
+            remove(roomId, session)
         }
     }
 
@@ -54,5 +64,6 @@ class HostRoomHub(
             }
         }
         sessions.clear()
+        identities.clear()
     }
 }

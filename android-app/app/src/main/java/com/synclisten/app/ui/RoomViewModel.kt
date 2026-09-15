@@ -14,6 +14,7 @@ import com.synclisten.app.playback.PlayerController
 import com.synclisten.app.playback.ServerClock
 import com.synclisten.app.playback.PlaybackSyncManager
 import com.synclisten.app.playback.canControlPlayback
+import com.synclisten.app.domain.model.MemberRole
 import com.synclisten.app.data.RoomEvent
 import com.synclisten.app.data.RepositoryResult
 import com.synclisten.app.data.TrackPlaybackCommand
@@ -117,7 +118,10 @@ class RoomViewModel @Inject constructor(
             TrackPlaybackCommand(
                 session.member.userId,
                 trackId,
-                if (player.value.trackId == trackId) player.value.positionMs else 0,
+                if (player.value.trackId == trackId &&
+                    player.value.status != com.synclisten.app.playback.PlayerStatus.ENDED &&
+                    (player.value.durationMs <= 0 || player.value.positionMs < player.value.durationMs)
+                ) player.value.positionMs else 0,
             ),
         )
     }
@@ -132,12 +136,30 @@ class RoomViewModel @Inject constructor(
     fun hostSeek(positionMs: Long) = controlCurrent { session, trackId ->
         repository.seek(
             session.room.roomId,
-            TrackPlaybackCommand(session.member.userId, trackId, positionMs.coerceAtLeast(0)),
+            TrackPlaybackCommand(session.member.userId, trackId,
+                if (player.value.durationMs > 0) positionMs.coerceIn(0, player.value.durationMs)
+                else positionMs.coerceAtLeast(0)),
         )
     }
 
     fun hostNext() = control { session ->
         repository.next(session.room.roomId, NextPlaybackCommand(session.member.userId))
+    }
+
+    fun promoteToAdmin(memberUserId: String) = hostOnly { session ->
+        repository.changeMemberRole(session.room.roomId, memberUserId, "ADMIN")
+    }
+
+    fun demoteFromAdmin(memberUserId: String) = hostOnly { session ->
+        repository.changeMemberRole(session.room.roomId, memberUserId, "MEMBER")
+    }
+
+    fun removeTrack(trackId: String) = control { session ->
+        repository.deleteTrack(session.room.roomId, trackId)
+    }
+
+    fun reorderPlaylist(orderedTrackIds: List<String>) = control { session ->
+        repository.reorderPlaylist(session.room.roomId, orderedTrackIds)
     }
 
     fun leave(onComplete: () -> Unit) {
@@ -168,8 +190,23 @@ class RoomViewModel @Inject constructor(
     private fun control(request: suspend (HomeState.InRoom) -> RepositoryResult<*>) {
         viewModelScope.launch {
             val session = homeController.state.value as? HomeState.InRoom ?: return@launch
-            if (!session.member.role.canControlPlayback()) {
-                mutableControlError.value = "仅房主可执行播放控制"
+            val role = snapshot.value?.members?.firstOrNull { it.userId == session.member.userId }?.role ?: session.member.role
+            if (!role.canControlPlayback()) {
+                mutableControlError.value = "仅房主或管理员可执行播放控制"
+                return@launch
+            }
+            mutableControlError.value = when (val result = request(session)) {
+                is RepositoryResult.Success -> null
+                is RepositoryResult.Failure -> result.message
+            }
+        }
+    }
+
+    private fun hostOnly(request: suspend (HomeState.InRoom) -> RepositoryResult<*>) {
+        viewModelScope.launch {
+            val session = homeController.state.value as? HomeState.InRoom ?: return@launch
+            if (session.member.role != MemberRole.HOST) {
+                mutableControlError.value = "仅房主可执行此操作"
                 return@launch
             }
             mutableControlError.value = when (val result = request(session)) {

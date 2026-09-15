@@ -85,7 +85,11 @@ class PlayerController(
         pendingReady?.cancel()
         pendingReady = ready
         engine.load(localPath)
-        ready.await()
+        try {
+            kotlinx.coroutines.withTimeout(15_000) { ready.await() }
+        } catch (_: kotlinx.coroutines.TimeoutCancellationException) {
+            update(status = PlayerStatus.ERROR, error = "音频准备超时，请检查文件格式")
+        }
     }
 
     override fun play() {
@@ -95,14 +99,16 @@ class PlayerController(
     }
 
     override fun pause() {
-        if (mutableState.value.status != PlayerStatus.PLAYING) return
+        if (mutableState.value.trackId == null || mutableState.value.status in
+            setOf(PlayerStatus.IDLE, PlayerStatus.WAITING_FOR_CACHE, PlayerStatus.ERROR)) return
         engine.pause()
         update(status = PlayerStatus.PAUSED)
     }
 
     override fun seekTo(positionMs: Long) {
         if (mutableState.value.trackId == null) return
-        val target = positionMs.coerceIn(0, mutableState.value.durationMs.coerceAtLeast(positionMs))
+        val duration = mutableState.value.durationMs
+        val target = if (duration > 0) positionMs.coerceIn(0, duration) else positionMs.coerceAtLeast(0)
         engine.seekTo(target)
         update(positionMs = target)
     }
@@ -122,8 +128,8 @@ class PlayerController(
         when (event) {
             is PlayerEngineEvent.Ready -> {
                 update(
-                    status = if (mutableState.value.status == PlayerStatus.PLAYING) {
-                        PlayerStatus.PLAYING
+                    status = if (mutableState.value.status in setOf(PlayerStatus.PLAYING, PlayerStatus.PAUSED)) {
+                        mutableState.value.status
                     } else {
                         PlayerStatus.READY
                     },

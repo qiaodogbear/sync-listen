@@ -94,6 +94,7 @@ class AndroidNfcJoinManager @Inject constructor(
         val languageLength = payload[0].toInt() and 0x3f
         val start = 1 + languageLength
         if (start >= payload.size) return null
-        return String(payload, start, payload.size - start, StandardCharsets.UTF_8)
+        val charset = if ((payload[0].toInt() and 0x80) != 0) StandardCharsets.UTF_16 else StandardCharsets.UTF_8
+        return String(payload, start, payload.size - start, charset)
     }
 }

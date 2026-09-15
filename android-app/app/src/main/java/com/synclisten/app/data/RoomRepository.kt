@@ -19,6 +19,9 @@ interface RoomRemoteDataSource {
     suspend fun pause(roomId: String, command: TrackPlaybackCommand): PlaybackResponse = unsupported()
     suspend fun seek(roomId: String, command: TrackPlaybackCommand): PlaybackResponse = unsupported()
     suspend fun next(roomId: String, command: NextPlaybackCommand): PlaybackResponse = unsupported()
+    suspend fun changeMemberRole(roomId: String, userId: String, role: String): ChangeRoleResponse = unsupported()
+    suspend fun deleteTrack(roomId: String, trackId: String): Unit = unsupported()
+    suspend fun reorderPlaylist(roomId: String, orderedTrackIds: List<String>): ReorderResponse = unsupported()
 
     private fun unsupported(): Nothing = error("Remote operation is not implemented")
 }
@@ -72,6 +75,22 @@ class RoomRepository @Inject constructor(
     suspend fun next(roomId: String, command: NextPlaybackCommand): RepositoryResult<PlaybackResponse> =
         request { remote.next(roomId, command) }
 
+    suspend fun changeMemberRole(
+        roomId: String,
+        userId: String,
+        role: String,
+    ): RepositoryResult<ChangeRoleResponse> =
+        request { remote.changeMemberRole(roomId, userId, role) }
+
+    suspend fun deleteTrack(roomId: String, trackId: String): RepositoryResult<Unit> =
+        request { remote.deleteTrack(roomId, trackId) }
+
+    suspend fun reorderPlaylist(
+        roomId: String,
+        orderedTrackIds: List<String>,
+    ): RepositoryResult<ReorderResponse> =
+        request { remote.reorderPlaylist(roomId, orderedTrackIds) }
+
     private suspend fun <T> request(block: suspend () -> T): RepositoryResult<T> =
         runCatching { block() }.fold(
             onSuccess = { RepositoryResult.Success(it) },
@@ -79,6 +98,7 @@ class RoomRepository @Inject constructor(
         )
 
     private fun mapFailure(error: Throwable): RepositoryResult.Failure = when (error) {
+        is kotlinx.coroutines.CancellationException -> throw error
         is IOException -> RepositoryResult.Failure("无法连接服务器，请检查地址和网络")
         is HttpException -> {
             val parsed = error.response()?.errorBody()?.string()?.let {
