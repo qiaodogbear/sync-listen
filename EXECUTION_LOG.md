@@ -15,7 +15,7 @@
 - Scope: 附近默认关闭、仅前台可见/收邀请、从不自动加入；HTTP可信LAN/IPv4。悬浮窗必须用户授权且再次开启；无完整MediaSession。服务器1500ms提前量保留，READY屏障尚未实现。
 - Resume state: L7ZQ9E与最终SW274S测试房间已显式结束；A/B停止、AVD定义保留、转发移除。临时特殊权限还原；B数据/Wi-Fi开启。ignored .audit-tmp是失效测试凭据、合成音频和辅助脚本，禁止发布。
 - Tooling: PowerShell7；S:映射工程；完整Temurin21.0.11+10。docs/debugging.md有共享Wi-Fi与旧NAT后备方案；交接见docx/项目交接文档.md。
-- Checkpoint: 待本轮本地提交；未推送此次变更或发布新Release。TASKS是唯一清单。
+- Checkpoint: 9e77dab feat: improve sync checkpoints and nearby room interactions（最终功能/测试代码）。日志随后单独提交；未推送此次变更或发布新Release。TASKS是唯一清单。
 - Next: 两台真机按测试记录采集输出差p50/p95/max、锁屏/蓝牙/热点表现，再实现T606；不要为降低等待直接删除1500ms准备余量。
 
 ## Previous Release
