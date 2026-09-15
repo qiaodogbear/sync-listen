@@ -4,11 +4,13 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Upsert
 
 @Dao
 interface HostDao {
     // ── 房间 ──
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // REPLACE deletes the parent row and cascades to host_tracks.
+    @Upsert
     suspend fun upsertRoom(room: HostRoomEntity)
 
     @Query("SELECT * FROM host_room LIMIT 1")

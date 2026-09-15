@@ -120,6 +120,8 @@ dependencies {
     implementation(libs.ktor.serialization.kotlinx.json)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
     testImplementation(libs.junit)
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.ktor.client.content.negotiation)

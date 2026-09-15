@@ -12,7 +12,7 @@ async function visit(directory) {
       const source = await fs.readFile(filename, "utf8");
       const relative = path.relative(root, filename).replaceAll("\\", "/");
       files.push({ path: relative, module: relative.split("/")[0],
-        kind: /\/test\//.test(relative) ? "test" : "source",
+        kind: /\/(?:test|androidTest)\//.test(relative) ? "test" : "source",
         lines: source.trimEnd().split(/\r?\n/).length });
     }
   }
