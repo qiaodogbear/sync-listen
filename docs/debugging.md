@@ -42,7 +42,7 @@ npm audit --audit-level=high
 
 ```powershell
 Set-Location S:\android-app
-.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon
+.\gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest --no-daemon
 ```
 
 ```powershell
@@ -111,6 +111,16 @@ B 手动输入 `http://10.0.2.2:38571` 和 A 的房间码；真正手机不需�
 房间「诊断信息」包含 WebSocket、缓存、serverOffsetMs、rttMs、syncErrorMs、playbackSpeed。Release 关闭 HTTP 正文日志，避免泄露设备凭据。提交日志前去除邀请 token、Authorization、设备 secret、个人音频和 IP 等不必要信息。
 
 ## 恢复验收
+
+真实 Room 数据库回归在独立内存数据库上运行，不读取用户房间：
+
+```powershell
+Set-Location S:\android-app
+$env:ANDROID_SERIAL='emulator-5554'
+.\gradlew.bat connectedDebugAndroidTest --no-daemon
+```
+
+`HostRecoveryDatabaseTest` 覆盖连续三次恢复、异常关闭后恢复、曲目/凭据/暂停点保留与显式关闭清理。报告在 `app/build/reports/androidTests/connected`。必须连续恢复至少两次，单次恢复的内存快照可能掩盖父表 REPLACE 级联删除问题。
 
 在测试房间中先暂停并记录位置。对 Host 执行 `adb shell am force-stop com.synclisten.app`，重新启动后从首页恢复卡片恢复。核对房间码、列表、成员和暂停状态；恢复后成员重新连入。此操作模拟强制停止，不等同于系统自然回收。
 

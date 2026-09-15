@@ -6,19 +6,18 @@
 
 - Updated: 2026-09-16
 - Active task: T501-T506 全量分块审查、优化与 GitHub Release
-- Status: in progress
-- Next: 完成最终 Android/desktop 回归和重新签名构建；重开 A/B 验证暂停/seek/恢复与 UI 上传；打包、公开并发布。详见 docs/review-2026-09-16.md。
-- Baseline: HEAD 1aeede3，保留已有未提交源码/UI 修改；发现大量已跟踪构建产物。
-- Publication: 用户明确批准公开 qiaodogbear/sync-listen 并发布下载版本；发布前完成本轮验证。
-- Implemented (本轮待完整验收): 三端设备凭据认证、权限/重排/seek 修复；Ktor 下载范围支持；Android Host 恢复、播放器生命周期、下载校验；desktop 流式下载与播放器重构。
-- Verified (本轮最新): backend 39/39、npm audit 0；shared 6/6、desktop 4/4；Android 85/85，共134，lint零错误/46警告/1提示；Debug和桌面构建通过。前一版正式RSA4096签名已校验，最终Release重建中。
-- Runtime: Release A 托管 SPUXHW，B(Bob) 深链确认加入，Lab 经 Host UI 晋升 Admin；45s WAV 自动下载/完整 hash/Range206/匿名401通过；B 播放观察 RTT17ms、误差155ms、1.02x。不是声学测量。
-- Runtime fixes (已通过自动回归，待最终设备复测): 批量检查未完提前上传；ENDED 后 seek 暂停被忽略及重新播放不能从零开始；诊断本地路径/缓冲值缺失和面板溢出。Android 增加事务失败回滚用例；shared 新增暂停状态用例，最终总数134，全部通过。
-- Resume state: A/B 已关闭释放内存；A 先 force-stop，保存恢复房间及15s暂停点。Lab凭据与邀请仅在 ignored .audit-tmp/session.json；工具 e2e.mjs/control.mjs/device.ps1/join-device.mjs 供本地测试，禁止发布。
-- Docs: README、architecture/API/WS/debugging/known-issues 已更新；MIT/第三方说明、签名与分发脚本、CI、架构图与工程看板已建立。审查正文与最终测试报告/Release 尚待收尾。
-- Tooling: Windows PowerShell 7；S: 映射当前工程避开 Android 测试中文路径；Android Studio JBR 可构建 APK，但缺少 jpackage，桌面打包使用 C:/Program Files/Eclipse Adoptium/jdk-21.0.11.10-hotspot。
-- Licensing: 用户确认 MIT；LICENSE 已添加。计划 v0.3.0 预览 Release，正式私钥存放于仓库外。
-- Publication pending: 尚未提交/推送、尚未公开仓库、尚未发布 Release；不要根据历史 Verified 认定本轮已完成。
+- Status: 发布收尾中；T501-T504完成，T505打包校验中，T506待上传Release。
+- Next: 检查 artifacts 三个发布文件与SHA256SUMS；提交最终文档并推送；创建v0.3.0标签/预览Release，验证匿名下载后更新任务状态。
+- Baseline: 1aeede3，保留已有源码/UI改动；清除415个生成文件的Git索引跟踪但保留本地文件。
+- Implemented: 设备凭据/权限、协议、事务/恢复、传输校验、播放器/重连、导航/诊断、桌面缓存/播放器等修复。审查见 docs/review-2026-09-16.md，清点163文件，118生产/45测试。
+- Critical runtime fix: 父表REPLACE触发曲目外键级联删除；改@Upsert，真实Room设备用例连续三次恢复/异常关闭通过；最终签名包连续两次恢复也保留曲目。
+- Verified: 单元/服务集成134（backend39、Android85、shared6、desktop4）+真实Room设备1，共135通过。lint零错误/48警告/1提示；npm audit0。GitHub CI 35010915893 三端通过（源码05bb9ac）。
+- APK: 最终Release构建4m24s，RSA4096/v2签名通过。SHA256 6e4947a34737ecc94ce13c1411f741bab1b3f1e1af945958061c010cb0e8455b，证书未变，含LICENSE/THIRD_PARTY_NOTICES。
+- Runtime: A/B安装正式包；WAV上传/hash/Range206/匿名401；UI上传、缓存去重/next、暂停seek15.000s、EOF重播通过。Host停止时B重连中仍从33s播到38s，恢复后35s观测窗内自动连回并暂停15s；显式结束后重开无恢复卡。不是声学或真机长时验收。
+- Resume state: 测试房间SPUXHW已显式结束；A/B关闭释放内存，AVD定义保留。ignored .audit-tmp含失效测试会话/辅助脚本，禁止发布。
+- Tooling: Windows PowerShell7；S:映射当前工程；完整Temurin JDK21.0.11+10含jpackage。精确命令见docs/debugging.md，交接见docx/项目交接文档.md。
+- Publication: 用户已批准public、MIT、Release并完成workflow授权。仓库已公开，匿名API及网页HTTP200已验证；README/架构图/工程看板/使用文档已提交或待本次文档提交。
+- Signing: 私钥与DPAPI文件仅在 $HOME/.synclisten/signing；不要重建旧密钥、公开密码或误把DPAPI文件当跨机密码备份。
 
 ## Decisions
 

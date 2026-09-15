@@ -12,11 +12,13 @@
 | Android | 85/85，通过；lint / assembleDebug 通过 | app/build/test-results/testDebugUnitTest |
 | shared | 6/6，通过 | shared/build/test-results/test |
 | desktop | 4/4，通过；createDistributable 通过 | desktop/build/test-results/test |
-| 合计 | 134 个执行用例，0 失败、0 错误 | 数量不是代码覆盖率 |
+| 单元/服务集成合计 | 134 个执行用例，0 失败、0 错误 | 工程看板使用此口径，不是代码覆盖率 |
+| Android 设备数据库 | 1/1，通过，API35 AVD 上运行1.524s | HostRecoveryDatabaseTest；真实 Room，非 Fake DAO |
+| 总计 | 135 个用例通过 | 134 单元/服务集成 + 1 设备数据库 |
 | npm 依赖审计 | 完整 npm audit：0 vulnerabilities | 包括本轮升级的开发测试依赖 |
-| Android lint | 0 Error、46 Warning、1 Hint | app/build/reports/lint-results-debug.xml |
+| Android lint | 0 Error、48 Warning、1 Hint | app/build/reports/lint-results-debug.xml |
 
-Android 新增事务提交失败恢复内存状态测试；PlayerController 测试补充了本地路径/缓冲上报、曲终 seek 后仍能暂停、重复 Ready 保持暂停。shared 同样覆盖结束后暂停。Desktop 使用假音频输出覆盖生命周期，不依赖测试机真实声卡。
+Android 新增真实 Room 连续三次恢复及异常关闭测试，确认父表 @Upsert 不级联删除曲目。首次实际连续恢复暴露原 REPLACE 导致的曲目丢失，已修复；新增事务提交失败恢复内存状态测试；PlayerController 测试补充了本地路径/缓冲上报、曲终 seek 后仍能暂停、重复 Ready 保持暂停。shared 同样覆盖结束后暂停。Desktop 使用假音频输出覆盖生命周期，不依赖测试机真实声卡。
 
 ### 正式版模拟运行
 
@@ -32,11 +34,15 @@ Android 新增事务提交失败恢复内存状态测试；PlayerController 测�
 
 B 曾显示 RTT 17ms、serverOffset -619ms、上次 syncError 155ms、速度 1.02x。它是一次软件诊断采样，不是稳定误差分布、双端同时采样或声学测量。
 
-首轮运行发现曲终后 seek 暂停未真正传入引擎、重播使用结束位置、诊断路径/缓冲缺失。已修复并通过新增/扩展自动测试；最终签名包的设备复测结果在本节收尾更新，未复测前不标记运行闭环完成。
+首轮运行发现曲终后 seek 暂停未真正传入引擎、重播使用结束位置、诊断路径/缓冲缺失，已修复。复测双端稳定暂停于15.000s、缓冲100%、文件存在；曲终 Host UI 再次播放时服务端位置143ms。通过系统文件选择器的批量入口上传 WAV 成功，列表2首共用1406KB缓存；Host UI next 切换到第二首。
+
+连续恢复进一步发现父表 REPLACE 触发歌曲外键CASCADE，第一次恢复的内存快照掩盖了落盘丢失。已改 @Upsert 并通过真实 Room 设备测试。最终签名 APK（SHA-256 `6e4947a34737ecc94ce13c1411f741bab1b3f1e1af945958061c010cb0e8455b`）已在 A/B 安装，重新上传测试曲目后完成连续两次进程停止/恢复，曲目仍保留。B 在 Host 停止时显示重连中，缓存播放从33秒继续到38秒；恢复后35秒观测窗内自动连回，服务端与 B 均暂停于15秒，无需重新加入。显式结束房间后重开 A，无恢复卡片。最终首页/房间截图已更新。
+
+模拟器 Wi-Fi/data 开关没有立即断开既有连接，因此本轮使用 Host 进程停止验证服务中断，不把它记录成完整网络切换或真实热点验收。
 
 ### 产物与验证边界
 
-首次正式签名构建通过，apksigner 验证 v2 签名与 RSA4096 证书；最终重新构建与产物 SHA-256 在发布收尾记录。Desktop 分发目录已构建，隐藏启动存活 8 秒、未输出错误；这不等于完成桌面视觉或声卡端到端验收。
+最终正式签名构建通过，apksigner 验证 v2 签名与 RSA4096 证书；APK 含 LICENSE 和 THIRD_PARTY_NOTICES。GitHub CI run [35010915893](https://github.com/qiaodogbear/sync-listen/actions/runs/35010915893) 三端通过，其中 Android 编译仪器化测试 APK，实际设备测试在本机执行。Desktop 分发目录已构建，隐藏启动存活 8 秒、未输出错误；这不等于完成桌面视觉或声卡端到端验收。
 
 未验证：真机物理扫码/BLE/NFC、Android API26 设备、两小时锁屏播放、厂商省电、真实 Android SQLite 迁移故障、音箱声学延迟、Windows 广泛格式兼容。低内存并发启动模拟器时出现过 Launcher/System UI ANR；已关闭模拟器后进行构建并冷启动恢复，不能记为 App 自身崩溃。
 

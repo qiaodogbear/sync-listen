@@ -4,8 +4,8 @@
     {
       "module": "android-app",
       "sourceFiles": 66,
-      "testFiles": 26,
-      "lines": 9673
+      "testFiles": 27,
+      "lines": 9728
     },
     {
       "module": "backend",
@@ -33,6 +33,12 @@
     }
   ],
   "files": [
+    {
+      "path": "android-app/app/src/androidTest/java/com/synclisten/app/host/persistence/HostRecoveryDatabaseTest.kt",
+      "module": "android-app",
+      "kind": "test",
+      "lines": 53
+    },
     {
       "path": "android-app/app/src/main/java/com/synclisten/app/cache/CacheCleanup.kt",
       "module": "android-app",
@@ -133,7 +139,7 @@
       "path": "android-app/app/src/main/java/com/synclisten/app/host/persistence/HostDao.kt",
       "module": "android-app",
       "kind": "source",
-      "lines": 68
+      "lines": 70
     },
     {
       "path": "android-app/app/src/main/java/com/synclisten/app/host/persistence/HostMemberEntity.kt",

@@ -6,6 +6,7 @@
 - Use PowerShell 7 on Windows. Build from an ASCII path (for this machine, S: maps to this repository) when Gradle tests fail to load classes in a Unicode path.
 - Use JDK 21. Desktop packaging requires a full JDK with jpackage; this machine uses Eclipse Adoptium jdk-21.0.11.10-hotspot. Android Studio JBR is also available for Android.
 - Android validation: in android-app, run .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon.
+- Android database device test: with one API35 AVD running, run .\gradlew.bat connectedDebugAndroidTest --no-daemon in android-app. HostRecoveryDatabaseTest uses an isolated in-memory Room database.
 - Desktop validation: at root, run .\gradlew.bat :shared:test :desktop:test :desktop:createDistributable --no-daemon.
 - Backend validation: in backend, run npm ci, npm run lint, npm run typecheck, npm test, npm run build, npm audit --audit-level=high. Node >=22.13.0 is required.
 - Release signing: scripts/build-release.ps1; private keys are outside the repo at $HOME/.synclisten/signing. Do not initialize or replace an existing signing key. Never log passwords.
