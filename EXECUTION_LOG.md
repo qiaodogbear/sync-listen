@@ -5,6 +5,7 @@
 ## Current
 
 - Updated: 2026-09-16
+- Brand task: T701 publishing；重写README产品叙事/真实场景/上手/验证边界，新增SVG品牌封面，统一About与Release开场。GitHub Markdown渲染、SVG XML和26处本地链接已通过；准备推送并验证在线页面，旧v0.3.0附件不替换。
 - Status: T601-T604 complete；T605真机测量、T606 READY屏障/自适应提前量待做。开发分支feat/mvp，从29302e6开始；不覆盖旧v0.3.0附件。
 - Implemented: 四时间戳低RTT校时、单调时钟、预seek、500ms检查点、比例微调/迟滞/冷却、旧连接计划失效；统一RoomSessionController、迷你栏、可选mediaPlayback服务与悬浮窗；NSD前台发现/便捷加入/确认邀请。
 - Runtime fixes: 修正断线诊断误标正常、快重连旧计划复活、结束后旧恢复卡片残留；恢复检查增加时机约束、查询代数与显式清空。

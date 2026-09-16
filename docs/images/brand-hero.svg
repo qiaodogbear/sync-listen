@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="620" viewBox="0 0 1440 620" role="img" aria-labelledby="title desc">
+  <title id="title">Sync Listen - 让这一刻，同频。</title>
+  <desc id="desc">深色背景上的 Sync Listen 品牌标题与两组相互呼应的光线。装饰性品牌图形，不是应用界面或同步性能测量。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#171323"/><stop offset="1" stop-color="#07080c"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop stop-color="#8671eb" stop-opacity=".24"/><stop offset="1" stop-color="#8671eb" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="wave" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#8a80d9" stop-opacity=".15"/><stop offset=".45" stop-color="#c7bcff"/><stop offset="1" stop-color="#f9cece"/>
+    </linearGradient>
+    <linearGradient id="type" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#e3ddff"/><stop offset="1" stop-color="#ffcbd6"/>
+    </linearGradient>
+    <path id="pulse" d="M0 0 H36 C58 0 59 -18 76 -18 S94 24 114 24 S135 -48 158 -48 S186 66 210 66 S239 -76 263 -76 S292 50 318 50 S349 -30 372 -30 S398 0 424 0 H452"/>
+  </defs>
+  <rect width="1440" height="620" rx="28" fill="url(#bg)"/>
+  <ellipse cx="1120" cy="286" rx="480" ry="350" fill="url(#glow)"/>
+  <rect x="1" y="1" width="1438" height="618" rx="27" fill="none" stroke="#ffffff" stroke-opacity=".08"/>
+  <g font-family="'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif">
+    <text x="90" y="114" fill="#b9b3c9" font-size="16" letter-spacing="5">LOCAL MUSIC. SHARED MOMENTS.</text>
+    <text x="86" y="252" fill="#faf9fc" font-size="82" font-weight="650" letter-spacing="-3">Sync Listen</text>
+    <text x="87" y="349" fill="url(#type)" font-size="60" font-weight="600" letter-spacing="2">让这一刻，同频。</text>
+    <text x="91" y="414" fill="#c3becd" font-size="24">一部手机，连接你们喜欢的音乐。</text>
+    <text x="91" y="536" fill="#aaa3bb" font-size="16" letter-spacing="3">ANDROID + WINDOWS</text>
+  </g>
+  <g fill="none" stroke="url(#wave)" stroke-width="4" stroke-linecap="round">
+    <use href="#pulse" x="878" y="240"/>
+    <use href="#pulse" x="878" y="402" opacity=".7"/>
+  </g>
+  <g fill="#f3d3df">
+    <circle cx="1330" cy="240" r="5"/>
+    <circle cx="1330" cy="402" r="5" opacity=".7"/>
+  </g>
+</svg>
