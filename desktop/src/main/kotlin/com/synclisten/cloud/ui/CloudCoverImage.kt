@@ -16,12 +16,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.synclisten.cloud.CloudCover
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-fun CloudCoverImage(url: String) {
+fun CloudCoverImage(url: String, size: Dp = 56.dp) {
     val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, url) {
         value = withContext(Dispatchers.IO) {
             val bytes = CloudCover.fetch(url) ?: return@withContext null
@@ -31,8 +32,8 @@ fun CloudCoverImage(url: String) {
             } catch (_: Exception) { null }
         }
     }
-    if (bitmap != null) Image(bitmap!!, contentDescription = "专辑封面", modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
-    else Surface(modifier = Modifier.size(56.dp), shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+    if (bitmap != null) Image(bitmap!!, contentDescription = "专辑封面", modifier = Modifier.size(size).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
+    else Surface(modifier = Modifier.size(size), shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
         Box(contentAlignment = Alignment.Center) { Text("♪", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }

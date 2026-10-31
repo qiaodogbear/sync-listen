@@ -22,9 +22,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -52,9 +49,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.synclisten.app.domain.model.MemberRole
@@ -69,6 +70,7 @@ import com.synclisten.app.transfer.BatchUploadState
 import com.synclisten.app.ui.component.DiagnosticsPanel
 import com.synclisten.cloud.ui.CloudSearchDialog
 import com.synclisten.cloud.ui.CloudCoverImage
+import com.synclisten.cloud.ui.TrackDetailsDialog
 import com.synclisten.cloud.CloudDownloader
 import com.synclisten.cloud.CloudResolution
 import kotlinx.coroutines.Dispatchers
@@ -104,13 +106,30 @@ fun RoomScreen(
     val myRole = snapshot?.members?.firstOrNull { it.userId == room?.member?.userId }?.role ?: room?.member?.role
     val canControl = myRole?.canControlPlayback() == true
     val isHost = myRole == MemberRole.HOST
+    val configuration = LocalConfiguration.current
+    val compactRoom = configuration.screenWidthDp <= 320 || configuration.fontScale >= 1.4f
     val currentTrack = snapshot?.playlist?.firstOrNull {
         it.trackId == (player.trackId ?: snapshot?.playbackState?.trackId)
     }
     val snackbar = remember { SnackbarHostState() }
 
     var showRoleMenuFor by remember { mutableStateOf<String?>(null) }
+    var trackActionsFor by remember { mutableStateOf<String?>(null) }
     var showCloud by remember { mutableStateOf(false) }
+    var showRoomActions by remember { mutableStateOf(false) }
+    var showCompactMembers by remember { mutableStateOf(false) }
+    var detailsTrackId by remember { mutableStateOf<String?>(null) }
+    snapshot?.playlist?.firstOrNull { it.trackId == detailsTrackId }?.let { track ->
+        val playingTrack = snapshot?.playbackState?.trackId == track.trackId
+        TrackDetailsDialog(
+            title = track.title, artist = track.artist, durationMs = track.durationMs, cloud = track.cloud,
+            isCurrent = playingTrack, isPlaying = playingTrack && snapshot?.playbackState?.isPlaying == true,
+            positionMs = if (player.trackId == track.trackId) player.positionMs else 0,
+            canControl = canControl, lyrics = roomViewModel::cloudLyrics,
+            onPlay = { roomViewModel.hostPlay(track.trackId) }, onPause = roomViewModel::hostPause, onSeek = roomViewModel::hostSeek,
+            onDismiss = { detailsTrackId = null },
+        )
+    }
     val context = LocalContext.current
     val cloudScope = rememberCoroutineScope()
     var downloadStatus by remember { mutableStateOf<String?>(null) }
@@ -186,7 +205,7 @@ fun RoomScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(room?.room?.name ?: "房间", style = MaterialTheme.typography.titleMedium)
+                        Text(room?.room?.name ?: "房间", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
                             "房间码：${room?.room?.roomCode.orEmpty()}",
                             style = MaterialTheme.typography.bodySmall,
@@ -195,9 +214,15 @@ fun RoomScreen(
                 },
                 actions = {
                     TextButton(onClick = { showCloud = true }) { Text("云音乐") }
-                    TextButton(onClick = onOpenUpload) { Text("添加") }
-                    TextButton(onClick = onOpenInvite) { Text("邀请") }
-                    TextButton(onClick = onOpenSettings) { Text("设置") }
+                    Box {
+                        IconButton(onClick = { showRoomActions = true }) { Icon(Icons.Default.MoreVert, contentDescription = "房间操作") }
+                        DropdownMenu(expanded = showRoomActions, onDismissRequest = { showRoomActions = false }) {
+                            DropdownMenuItem(text = { Text("添加歌曲") }, onClick = { showRoomActions = false; onOpenUpload() })
+                            DropdownMenuItem(text = { Text("邀请") }, onClick = { showRoomActions = false; onOpenInvite() })
+                            DropdownMenuItem(text = { Text("设置") }, onClick = { showRoomActions = false; onOpenSettings() })
+                            if (compactRoom) DropdownMenuItem(text = { Text(if (isHost) "结束房间" else "离开房间") }, onClick = { showRoomActions = false; confirmLeave = true })
+                        }
+                    }
                 },
             )
         },
@@ -227,8 +252,12 @@ fun RoomScreen(
                 }
             }
             // Members row with role badges
-            Text("成员", style = MaterialTheme.typography.titleMedium)
-            LazyRow(modifier = Modifier.padding(vertical = 4.dp)) {
+            if (compactRoom) {
+                TextButton(onClick = { showCompactMembers = !showCompactMembers }) {
+                    Text("成员 (${snapshot?.members?.size ?: 0}) ${if (showCompactMembers) "收起" else "展开"}")
+                }
+            } else Text("成员", style = MaterialTheme.typography.titleMedium)
+            if (!compactRoom || showCompactMembers) LazyRow(modifier = Modifier.padding(vertical = 4.dp)) {
                 items(snapshot?.members ?: emptyList()) { member ->
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -359,20 +388,22 @@ fun RoomScreen(
                         ) {
                             CloudCoverImage(track.cloud?.track?.coverUrl.orEmpty())
                             Spacer(Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (track.trackId == currentTrack?.trackId && player.status == PlayerStatus.PLAYING) {
-                                        Text("🔊 ", style = MaterialTheme.typography.bodySmall)
+                            TextButton(onClick = { detailsTrackId = track.trackId }, modifier = Modifier.weight(1f)) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (track.trackId == currentTrack?.trackId && player.status == PlayerStatus.PLAYING) {
+                                            Text("🔊 ", style = MaterialTheme.typography.bodySmall)
+                                        }
+                                        Text(track.title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                                     }
-                                    Text(track.title, style = MaterialTheme.typography.bodyMedium)
-                                }
-                                Text(
-                                    "${track.artist ?: "未知"} · ${formatMs(track.durationMs)}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                track.cloud?.let { cloud ->
-                                    Text("${cloud.track.source} · ${cloud.format} ${cloud.bitrate ?: "未知"} kbps", style = MaterialTheme.typography.labelSmall)
+                                    Text(
+                                        "${track.artist ?: "未知"} · ${formatMs(track.durationMs)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    track.cloud?.let { cloud ->
+                                        Text("${cloud.track.source} · ${cloud.format} ${cloud.bitrate ?: "未知"} kbps", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
                                 }
                             }
 
@@ -382,60 +413,36 @@ fun RoomScreen(
                                     onClick = { roomViewModel.hostPlay(track.trackId) },
                                     modifier = Modifier.size(32.dp),
                                 ) {
-                                    Text("▶", style = MaterialTheme.typography.labelLarge)
+                                    Text("▶", modifier = Modifier.semantics { contentDescription = "播放此曲" })
                                 }
                             }
 
-                            // Reorder buttons
                             if (canControl) {
-                                if (index > 0) {
-                                    IconButton(
-                                        onClick = {
-                                            val reordered = snapshot?.playlist?.toMutableList() ?: return@IconButton
+                                Box {
+                                    IconButton(onClick = { trackActionsFor = track.trackId }, modifier = Modifier.size(40.dp)) {
+                                        Icon(Icons.Default.MoreVert, contentDescription = "曲目操作")
+                                    }
+                                    DropdownMenu(expanded = trackActionsFor == track.trackId, onDismissRequest = { trackActionsFor = null }) {
+                                        DropdownMenuItem(text = { Text("上移") }, enabled = index > 0, onClick = {
+                                            trackActionsFor = null
+                                            val reordered = snapshot?.playlist?.toMutableList() ?: return@DropdownMenuItem
                                             reordered.removeAt(index)
                                             reordered.add(index - 1, track)
                                             roomViewModel.reorderPlaylist(reordered.map { it.trackId })
-                                        },
-                                        modifier = Modifier.size(28.dp),
-                                    ) {
-                                        Icon(
-                                            Icons.Default.KeyboardArrowUp,
-                                            contentDescription = "上移",
-                                            modifier = Modifier.size(16.dp),
-                                        )
-                                    }
-                                }
-                                if (index < (snapshot?.playlist?.size ?: 1) - 1) {
-                                    IconButton(
-                                        onClick = {
-                                            val reordered = snapshot?.playlist?.toMutableList() ?: return@IconButton
+                                        })
+                                        DropdownMenuItem(text = { Text("下移") }, enabled = index < (snapshot?.playlist?.size ?: 1) - 1, onClick = {
+                                            trackActionsFor = null
+                                            val reordered = snapshot?.playlist?.toMutableList() ?: return@DropdownMenuItem
                                             reordered.removeAt(index)
                                             reordered.add(index + 1, track)
                                             roomViewModel.reorderPlaylist(reordered.map { it.trackId })
-                                        },
-                                        modifier = Modifier.size(28.dp),
-                                    ) {
-                                        Icon(
-                                            Icons.Default.KeyboardArrowDown,
-                                            contentDescription = "下移",
-                                            modifier = Modifier.size(16.dp),
-                                        )
+                                        })
+                                        DropdownMenuItem(text = { Text("删除") }, enabled = track.trackId != currentTrack?.trackId, onClick = {
+                                            trackActionsFor = null
+                                            showDeleteDialog = track.trackId
+                                        })
                                     }
                                 }
-                            }
-
-                            // Delete button
-                            IconButton(
-                                onClick = { showDeleteDialog = track.trackId },
-                                enabled = canControl && track.trackId != currentTrack?.trackId,
-                                modifier = Modifier.size(28.dp),
-                            ) {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "删除",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(16.dp),
-                                )
                             }
                         }
                     }
@@ -488,6 +495,7 @@ fun RoomScreen(
                                     )
                                 }
                             }
+                            if (currentTrack != null) TextButton(onClick = { detailsTrackId = currentTrack.trackId }) { Text("详情") }
                         }
                         LinearProgressIndicator(
                             progress = {
@@ -502,16 +510,16 @@ fun RoomScreen(
                                 horizontalArrangement = Arrangement.SpaceEvenly,
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Button(onClick = {
+                                IconButton(onClick = {
                                     roomViewModel.hostPlay(
                                         player.trackId ?: currentTrack?.trackId ?: ""
                                     )
-                                }) { Text("▶") }
-                                Button(onClick = roomViewModel::hostPause) { Text("⏸") }
-                                Button(onClick = {
+                                }) { Text("▶", modifier = Modifier.semantics { contentDescription = "播放" }) }
+                                IconButton(onClick = roomViewModel::hostPause) { Text("⏸", modifier = Modifier.semantics { contentDescription = "暂停" }) }
+                                IconButton(onClick = {
                                     roomViewModel.hostSeek(player.positionMs + 5000)
-                                }) { Text("⏩") }
-                                Button(onClick = roomViewModel::hostNext) { Text("⏭") }
+                                }) { Text("⏩", modifier = Modifier.semantics { contentDescription = "前进 5 秒" }) }
+                                IconButton(onClick = roomViewModel::hostNext) { Text("⏭", modifier = Modifier.semantics { contentDescription = "下一首" }) }
                             }
                         }
                         player.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -556,7 +564,7 @@ fun RoomScreen(
             )
 
             // Bottom actions
-            Row(
+            if (!compactRoom) Row(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             ) {

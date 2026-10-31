@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -30,6 +32,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -76,6 +79,13 @@ fun CloudSearchDialog(
             finally { busy = false }
         }
     }
+    fun searchNow() {
+        if (busy || query.isBlank()) return
+        val term = query.trim()
+        val provider = source
+        tracks = emptyList(); resolution = null; lyricText = null; notice = null
+        perform { tracks = search(provider, term); if (tracks.isEmpty()) error = "没有搜索结果" }
+    }
     if (!visible) return
     val sources = listOf("netease" to "网易", "qq" to "QQ", "kugou" to "酷狗", "kuwo" to "酷我")
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -99,13 +109,9 @@ fun CloudSearchDialog(
                         }
                     }
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(value = query, onValueChange = { query = it }, label = { Text("歌曲或歌手") }, singleLine = true, modifier = Modifier.weight(1f))
-                        Button(enabled = !busy && query.isNotBlank(), onClick = {
-                            val term = query.trim()
-                            val provider = source
-                            tracks = emptyList(); resolution = null; lyricText = null; notice = null
-                            perform { tracks = search(provider, term); if (tracks.isEmpty()) error = "没有搜索结果" }
-                        }) { Text(if (busy) "搜索中" else "搜索") }
+                        OutlinedTextField(value = query, onValueChange = { query = it }, label = { Text("歌曲或歌手") }, singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { searchNow() }), modifier = Modifier.weight(1f))
+                        Button(enabled = !busy && query.isNotBlank(), onClick = { searchNow() }) { Text(if (busy) "搜索中" else "搜索") }
                     }
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp)) }
                     if (tracks.isEmpty() && !busy && error == null) {
@@ -118,9 +124,9 @@ fun CloudSearchDialog(
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                                     CloudCoverImage(track.coverUrl)
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(track.title, style = MaterialTheme.typography.titleSmall)
-                                        Text(track.artists.joinToString(" / ").ifEmpty { "未知歌手" }, style = MaterialTheme.typography.bodySmall)
-                                        Text("${track.album.ifEmpty { "未知专辑" }} · ${sources.firstOrNull { it.first == track.source }?.second ?: track.source}$duration", style = MaterialTheme.typography.labelSmall)
+                                        Text(track.title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                                        Text(track.artists.joinToString(" / ").ifEmpty { "未知歌手" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("${track.album.ifEmpty { "未知专辑" }} · ${sources.firstOrNull { it.first == track.source }?.second ?: track.source}$duration", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                             }

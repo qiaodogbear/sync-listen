@@ -9,6 +9,46 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SyncCheckpointTest {
+    @Test fun scheduledSeekIsNotBlockedByAutomaticCorrectionCooldown() = runBlocking {
+        var now = 1_000L
+        val seeks = mutableListOf<Long>()
+        val player = object : PlaybackPort {
+            override val state = MutableStateFlow(PlayerControllerState(trackId = "track", status = PlayerStatus.PLAYING))
+            override suspend fun prepare(trackId: String) = Unit
+            override fun currentPositionMs() = 0L
+            override fun play() = Unit
+            override fun pause() = Unit
+            override fun seekTo(positionMs: Long) { seeks += positionMs }
+            override fun setPlaybackSpeed(speed: Float) = Unit
+        }
+        val manager = PlaybackSyncManager(player, object : ServerTimeProvider { override fun estimatedServerNowMs() = now },
+            wait = { now += it }, speedCorrectionEnabled = false)
+        manager.apply(PlaybackState("track", 1_000, true, now, null))
+        now += 2_000
+        manager.checkpoint()
+        assertEquals(listOf(3_000L), seeks)
+        manager.apply(PlaybackState("track", 9_000, true, now + 500, now + 500))
+        assertEquals(9_000L, seeks.last())
+    }
+    @Test fun desktopSmallPersistentOffsetDoesNotRestartAudio() = runBlocking {
+        var now = 1_000L
+        var seeks = 0
+        val player = object : PlaybackPort {
+            override val state = MutableStateFlow(PlayerControllerState(trackId = "track", status = PlayerStatus.PLAYING, isCloud = true))
+            override suspend fun prepare(trackId: String) = Unit
+            override fun currentPositionMs() = now - 100
+            override fun play() = Unit
+            override fun pause() = Unit
+            override fun seekTo(positionMs: Long) { seeks++ }
+            override fun setPlaybackSpeed(speed: Float) = Unit
+        }
+        val manager = PlaybackSyncManager(player, object : ServerTimeProvider { override fun estimatedServerNowMs() = now }, speedCorrectionEnabled = false)
+        repeat(61) { step ->
+            if (step % 10 == 0) manager.apply(PlaybackState("track", now, true, now, null)) else manager.checkpoint()
+            now += 500
+        }
+        assertEquals("Small stable offset should not repeatedly reopen a cloud stream", 0, seeks)
+    }
     @Test fun cloudSeekWaitsForDecoderBeforeStartingPlayback() = runBlocking {
         var now = 2_000L
         var plays = 0
@@ -48,7 +88,7 @@ class SyncCheckpointTest {
         }
     }
 
-    @Test fun desktopCheckpointsUseSeekCooldownWithoutSpeedChanges() = runBlocking {
+    @Test fun desktopCheckpointsIgnoreSmallOffsetsWithoutSpeedChanges() = runBlocking {
         var now = 1_000L
         val commands = mutableListOf<String>()
         val player = object : PlaybackPort {
@@ -62,13 +102,13 @@ class SyncCheckpointTest {
         val clock = object : ServerTimeProvider { override fun estimatedServerNowMs() = now }
         val manager = PlaybackSyncManager(player, clock, speedCorrectionEnabled = false)
         manager.apply(PlaybackState("track", 1_000, true, 1_000, null))
-        assertEquals(listOf("seek"), commands)
+        assertEquals(emptyList<String>(), commands)
         player.state.value = player.state.value.copy(positionMs = 900)
         now += 500
         manager.checkpoint()
-        assertEquals(listOf("seek"), commands)
+        assertEquals(emptyList<String>(), commands)
         manager.setConnected(false)
         manager.checkpoint()
-        assertEquals(listOf("seek"), commands)
+        assertEquals(emptyList<String>(), commands)
     }
 }

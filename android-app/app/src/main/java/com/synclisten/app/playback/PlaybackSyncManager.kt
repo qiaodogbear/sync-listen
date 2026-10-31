@@ -2,6 +2,8 @@ package com.synclisten.app.playback
 
 import com.synclisten.app.domain.model.PlaybackState
 import com.synclisten.app.domain.model.MemberRole
+import com.synclisten.sync.DriftSeekDecision
+import com.synclisten.sync.DriftSeekPolicy
 import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,7 +35,8 @@ class PlaybackSyncManager(
     private var reference: PlaybackState? = null
     private var receivedAt = 0L
     private var scheduled: Triple<String, Long, Long>? = null
-    private var lastSeekAt: Long? = null
+    private val seekPolicy = DriftSeekPolicy()
+    private var lastSpeedChangeAt: Long? = null
     private var connectionEpoch = 0L
 
     suspend fun apply(authoritative: PlaybackState) = applyMutex.withLock {
@@ -48,6 +51,7 @@ class PlaybackSyncManager(
         try {
             val target = reference ?: return
             if (!clock.isCalibrated() || clock.estimatedServerNowMs() - receivedAt > 15_000) {
+                seekPolicy.clearObservation()
                 setSpeed(1f)
                 mutableState.value = state.value.copy(correction = "校时或状态过期，保持本地播放")
                 return
@@ -60,6 +64,7 @@ class PlaybackSyncManager(
     private suspend fun correct(authoritative: PlaybackState) {
         val epoch = connectionEpoch
         val track = authoritative.trackId ?: run {
+            seekPolicy.reset()
             setSpeed(1f)
             player.pause()
             scheduled = null
@@ -67,16 +72,18 @@ class PlaybackSyncManager(
         }
         if (player.state.value.trackId != track || player.state.value.status == PlayerStatus.WAITING_FOR_CACHE) {
             scheduled = null
-            lastSeekAt = null
+            seekPolicy.reset()
             player.prepare(track)
         }
         if (epoch != connectionEpoch || player.state.value.status in setOf(PlayerStatus.WAITING_FOR_CACHE, PlayerStatus.ERROR)) return
         if (player.state.value.status in setOf(PlayerStatus.PREPARING, PlayerStatus.BUFFERING)) {
+            seekPolicy.clearObservation()
             mutableState.value = state.value.copy(correction = "等待音频准备")
             return
         }
         if (!authoritative.isPlaying) {
             scheduled = null
+            seekPolicy.clearObservation()
             setSpeed(1f)
             if (player.state.value.isCloud) player.pause()
             if (!player.state.value.isCloud || abs(player.currentPositionMs() - authoritative.positionMs) > 20) {
@@ -87,6 +94,7 @@ class PlaybackSyncManager(
             return
         }
         if (!clock.isCalibrated()) {
+            seekPolicy.clearObservation()
             setSpeed(1f)
             update(player.currentPositionMs(), correction = "等待时钟校准")
             return
@@ -112,7 +120,7 @@ class PlaybackSyncManager(
             val late = (clock.estimatedServerNowMs() - executeAt).coerceAtLeast(0)
             val target = clamp(authoritative.positionMs + late)
             scheduled = key
-            lastSeekAt = clock.estimatedServerNowMs()
+            seekPolicy.markSeek(clock.estimatedServerNowMs())
             if ((remaining <= 0 || late > 40) &&
                 (!player.state.value.isCloud || abs(player.currentPositionMs() - target) > SEEK_THRESHOLD_MS)) {
                 player.seekTo(target)
@@ -138,16 +146,17 @@ class PlaybackSyncManager(
         val enter = maxOf(SPEED_THRESHOLD_MS, uncertainty * 2)
         val exit = maxOf(20L, uncertainty * 2)
         var action = "容差内"
+        val decision = if (uncertainty <= 150) seekPolicy.observe(now, error, uncertainty, player.state.value.isCloud, true)
+            else { seekPolicy.clearObservation(); DriftSeekDecision.WITHIN_TOLERANCE }
         when {
             uncertainty > 150 -> { setSpeed(1f); action = "网络不确定度过高，暂停纠偏" }
-            abs(error) > SEEK_THRESHOLD_MS && (lastSeekAt == null || now - lastSeekAt!! >= 2_000) -> {
+            decision == DriftSeekDecision.SEEK -> {
                 setSpeed(1f)
                 player.seekTo(expected)
-                lastSeekAt = now
                 action = "大误差定位"
             }
             abs(error) >= enter || (state.value.playbackSpeed != 1f && abs(error) > exit) -> {
-                setSpeed((1.0 + error / 5_000.0).coerceIn(0.98, 1.02).toFloat())
+                setCorrectionSpeed((1.0 + error / 5_000.0).coerceIn(0.98, 1.02).toFloat(), now)
                 action = "比例速度微调"
             }
             else -> setSpeed(1f)
@@ -166,6 +175,7 @@ class PlaybackSyncManager(
             setSpeed(1f)
             reference = null
             scheduled = null
+            seekPolicy.reset()
         }
         mutableState.value = state.value.copy(
             connected = connected,
@@ -182,7 +192,8 @@ class PlaybackSyncManager(
         setSpeed(1f)
         reference = null
         scheduled = null
-        lastSeekAt = null
+        seekPolicy.reset()
+        lastSpeedChangeAt = null
         mutableState.value = PlaybackSyncState()
     }
 
@@ -198,6 +209,13 @@ class PlaybackSyncManager(
         if (state.value.playbackSpeed == speed) return
         player.setPlaybackSpeed(speed)
         mutableState.value = state.value.copy(playbackSpeed = speed)
+        lastSpeedChangeAt = clock.estimatedServerNowMs()
+    }
+
+    private fun setCorrectionSpeed(speed: Float, now: Long) {
+        val rounded = (kotlin.math.round(speed * 200) / 200).coerceIn(0.98f, 1.02f)
+        val last = lastSpeedChangeAt
+        if (last == null || now < last || now - last >= 2_000) setSpeed(rounded)
     }
 
     companion object {

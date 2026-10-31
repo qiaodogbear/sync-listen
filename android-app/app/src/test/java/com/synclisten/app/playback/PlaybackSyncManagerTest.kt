@@ -11,6 +11,43 @@ import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class PlaybackSyncManagerTest {
+    @Test fun speedCorrectionDoesNotOscillateOnEveryCheckpoint() = runBlocking {
+        var now = 1_000L
+        var drift = 150L
+        val speeds = mutableListOf<Float>()
+        val player = object : PlaybackPort {
+            override val state = MutableStateFlow(PlayerControllerState(trackId = "track", status = PlayerStatus.PLAYING))
+            override suspend fun prepare(trackId: String) = Unit
+            override fun currentPositionMs() = now - drift
+            override fun play() = Unit
+            override fun pause() = Unit
+            override fun seekTo(positionMs: Long) = Unit
+            override fun setPlaybackSpeed(speed: Float) { speeds += speed }
+        }
+        val manager = PlaybackSyncManager(player, object : ServerTimeProvider { override fun estimatedServerNowMs() = now }) {}
+        manager.apply(PlaybackState("track", now, true, now, null))
+        repeat(6) { now += 500; drift = -drift; manager.checkpoint() }
+        assertEquals(listOf(1.02f, 0.98f), speeds)
+    }
+    @Test fun moderatePersistentDriftDoesNotTriggerRepeatedSeeks() = runBlocking {
+        var now = 1_000L
+        var seeks = 0
+        val player = object : PlaybackPort {
+            override val state = MutableStateFlow(PlayerControllerState(trackId = "track", status = PlayerStatus.PLAYING, isCloud = true))
+            override suspend fun prepare(trackId: String) = Unit
+            override fun currentPositionMs() = now - 400
+            override fun play() = Unit
+            override fun pause() = Unit
+            override fun seekTo(positionMs: Long) { seeks++ }
+            override fun setPlaybackSpeed(speed: Float) = Unit
+        }
+        val manager = PlaybackSyncManager(player, object : ServerTimeProvider { override fun estimatedServerNowMs() = now }) {}
+        repeat(61) { step ->
+            if (step % 10 == 0) manager.apply(PlaybackState("track", now, true, now, null)) else manager.checkpoint()
+            now += 500
+        }
+        assertEquals("Moderate offset should use smooth correction, not repeated seeks", 0, seeks)
+    }
     @Test
     fun waitsForScheduledServerTimeBeforePlaying() = runBlocking {
         val player = FakePlaybackPort()
@@ -34,18 +71,18 @@ class PlaybackSyncManagerTest {
     }
 
     @Test
-    fun seeksOnlyWhenSyncErrorExceedsThreshold() = runBlocking {
+    fun moderateSyncErrorUsesSpeedWithoutSeeking() = runBlocking {
         val player = FakePlaybackPort(positionMs = 1_000)
         val manager = PlaybackSyncManager(player, FixedServerTime(2_500)) {}
 
         manager.apply(state(trackId = "track", positionMs = 1_000, isPlaying = true, serverTime = 2_000))
-        assertEquals(listOf("seek:1500", "play"), player.commands)
+        assertEquals(listOf("speed:1.02", "play"), player.commands)
         assertEquals(500, manager.state.value.syncErrorMs)
 
         player.commands.clear()
         player.mutableState.value = player.mutableState.value.copy(positionMs = 1_350)
         manager.apply(state(trackId = "track", positionMs = 1_000, isPlaying = true, serverTime = 2_000))
-        assertEquals(listOf("speed:1.02", "play"), player.commands)
+        assertEquals(listOf("play"), player.commands)
     }
 
     @Test
@@ -98,14 +135,16 @@ class PlaybackSyncManagerTest {
     @Test
     fun usesPlaybackSpeedToCorrectPositiveAndNegativeSmallDrift() = runBlocking {
         val player = FakePlaybackPort(positionMs = 1_000)
-        val manager = PlaybackSyncManager(player, FixedServerTime(2_000)) {}
+        var now = 2_000L
+        val manager = PlaybackSyncManager(player, object : ServerTimeProvider { override fun estimatedServerNowMs() = now }) {}
 
         manager.apply(state(trackId = "track", positionMs = 1_150, isPlaying = true, serverTime = 2_000))
         assertEquals(listOf("speed:1.02", "play"), player.commands)
         assertEquals(1.02f, manager.state.value.playbackSpeed)
 
         player.commands.clear()
-        manager.apply(state(trackId = "track", positionMs = 850, isPlaying = true, serverTime = 2_000))
+        now = 4_000
+        manager.apply(state(trackId = "track", positionMs = 850, isPlaying = true, serverTime = 4_000))
         assertEquals(listOf("speed:0.98", "play"), player.commands)
         assertEquals(0.98f, manager.state.value.playbackSpeed)
     }
@@ -128,13 +167,18 @@ class PlaybackSyncManagerTest {
     @Test
     fun largeDriftSeeksAndRestoresNormalSpeed() = runBlocking {
         val player = FakePlaybackPort(positionMs = 1_000)
-        val manager = PlaybackSyncManager(player, FixedServerTime(2_000)) {}
+        var now = 2_000L
+        val manager = PlaybackSyncManager(player, object : ServerTimeProvider { override fun estimatedServerNowMs() = now }) {}
 
         manager.apply(state(trackId = "track", positionMs = 1_150, isPlaying = true, serverTime = 2_000))
         player.commands.clear()
         manager.apply(state(trackId = "track", positionMs = 2_500, isPlaying = true, serverTime = 2_000))
+        assertFalse(player.commands.any { it.startsWith("seek") })
+        player.commands.clear()
+        now = 4_000
+        manager.checkpoint()
 
-        assertEquals(listOf("speed:1.0", "seek:2500", "play"), player.commands)
+        assertEquals(listOf("speed:1.0", "seek:4500", "play"), player.commands)
         assertEquals(1.0f, manager.state.value.playbackSpeed)
     }
 

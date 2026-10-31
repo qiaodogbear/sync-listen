@@ -29,6 +29,7 @@ import com.synclisten.shared.playback.PlayerStatus
 import com.synclisten.shared.data.RepositoryResult
 import com.synclisten.cloud.ui.CloudSearchDialog
 import com.synclisten.cloud.ui.CloudCoverImage
+import com.synclisten.cloud.ui.TrackDetailsDialog
 import com.synclisten.cloud.CloudDownloader
 import kotlinx.coroutines.launch
 import java.io.File
@@ -50,6 +51,25 @@ fun RoomScreen(appState: DesktopAppState) {
 
     var showDeleteDialog by remember { mutableStateOf<String?>(null) }
     var showCloud by remember { mutableStateOf(false) }
+    var detailsTrackId by remember { mutableStateOf<String?>(null) }
+    playlist.firstOrNull { it.trackId == detailsTrackId }?.let { track ->
+        TrackDetailsDialog(
+            title = track.title, artist = track.artist, durationMs = track.durationMs, cloud = track.cloud,
+            isCurrent = playbackState.trackId == track.trackId,
+            isPlaying = playbackState.trackId == track.trackId && playbackState.isPlaying,
+            positionMs = if (playerState.trackId == track.trackId) playerState.positionMs else 0,
+            canControl = canControl,
+            lyrics = { cloudTrack ->
+                val repository = appState.roomRepo ?: error("房间已关闭")
+                when (val result = repository.cloudLyrics(room.roomId, cloudTrack)) {
+                    is RepositoryResult.Success -> result.value.text
+                    is RepositoryResult.Failure -> error(result.message)
+                }
+            },
+            onPlay = { appState.playTrack(track.trackId) }, onPause = appState::pausePlayback, onSeek = appState::seekTo,
+            onDismiss = { detailsTrackId = null },
+        )
+    }
     var cloudDownloadStatus by remember { mutableStateOf<String?>(null) }
     var cloudDownloading by remember { mutableStateOf(false) }
     val cloudScope = rememberCoroutineScope()
@@ -306,23 +326,26 @@ fun RoomScreen(appState: DesktopAppState) {
 
                             Spacer(Modifier.width(8.dp))
 
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    track.title,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = if (isCurrentTrack) FontWeight.SemiBold else FontWeight.Normal,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    track.artist ?: "未知艺术家",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                track.cloud?.let { cloud ->
-                                    Text("${cloud.track.source} · ${cloud.format} ${cloud.bitrate ?: "未知"} kbps", style = MaterialTheme.typography.labelSmall)
+                            TextButton(onClick = { detailsTrackId = track.trackId }, modifier = Modifier.weight(1f)) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Text(
+                                        track.title,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = if (isCurrentTrack) FontWeight.SemiBold else FontWeight.Normal,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        track.artist ?: "未知艺术家",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    track.cloud?.let { cloud ->
+                                        Text("${cloud.track.source} · ${cloud.format} ${cloud.bitrate ?: "未知"} kbps", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
                                 }
                             }
 
@@ -450,6 +473,7 @@ fun RoomScreen(appState: DesktopAppState) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (currentTrack != null) TextButton(onClick = { detailsTrackId = currentTrack.trackId }) { Text("歌曲详情") }
                 } else {
                     Text(
                         "未在播放",
