@@ -12,7 +12,8 @@ object CloudCover {
         val url = value.toHttpUrlOrNull() ?: return null
         val host = url.host
         if (url.username.isNotEmpty() || url.password.isNotEmpty() ||
-            !(host == "music.126.net" || host.endsWith(".music.126.net") || host == "kwcdn.kuwo.cn" || host.endsWith(".kwcdn.kuwo.cn"))) return null
+            !(host == "music.126.net" || host.endsWith(".music.126.net") || host == "kwcdn.kuwo.cn" || host.endsWith(".kwcdn.kuwo.cn") ||
+                (host == "y.gtimg.cn" && url.isHttps))) return null
         return try {
             client.newCall(Request.Builder().url(url).build()).execute().use { response ->
                 if (!response.isSuccessful || !response.header("Content-Type").orEmpty().startsWith("image/", ignoreCase = true)) return null
