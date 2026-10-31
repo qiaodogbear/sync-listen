@@ -174,6 +174,8 @@ class CloudMusicClient(private val client: OkHttpClient = OkHttpClient.Builder()
             val cover = when (source) {
                 "netease" -> text(obj(row["al"])["picUrl"])
                 "kuwo" -> text(row["albumpic"])
+                "qq" -> text(obj(row["album"])["mid"]).takeIf { it.matches(Regex("[a-zA-Z0-9]{1,32}")) }
+                    ?.let { "https://y.gtimg.cn/music/photo_new/T002R300x300M000${it}_1.jpg?max_age=2592000" }.orEmpty()
                 else -> ""
             }
             track.copy(availableQualities = fields.filter { (num(it.second) ?: 0) > 0 }.map { it.first }, coverUrl = cover).takeIf { it.id.isNotEmpty() && it.title.isNotEmpty() }
@@ -181,11 +183,30 @@ class CloudMusicClient(private val client: OkHttpClient = OkHttpClient.Builder()
     }
 
     fun lyrics(track: CloudTrack): CloudLyrics {
-        if (track.source != "netease") throw CloudMusicException("该来源的歌词暂不可用")
-        if (!track.id.matches(Regex("[0-9]{1,32}"))) throw CloudMusicException("曲目标识无效")
-        val data = gateway("wy", "/lyric?id=${encode(track.id)}")
-        if (num(data["code"]) != 200L) throw CloudMusicException("歌词获取失败")
-        return CloudLyrics(text(obj(data["lrc"])["lyric"]).take(200_000))
+        if (track.source == "netease") {
+            if (!track.id.matches(Regex("[0-9]{1,32}"))) throw CloudMusicException("曲目标识无效")
+            val data = gateway("wy", "/lyric?id=${encode(track.id)}")
+            if (num(data["code"]) != 200L) throw CloudMusicException("歌词获取失败")
+            return CloudLyrics(text(obj(data["lrc"])["lyric"]).take(200_000))
+        }
+        if (track.source == "kugou") {
+            if (!track.id.matches(Regex("[a-fA-F0-9]{32}"))) throw CloudMusicException("曲目标识无效")
+            val title = normalizeMetadata(track.title)
+            val artist = normalizeMetadata(track.artists.firstOrNull().orEmpty())
+            if (title.isEmpty() || artist.isEmpty()) throw CloudMusicException("缺少歌词版本核对信息")
+            val search = gateway("kg", "/search/lyric?hash=${encode(track.id)}")
+            if (num(search["status"]) != 200L) throw CloudMusicException("歌词搜索失败")
+            val candidate = arr(search["candidates"]).map(::obj).firstOrNull {
+                normalizeMetadata(text(it["song"])) == title && normalizeMetadata(text(it["singer"])) == artist
+            } ?: throw CloudMusicException("没有与所选歌曲匹配的歌词")
+            val id = text(candidate["id"])
+            val access = text(candidate["accesskey"])
+            if (!id.matches(Regex("[0-9]{1,32}")) || access.isBlank() || access.length > 256) throw CloudMusicException("歌词候选无效")
+            val data = gateway("kg", "/lyric?id=${encode(id)}&accesskey=${encode(access)}&decode=true&fmt=lrc")
+            if (num(data["status"]) != 200L || text(data["id"]) != id) throw CloudMusicException("歌词获取失败")
+            return CloudLyrics(text(data["decodeContent"]).take(200_000))
+        }
+        throw CloudMusicException("该来源的歌词暂不可用")
     }
 
     fun resolve(track: CloudTrack): CloudResolution {

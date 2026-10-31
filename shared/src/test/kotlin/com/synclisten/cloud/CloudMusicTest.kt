@@ -18,11 +18,28 @@ class CloudMusicTest {
         org.junit.Assert.assertNull(CloudCover.fetch("http://127.0.0.1:12345/image"))
         org.junit.Assert.assertNull(CloudCover.fetch("https://music.126.net.evil.example/a.jpg"))
         org.junit.Assert.assertNull(CloudCover.fetch("https://user:password@p3.music.126.net/a.jpg"))
+        org.junit.Assert.assertNull(CloudCover.fetch("http://y.gtimg.cn/a.jpg"))
+        org.junit.Assert.assertNull(CloudCover.fetch("https://y.gtimg.cn.evil.example/a.jpg"))
     }
-    @Test fun lyricsAreLimitedToConfirmedNeteaseEndpoint() {
+    @Test fun qqSearchUsesValidatedAlbumMidForCover() {
+        val body = """{"code":0,"music.search.SearchCgiService":{"code":0,"data":{"body":{"song":{"list":[{"mid":"song","title":"Test","album":{"mid":"Album123","name":"Album"}}]}}}}}"""
+        assertEquals("https://y.gtimg.cn/music/photo_new/T002R300x300M000Album123_1.jpg?max_age=2592000", client(body).search("qq", "test").single().coverUrl)
+        assertEquals("", client(body.replace("Album123", "../bad")).search("qq", "test").single().coverUrl)
+    }
+    @Test fun neteaseLyricsAndUnsupportedSources() {
         val music = client(encrypt("""{"code":200,"lrc":{"lyric":"[00:01.00]line"}}"""))
         assertEquals("[00:01.00]line", music.lyrics(CloudTrack("netease", "123", "Test", emptyList())).text)
         assertThrows(CloudMusicException::class.java) { music.lyrics(CloudTrack("qq", "song", "Test", emptyList())) }
+    }
+    @Test fun kugouLyricsRequireMatchingSongAndArtist() {
+        val track = CloudTrack("kugou", "a".repeat(32), "Test", listOf("Artist"))
+        val search = encrypt("""{"status":200,"candidates":[{"song":"Other","singer":"Artist","id":"1","accesskey":"key"},{"song":"Test","singer":"Artist","id":"2","accesskey":"key"}]}""")
+        val lyric = encrypt("""{"status":200,"id":"2","decodeContent":"[00:01.00]line"}""")
+        assertEquals("[00:01.00]line", client(search, lyric).lyrics(track).text)
+        val mismatch = encrypt("""{"status":200,"candidates":[{"song":"Test","singer":"Other","id":"2","accesskey":"key"}]}""")
+        assertThrows(CloudMusicException::class.java) { client(mismatch).lyrics(track) }
+        val wrongId = encrypt("""{"status":200,"id":"3","decodeContent":"wrong"}""")
+        assertThrows(CloudMusicException::class.java) { client(search, wrongId).lyrics(track) }
     }
     @Test fun candidateStringDoesNotExposeTemporaryUrl() {
         val candidate = CloudCandidate("https://example.test/music?token=secret", 128, "mp3")

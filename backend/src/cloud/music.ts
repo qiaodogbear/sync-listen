@@ -126,17 +126,36 @@ export class CloudMusicClient {
         ? [["mp3-128", row.file?.size_128mp3], ["mp3-320", row.file?.size_320mp3], ["flac", row.file?.size_flac], ["aac-192", row.file?.size_192aac]]
         : source === "kugou" ? [["standard", row.FileSize], ["high", row.HQFileSize], ["lossless", row.SQFileSize]]
         : source === "netease" ? [["standard", row.l?.size], ["higher", row.m?.size], ["high", row.h?.size], ["lossless", row.sq?.size], ["hires", row.hr?.size]] : [];
-      const coverUrl = source === "netease" ? string(row.al?.picUrl) : source === "kuwo" ? string(row.albumpic) : "";
+      const albumMid = string(row.album?.mid);
+      const coverUrl = source === "netease" ? string(row.al?.picUrl) : source === "kuwo" ? string(row.albumpic)
+        : source === "qq" && /^[a-zA-Z0-9]{1,32}$/.test(albumMid) ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${albumMid}_1.jpg?max_age=2592000` : "";
       return { ...track, coverUrl, availableQualities: fields.filter(([, value]) => (number(value) ?? 0) > 0).map(([label]) => label) };
     }).filter(track => track.id && track.title);
   }
 
   async lyrics(track: CloudTrack): Promise<{ text: string }> {
-    if (track.source !== "netease") throw new CloudMusicError("Lyrics unavailable for this source");
-    if (!/^[0-9]{1,32}$/.test(track.id)) throw new CloudMusicError("Invalid track identifier");
-    const data = await this.gateway("wy", `/lyric?id=${encodeURIComponent(track.id)}`);
-    if (data.code !== 200) throw new CloudMusicError("Lyrics request failed");
-    return { text: string(data.lrc?.lyric).slice(0, 200_000) };
+    if (track.source === "netease") {
+      if (!/^[0-9]{1,32}$/.test(track.id)) throw new CloudMusicError("Invalid track identifier");
+      const data = await this.gateway("wy", `/lyric?id=${encodeURIComponent(track.id)}`);
+      if (data.code !== 200) throw new CloudMusicError("Lyrics request failed");
+      return { text: string(data.lrc?.lyric).slice(0, 200_000) };
+    }
+    if (track.source === "kugou") {
+      if (!/^[a-fA-F0-9]{32}$/.test(track.id)) throw new CloudMusicError("Invalid track identifier");
+      const normalize = (value: string) => value.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
+      const title = normalize(track.title), artist = normalize(track.artists[0] ?? "");
+      if (!title || !artist) throw new CloudMusicError("Missing lyric identity metadata");
+      const found = await this.gateway("kg", `/search/lyric?hash=${encodeURIComponent(track.id)}`);
+      if (found.status !== 200 || !Array.isArray(found.candidates)) throw new CloudMusicError("Lyrics search failed");
+      const candidate = found.candidates.find((item: Json) => item && normalize(string(item.song)) === title && normalize(string(item.singer)) === artist);
+      if (!candidate) throw new CloudMusicError("No lyrics match the selected track");
+      const id = string(candidate.id), access = string(candidate.accesskey);
+      if (!/^[0-9]{1,32}$/.test(id) || !access.trim() || access.length > 256) throw new CloudMusicError("Invalid lyrics candidate");
+      const data = await this.gateway("kg", `/lyric?id=${encodeURIComponent(id)}&accesskey=${encodeURIComponent(access)}&decode=true&fmt=lrc`);
+      if (data.status !== 200 || string(data.id) !== id) throw new CloudMusicError("Lyrics request failed");
+      return { text: string(data.decodeContent).slice(0, 200_000) };
+    }
+    throw new CloudMusicError("Lyrics unavailable for this source");
   }
 
   async resolve(track: CloudTrack): Promise<Resolution> {

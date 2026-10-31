@@ -9,6 +9,24 @@ function encrypted(body: object): Response {
 }
 
 describe("cloud music", () => {
+  it("builds QQ artwork only from a valid album MID", async () => {
+    const response = (mid: string) => new Response(JSON.stringify({ code: 0, ["music.search.SearchCgiService"]: { code: 0, data: { body: { song: { list: [{ mid: "song", title: "Test", album: { mid } }] } } } } }));
+    const music = new CloudMusicClient(vi.fn().mockResolvedValueOnce(response("Album123")).mockResolvedValueOnce(response("../bad")));
+    expect((await music.search("qq", "test"))[0]?.coverUrl).toBe("https://y.gtimg.cn/music/photo_new/T002R300x300M000Album123_1.jpg?max_age=2592000");
+    expect((await music.search("qq", "test"))[0]?.coverUrl).toBe("");
+  });
+  it("requires matching KuGou lyric candidate metadata and returned ID", async () => {
+    const selected = { ...track, source: "kugou" as const, id: "a".repeat(32), title: "Test", artists: ["Artist"] };
+    const transport = vi.fn().mockResolvedValueOnce(encrypted({ status: 200, candidates: [{ song: "Other", singer: "Artist", id: "1", accesskey: "key" }, { song: "Test", singer: "Artist", id: "2", accesskey: "key" }] }))
+      .mockResolvedValueOnce(encrypted({ status: 200, id: "2", decodeContent: "[00:01.00]line" }));
+    expect((await new CloudMusicClient(transport).lyrics(selected)).text).toBe("[00:01.00]line");
+    expect(JSON.parse(String(transport.mock.calls[1]?.[1]?.body)).apiParam).toBe("/lyric?id=2&accesskey=key&decode=true&fmt=lrc");
+    const mismatch = vi.fn().mockResolvedValueOnce(encrypted({ status: 200, candidates: [{ song: "Test", singer: "Other", id: "2", accesskey: "key" }] }));
+    await expect(new CloudMusicClient(mismatch).lyrics(selected)).rejects.toThrow("No lyrics match");
+    const wrongId = vi.fn().mockResolvedValueOnce(encrypted({ status: 200, candidates: [{ song: "Test", singer: "Artist", id: "2", accesskey: "key" }] }))
+      .mockResolvedValueOnce(encrypted({ status: 200, id: "3", decodeContent: "wrong" }));
+    await expect(new CloudMusicClient(wrongId).lyrics(selected)).rejects.toThrow("Lyrics request failed");
+  });
   it("retrieves lyrics through the confirmed NetEase gateway route", async () => {
     const transport = vi.fn().mockResolvedValue(encrypted({ code: 200, lrc: { lyric: "[00:01.00]line" } }));
     const result = await new CloudMusicClient(transport).lyrics({ ...track, source: "netease", id: "123" });
