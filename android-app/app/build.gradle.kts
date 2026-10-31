@@ -9,6 +9,7 @@ plugins {
 
 android {
     sourceSets.getByName("main").java.srcDir("../../protocol/src/main/kotlin")
+    sourceSets.getByName("main").java.srcDir("../../cloud-ui/src/main/kotlin")
     namespace = "com.synclisten.app"
     compileSdk = 35
 

@@ -9,6 +9,7 @@ plugins {
 
 kotlin {
     jvmToolchain(21)
+    sourceSets.getByName("main").kotlin.srcDir("../cloud-ui/src/main/kotlin")
 }
 
 // The upstream JLayer POM accidentally exposes its old test dependency at runtime.

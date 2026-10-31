@@ -2,7 +2,7 @@ package com.synclisten.shared.util
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
@@ -38,7 +38,7 @@ object ConnectivityProbe {
             )
         }
         try {
-            withTimeout(8_000) {
+            withTimeoutOrNull(8_000) {
                 val request = Request.Builder().url("$normalized/health").build()
                 client.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
@@ -49,7 +49,7 @@ object ConnectivityProbe {
                     )
                 }
                 }
-            }
+            } ?: ProbeResult.Unreachable(UnreachableReason.TIMEOUT, "连接超时，地址不可达")
         } catch (e: IllegalArgumentException) {
             ProbeResult.Unreachable(UnreachableReason.INVALID_ADDRESS, "服务器地址格式无效")
         } catch (e: UnknownHostException) {

@@ -52,6 +52,16 @@ This is device/member binding for a trusted LAN, not an account system or TLS. J
 | Admin | Member actions plus playback, remove non-current tracks and reorder |
 | Host | Admin actions plus promote/demote others; leaving closes the room |
 
+## Cloud search and resolution (development branch)
+
+Authenticated room members may call `POST /api/rooms/{roomId}/cloud/search` with `{ "source": "qq", "keyword": "test", "page": 1 }`. Sources are `netease`, `qq`, `kugou` and `kuwo`; the response contains `tracks`, each with its source, stable source ID, title, artists, album, durationMs, mediaId, songType, availableQualities and coverUrl where available. Some default-valued fields may be omitted. Search quality labels reflect reported file metadata and do not guarantee access. `POST /api/rooms/{roomId}/cloud/resolve` accepts a returned track and returns candidates and separately supplied resolution metadata. `POST /api/rooms/{roomId}/cloud/lyrics` accepts a returned NetEase track and returns `{ "text": "..." }`; other sources are not supported. Responses use `Cache-Control: no-store`; candidate URLs expire and must not be logged or persisted as track IDs.
+
+The endpoints return 400 for invalid input and 502 `CLOUD_UNAVAILABLE` when a provider fails. Older hosts return 404. The gateway uses unverified third-party HTTP; only use resources for which the listener has permission. A returned URL or matching duration does not establish recording identity or a complete track.
+
+`POST /api/rooms/{roomId}/cloud/tracks` accepts `{ "track": <search track>, "format": "mp3", "bitrate": 128, "resolvedTitle": "", "resolvedArtist": "" }` and returns `{ "track": <room track> }` with HTTP 201. The room track stores the source identity, selected quality and available resolution metadata, not the temporary audio URL. The caller and all connected members must have declared protocol version 2 when creating or joining; otherwise the server returns 409 `CLIENT_UPGRADE_REQUIRED`. Legacy members cannot join a room containing cloud tracks. Android and desktop declare version 2. These endpoints do not perform downloads.
+
+Cloud playback uses authenticated `POST /cloud/prepare` with `trackId`, `positionMs` and `playAfterReady`, followed by each member's `POST /cloud/ready` with `trackId`, `generation` and `ready`. Paths are relative to `/api/rooms/{roomId}`. The host or administrator starts preparation; the server schedules playback once all online participants are ready. `POST /cloud/commit` accepts `generation` and `force`; only the host may force playback while members are still waiting or failed. A paused seek sets `playAfterReady` to false. `CLOUD_PREPARE` and `CLOUD_STATUS` events carry the preparation state; stale generation reports are rejected. Clients resolve and buffer independently, and an unavailable selected quality or a detectable metadata mismatch is an error rather than an implicit substitution.
+
 ## Shared models
 
 ### Room

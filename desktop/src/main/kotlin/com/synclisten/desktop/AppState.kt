@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
 
@@ -91,6 +92,7 @@ class DesktopAppState {
     var member: com.synclisten.shared.domain.model.Member? by mutableStateOf(null)
         private set
     var roomError: String? by mutableStateOf(null)
+    private val retryCloud = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     // --- Audio ---
     val playerEngine: DesktopPlayerEngine = DesktopPlayerEngine()
@@ -285,10 +287,68 @@ class DesktopAppState {
             kotlinx.serialization.json.Json { ignoreUnknownKeys = true },
         )
         webSocket = ws
+        playerController.cloudTrack = { trackId -> ws.snapshot.value?.playlist?.firstOrNull { it.trackId == trackId }?.cloud }
+        playerController.resolveCloud = { reference ->
+            val repository = roomRepo ?: throw com.synclisten.cloud.CloudMusicException("房间已关闭")
+            when (val result = repository.resolveCloud(roomId, reference.track)) {
+                is RepositoryResult.Success -> result.value
+                is RepositoryResult.Failure -> throw com.synclisten.cloud.CloudMusicException("云音乐解析失败，请检查网络后重试")
+            }
+        }
         ws.connect(serverUrl, roomId, userId, token)
 
         val activeScope = CoroutineScope(SupervisorJob(scope.coroutineContext[Job]) + Dispatchers.Main)
         sessionScope = activeScope
+        var cloudPreparation: Job? = null
+        var cloudGeneration: Long? = null
+        var recoveryKey: Pair<String, Long?>? = null
+        var recoveryAttempted = false
+        var recoveryJob: Job? = null
+        fun recoverCloud(state: com.synclisten.shared.domain.model.PlaybackState, manual: Boolean = false) {
+            val trackId = state.trackId ?: return
+            if (!state.isPlaying || ws.snapshot.value?.playlist?.firstOrNull { it.trackId == trackId }?.cloud == null) return
+            val key = trackId to state.preparation?.generation
+            if (key != recoveryKey) { recoveryKey = key; recoveryAttempted = false }
+            if ((!manual && recoveryAttempted) || recoveryJob?.isActive == true) return
+            recoveryAttempted = true
+            recoveryJob = activeScope.launch {
+                val clock = getServerClock()
+                if (!clock.isCalibrated()) clock.refresh()
+                if (!clock.isCalibrated()) { roomError = "时钟校准失败，请重试"; return@launch }
+                val target = state.positionMs + (clock.estimatedServerNowMs() - state.serverTimeMs).coerceAtLeast(0)
+                playerController.prepareCloudAt(trackId, target)
+                val current = ws.snapshot.value?.playbackState ?: return@launch
+                if (current.trackId == trackId && current.isPlaying && playerController.state.value.status == PlayerStatus.READY) {
+                    getSyncManager().apply(current)
+                }
+            }
+        }
+        fun prepareCloud(state: com.synclisten.shared.domain.model.PlaybackState, forceRetry: Boolean = false) {
+            val preparation = state.preparation ?: return
+            if (preparation.committed || userId !in preparation.waiting) return
+            if (!forceRetry && cloudGeneration == preparation.generation) return
+            cloudPreparation?.cancel()
+            cloudGeneration = preparation.generation
+            cloudPreparation = activeScope.launch {
+                playerController.prepareCloudAt(preparation.trackId, state.positionMs)
+                if (!getServerClock().isCalibrated()) getServerClock().refresh()
+                val current = ws.snapshot.value?.playbackState ?: return@launch
+                if (current.isPlaying) { getSyncManager().apply(current); return@launch }
+                if (current.preparation?.generation != preparation.generation) return@launch
+                val ready = getServerClock().isCalibrated() && playerController.state.value.status == PlayerStatus.READY &&
+                    kotlin.math.abs(playerController.currentPositionMs() - state.positionMs) <= 500
+                when (val result = roomRepo?.cloudReady(roomId, com.synclisten.cloud.CloudReadyRequest(preparation.generation, preparation.trackId, ready))) {
+                    is RepositoryResult.Failure -> roomError = result.message
+                    else -> Unit
+                }
+            }
+        }
+        activeScope.launch { retryCloud.collect { ws.snapshot.value?.playbackState?.let {
+            if (it.isPlaying) recoverCloud(it, manual = true) else prepareCloud(it, forceRetry = true)
+        } } }
+        activeScope.launch { playerController.state.collect { current ->
+            if (current.isCloud && current.status == PlayerStatus.ERROR) ws.snapshot.value?.playbackState?.let { recoverCloud(it) }
+        } }
         activeScope.launch {
             while (isActive) {
                 getServerClock().refresh()
@@ -299,7 +359,10 @@ class DesktopAppState {
             while (isActive) { getSyncManager().checkpoint(); delay(500) }
         }
         activeScope.launch {
-            ws.connection.collect { getSyncManager().setConnected(it is com.synclisten.shared.data.RoomConnectionState.Connected) }
+            ws.connection.collect {
+                getSyncManager().setConnected(it is com.synclisten.shared.data.RoomConnectionState.Connected)
+                if (it !is com.synclisten.shared.data.RoomConnectionState.Connected) { cloudPreparation?.cancel(); cloudGeneration = null }
+            }
         }
         activeScope.launch {
             ws.snapshot.collect { snapshot ->
@@ -312,15 +375,20 @@ class DesktopAppState {
         activeScope.launch {
             ws.lastEvent.filterNotNull().collectLatest { event ->
                 when (event) {
-                    is RoomEvent.Snapshot -> getSyncManager().apply(event.value.playbackState)
+                    is RoomEvent.Snapshot -> {
+                        val state = ws.snapshot.value?.playbackState ?: event.value.playbackState
+                        if (state.preparation?.committed == false) prepareCloud(state) else getSyncManager().apply(state)
+                    }
                     is RoomEvent.Playback -> getSyncManager().apply(event.value)
+                    is RoomEvent.CloudPrepare -> ws.snapshot.value?.playbackState?.let { prepareCloud(it) }
+                    is RoomEvent.CloudStatus -> ws.snapshot.value?.playbackState?.let { prepareCloud(it) }
                     else -> Unit
                 }
             }
         }
         activeScope.launch {
             ws.snapshot.filterNotNull().map { it.playlist to it.playbackState.trackId }.distinctUntilChanged().collectLatest { (tracks, current) ->
-                val ordered = tracks.sortedBy { if (it.trackId == current) -1 else it.orderIndex }
+                val ordered = tracks.filter { it.cloud == null }.sortedBy { if (it.trackId == current) -1 else it.orderIndex }
                 for (track in ordered) {
                     try {
                         cacheResolver.ensureDownloaded(track, serverUrl, okHttpClient)
@@ -339,9 +407,27 @@ class DesktopAppState {
         sessionScope = null
         webSocket?.disconnect()
         webSocket = null
+        playerController.cloudTrack = { null }
     }
 
     // --- Playback Control ---
+    fun retryCloudPreparation() { retryCloud.tryEmit(Unit) }
+
+    fun forceCloudPlayback() {
+        val roomId = roomSnapshot?.room?.roomId ?: return
+        val generation = roomSnapshot?.playbackState?.preparation?.generation ?: return
+        val repository = roomRepo ?: return
+        scope.launch { report(repository.commitCloud(roomId, com.synclisten.cloud.CloudCommitRequest(generation, true))) }
+    }
+
+    suspend fun addCloudTrack(reference: com.synclisten.cloud.CloudTrackReference) {
+        val roomId = roomSnapshot?.room?.roomId ?: error("房间已关闭")
+        when (val result = roomRepo?.addCloudTrack(roomId, reference) ?: error("房间已关闭")) {
+            is RepositoryResult.Success -> Unit
+            is RepositoryResult.Failure -> error(result.message)
+        }
+    }
+
     fun playTrack(trackId: String) {
         val repo = roomRepo ?: return
         val roomId = roomSnapshot?.room?.roomId ?: return
@@ -352,7 +438,9 @@ class DesktopAppState {
                 state.status != com.synclisten.shared.playback.PlayerStatus.ENDED &&
                 (state.durationMs <= 0 || state.positionMs < state.durationMs)
             ) state.positionMs else 0
-            report(repo.play(roomId, TrackPlaybackCommand(userId, trackId, position)))
+            if (roomSnapshot?.playlist?.firstOrNull { it.trackId == trackId }?.cloud != null) {
+                report(repo.prepareCloud(roomId, com.synclisten.cloud.CloudPrepareRequest(trackId, position)))
+            } else report(repo.play(roomId, TrackPlaybackCommand(userId, trackId, position)))
         }
     }
 
@@ -375,7 +463,9 @@ class DesktopAppState {
         scope.launch {
             val duration = playerController.state.value.durationMs
             val target = if (duration > 0) positionMs.coerceIn(0, duration) else positionMs.coerceAtLeast(0)
-            report(repo.seek(roomId, TrackPlaybackCommand(userId, currentTrack, target)))
+            if (roomSnapshot?.playlist?.firstOrNull { it.trackId == currentTrack }?.cloud != null) {
+                report(repo.prepareCloud(roomId, com.synclisten.cloud.CloudPrepareRequest(currentTrack, target, roomSnapshot?.playbackState?.isPlaying == true)))
+            } else report(repo.seek(roomId, TrackPlaybackCommand(userId, currentTrack, target)))
         }
     }
 
@@ -393,7 +483,12 @@ class DesktopAppState {
         val roomId = roomSnapshot?.room?.roomId ?: return
         val userId = getIdentity().userId
         scope.launch {
-            report(repo.next(roomId, NextPlaybackCommand(userId)))
+            val current = roomSnapshot
+            val list = current?.playlist.orEmpty().sortedBy { it.orderIndex }
+            val index = list.indexOfFirst { it.trackId == current?.playbackState?.trackId }
+            val next = list.drop(index + 1).firstOrNull { it.status == com.synclisten.shared.domain.model.TrackStatus.READY }
+            if (next?.cloud != null) report(repo.prepareCloud(roomId, com.synclisten.cloud.CloudPrepareRequest(next.trackId)))
+            else report(repo.next(roomId, NextPlaybackCommand(userId)))
         }
     }
 
@@ -456,5 +551,5 @@ class DesktopAppState {
         member?.role == com.synclisten.shared.domain.model.MemberRole.HOST
 
     /** Get settings as a StateFlow-compatible value for compose collectAsState */
-    fun getSettingsFlow(): kotlinx.coroutines.flow.Flow<AppSettings> = settings.settings
+    fun getSettingsFlow(): kotlinx.coroutines.flow.StateFlow<AppSettings> = settings.settings
 }

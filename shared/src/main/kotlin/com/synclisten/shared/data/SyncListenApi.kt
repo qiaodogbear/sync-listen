@@ -1,5 +1,14 @@
 package com.synclisten.shared.data
 
+import com.synclisten.cloud.CloudResolution
+import com.synclisten.cloud.CloudSearchRequest
+import com.synclisten.cloud.CloudSearchResponse
+import com.synclisten.cloud.CloudTrack
+import com.synclisten.cloud.CloudLyrics
+import com.synclisten.cloud.CloudTrackReference
+import com.synclisten.cloud.CloudPrepareRequest
+import com.synclisten.cloud.CloudReadyRequest
+import com.synclisten.cloud.CloudCommitRequest
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.http.Body
@@ -12,6 +21,22 @@ import retrofit2.http.Part
 import retrofit2.http.Path
 
 interface SyncListenApi {
+    @POST("api/rooms/{roomId}/cloud/tracks")
+    suspend fun addCloudTrack(@Path("roomId") roomId: String, @Body reference: CloudTrackReference): CloudTrackResponse
+    @POST("api/rooms/{roomId}/cloud/prepare")
+    suspend fun prepareCloud(@Path("roomId") roomId: String, @Body request: CloudPrepareRequest): PlaybackResponse
+    @POST("api/rooms/{roomId}/cloud/ready")
+    suspend fun cloudReady(@Path("roomId") roomId: String, @Body request: CloudReadyRequest): PlaybackResponse
+    @POST("api/rooms/{roomId}/cloud/commit")
+    suspend fun commitCloud(@Path("roomId") roomId: String, @Body request: CloudCommitRequest): PlaybackResponse
+    @POST("api/rooms/{roomId}/cloud/lyrics")
+    suspend fun cloudLyrics(@Path("roomId") roomId: String, @Body track: CloudTrack): CloudLyrics
+    @POST("api/rooms/{roomId}/cloud/search")
+    suspend fun searchCloud(@Path("roomId") roomId: String, @Body request: CloudSearchRequest): CloudSearchResponse
+
+    @POST("api/rooms/{roomId}/cloud/resolve")
+    suspend fun resolveCloud(@Path("roomId") roomId: String, @Body track: CloudTrack): CloudResolution
+
     @POST("api/rooms")
     suspend fun createRoom(@Body request: CreateRoomRequest): CreateRoomResponse
 

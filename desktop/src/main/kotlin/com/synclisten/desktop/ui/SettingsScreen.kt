@@ -11,19 +11,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.synclisten.desktop.DesktopAppState
 import com.synclisten.desktop.ui.component.MemberAvatar
-import com.synclisten.shared.data.AppSettings
 import com.synclisten.shared.data.AVATAR_EMOJIS
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(appState: DesktopAppState) {
-    val settings by appState.getSettingsFlow().collectAsState(initial = AppSettings())
+    val settings by appState.getSettingsFlow().collectAsState()
     var displayName by remember { mutableStateOf(settings.displayName) }
     var serverUrl by remember { mutableStateOf(settings.serverUrl) }
     var avatarEmoji by remember { mutableStateOf(settings.avatarEmoji) }
     var saved by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -65,7 +64,7 @@ fun SettingsScreen(appState: DesktopAppState) {
                     shape = MaterialTheme.shapes.medium,
                     color = if (emoji == avatarEmoji) MaterialTheme.colorScheme.primaryContainer
                     else MaterialTheme.colorScheme.surfaceVariant,
-                    onClick = { avatarEmoji = emoji },
+                    onClick = { avatarEmoji = emoji; saved = false; saveError = null },
                 ) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(emoji, style = MaterialTheme.typography.titleLarge)
@@ -78,7 +77,7 @@ fun SettingsScreen(appState: DesktopAppState) {
 
         OutlinedTextField(
             value = displayName,
-            onValueChange = { displayName = it },
+            onValueChange = { displayName = it; saved = false; saveError = null },
             label = { Text("昵称") },
             singleLine = true,
             modifier = Modifier.width(350.dp),
@@ -88,7 +87,7 @@ fun SettingsScreen(appState: DesktopAppState) {
 
         OutlinedTextField(
             value = serverUrl,
-            onValueChange = { serverUrl = it },
+            onValueChange = { serverUrl = it; saved = false; saveError = null },
             enabled = appState.roomSnapshot == null,
             label = { Text("服务器地址") },
             placeholder = { Text("房主手机的局域网地址") },
@@ -102,6 +101,7 @@ fun SettingsScreen(appState: DesktopAppState) {
             onClick = {
                 scope.launch {
                     try {
+                        saveError = null
                         val canChangeServer = appState.roomSnapshot == null
                         appState.settings.update(
                             displayName = displayName,
@@ -110,13 +110,15 @@ fun SettingsScreen(appState: DesktopAppState) {
                         )
                         if (canChangeServer) appState.serverUrl = com.synclisten.shared.data.normalizeServerUrl(serverUrl)
                         saved = true
-                    } catch (_: Exception) { saved = false }
+                    } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+                    catch (_: Exception) { saved = false; saveError = "保存失败，请检查设置文件权限后重试。" }
                 }
             },
             modifier = Modifier.width(350.dp).height(48.dp),
         ) {
             Text(if (saved) "✅ 已保存" else "保存设置", style = MaterialTheme.typography.titleMedium)
         }
+        saveError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
         Spacer(Modifier.height(16.dp))
 
@@ -142,7 +144,8 @@ fun SettingsScreen(appState: DesktopAppState) {
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AssistChip(
-                onClick = { serverUrl = "http://localhost:3000" },
+                onClick = { serverUrl = "http://localhost:3000"; saved = false; saveError = null },
+                enabled = appState.roomSnapshot == null,
                 label = { Text("💻 本机") },
             )
             Text("手机托管：填写房主邀请中的 IP，不能填写 localhost。",

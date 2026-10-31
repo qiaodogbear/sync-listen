@@ -72,11 +72,18 @@ class PlaybackSyncManager(
             player.prepare(track)
         }
         if (epoch != connectionEpoch || player.state.value.status in setOf(PlayerStatus.WAITING_FOR_CACHE, PlayerStatus.ERROR)) return
+        if (player.state.value.status in setOf(PlayerStatus.PREPARING, PlayerStatus.BUFFERING)) {
+            mutableState.value = state.value.copy(correction = "等待音频准备")
+            return
+        }
         if (!authoritative.isPlaying) {
             scheduled = null
             setSpeed(1f)
-            player.seekTo(authoritative.positionMs)
-            player.pause()
+            if (player.state.value.isCloud) player.pause()
+            if (!player.state.value.isCloud || abs(player.currentPositionMs() - authoritative.positionMs) > 20) {
+                player.seekTo(authoritative.positionMs)
+            }
+            if (!player.state.value.isCloud) player.pause()
             update(authoritative.positionMs, correction = "已暂停")
             return
         }
@@ -93,15 +100,28 @@ class PlaybackSyncManager(
             if (remaining > 0) {
                 if (player.state.value.status == PlayerStatus.PLAYING) player.pause()
                 // Seek/prepare ahead of the deadline; only play is left at the deadline.
-                player.seekTo(authoritative.positionMs)
+                if (!player.state.value.isCloud || abs(player.currentPositionMs() - authoritative.positionMs) > 20) {
+                    player.seekTo(authoritative.positionMs)
+                }
                 wait((executeAt - clock.estimatedServerNowMs()).coerceAtLeast(0))
             }
             if (!state.value.connected || epoch != connectionEpoch) return
+            if (player.state.value.status in setOf(PlayerStatus.PREPARING, PlayerStatus.BUFFERING, PlayerStatus.ERROR)) {
+                mutableState.value = state.value.copy(correction = "等待音频准备")
+                return
+            }
             val late = (clock.estimatedServerNowMs() - executeAt).coerceAtLeast(0)
             val target = clamp(authoritative.positionMs + late)
-            if (remaining <= 0 || late > 40) player.seekTo(target)
             scheduled = key
             lastSeekAt = clock.estimatedServerNowMs()
+            if ((remaining <= 0 || late > 40) &&
+                (!player.state.value.isCloud || abs(player.currentPositionMs() - target) > SEEK_THRESHOLD_MS)) {
+                player.seekTo(target)
+            }
+            if (player.state.value.status in setOf(PlayerStatus.PREPARING, PlayerStatus.BUFFERING, PlayerStatus.ERROR)) {
+                mutableState.value = state.value.copy(correction = "等待音频准备")
+                return
+            }
             player.play()
             update(target, correction = "计划播放")
             return
@@ -140,6 +160,10 @@ class PlaybackSyncManager(
                 action = "比例速度微调"
             }
             else -> setSpeed(1f)
+        }
+        if (player.state.value.status in setOf(PlayerStatus.PREPARING, PlayerStatus.BUFFERING, PlayerStatus.ERROR)) {
+            mutableState.value = state.value.copy(correction = "等待音频准备")
+            return
         }
         player.play()
         update(expected, error, action)

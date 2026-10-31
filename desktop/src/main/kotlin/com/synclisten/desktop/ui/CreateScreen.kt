@@ -9,12 +9,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.synclisten.desktop.DesktopAppState
 import com.synclisten.desktop.Screen
-import com.synclisten.shared.data.AppSettings
 import kotlinx.coroutines.launch
 
 @Composable
 fun CreateScreen(appState: DesktopAppState) {
-    val settings by appState.getSettingsFlow().collectAsState(initial = AppSettings())
+    val settings by appState.getSettingsFlow().collectAsState()
     var step by remember { mutableStateOf(0) }
     var displayName by remember { mutableStateOf("") }
     var roomName by remember { mutableStateOf("") }

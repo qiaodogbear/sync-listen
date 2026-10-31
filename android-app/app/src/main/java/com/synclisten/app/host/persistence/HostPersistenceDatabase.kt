@@ -11,13 +11,19 @@ import androidx.room.RoomDatabase
         HostPlaybackEntity::class,
         RecoveryMarkerEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class HostPersistenceDatabase : RoomDatabase() {
     abstract fun hostDao(): HostDao
 
     companion object {
+        val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE host_tracks ADD COLUMN cloudJson TEXT")
+                db.execSQL("ALTER TABLE host_members ADD COLUMN protocolVersion INTEGER NOT NULL DEFAULT 1")
+            }
+        }
         val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE host_members ADD COLUMN credentialHash TEXT NOT NULL DEFAULT ''")

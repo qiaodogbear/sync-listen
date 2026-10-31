@@ -7,7 +7,7 @@ import com.synclisten.shared.domain.model.Track
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class CreateRoomRequest(val name: String, val userId: String, val displayName: String)
+data class CreateRoomRequest(val name: String, val userId: String, val displayName: String, val protocolVersion: Int = 1)
 
 @Serializable
 data class CreateRoomResponse(val room: Room, val member: Member, val joinToken: String)
@@ -18,6 +18,7 @@ data class JoinRoomRequest(
     val displayName: String,
     val joinToken: String? = null,
     val roomCode: String? = null,
+    val protocolVersion: Int = 1,
 )
 
 @Serializable
@@ -33,6 +34,9 @@ data class RoomSnapshot(
 
 @Serializable
 data class PlaylistResponse(val playlist: List<Track>)
+
+@Serializable
+data class CloudTrackResponse(val track: Track)
 
 @Serializable
 data class ServerTimeResponse(

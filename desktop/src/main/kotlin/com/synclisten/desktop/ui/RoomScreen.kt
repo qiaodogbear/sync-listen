@@ -26,6 +26,11 @@ import com.synclisten.shared.domain.model.MemberRole
 import com.synclisten.shared.domain.model.PlaybackState
 import com.synclisten.shared.domain.model.Track
 import com.synclisten.shared.playback.PlayerStatus
+import com.synclisten.shared.data.RepositoryResult
+import com.synclisten.cloud.ui.CloudSearchDialog
+import com.synclisten.cloud.ui.CloudCoverImage
+import com.synclisten.cloud.CloudDownloader
+import kotlinx.coroutines.launch
 import java.io.File
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -44,9 +49,92 @@ fun RoomScreen(appState: DesktopAppState) {
     val isHost = appState.isHost()
 
     var showDeleteDialog by remember { mutableStateOf<String?>(null) }
+    var showCloud by remember { mutableStateOf(false) }
+    var cloudDownloadStatus by remember { mutableStateOf<String?>(null) }
+    var cloudDownloading by remember { mutableStateOf(false) }
+    val cloudScope = rememberCoroutineScope()
+    CloudSearchDialog(
+        visible = showCloud,
+        search = { source, keyword ->
+            val repository = appState.roomRepo ?: error("房间已关闭")
+            when (val result = repository.searchCloud(room.roomId, source, keyword)) {
+                is RepositoryResult.Success -> result.value.tracks
+                is RepositoryResult.Failure -> error(result.message)
+            }
+        },
+        resolve = { track ->
+            val repository = appState.roomRepo ?: error("房间已关闭")
+            when (val result = repository.resolveCloud(room.roomId, track)) {
+                is RepositoryResult.Success -> result.value
+                is RepositoryResult.Failure -> error(result.message)
+            }
+        },
+        lyrics = { track ->
+            val repository = appState.roomRepo ?: error("房间已关闭")
+            when (val result = repository.cloudLyrics(room.roomId, track)) {
+                is RepositoryResult.Success -> result.value.text
+                is RepositoryResult.Failure -> error(result.message)
+            }
+        },
+        onEnqueue = appState::addCloudTrack,
+        onDownload = { initial ->
+            val chooser = JFileChooser().apply {
+                dialogTitle = "保存音乐"
+                val extension = initial.candidates.single().format.lowercase().takeIf { it in setOf("mp3", "flac", "m4a", "ogg", "wav", "aac") } ?: "audio"
+                selectedFile = File(initial.track.title.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(80) + "." + extension)
+            }
+            if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+                val destination = chooser.selectedFile
+                cloudScope.launch {
+                    cloudDownloading = true
+                    cloudDownloadStatus = "正在下载…"
+                    try {
+                        val chosen = initial.candidates.single()
+                        val result = CloudDownloader().download(initial, destination, refresh = {
+                            val repository = appState.roomRepo ?: error("房间已关闭")
+                            when (val refreshed = repository.resolveCloud(room.roomId, initial.track)) {
+                                is RepositoryResult.Success -> refreshed.value.copy(candidates = refreshed.value.candidates.filter { it.format == chosen.format && it.bitrate == chosen.bitrate })
+                                is RepositoryResult.Failure -> error(refreshed.message)
+                            }
+                        }, accept = { it.resolvedTitle == initial.resolvedTitle && it.resolvedArtist == initial.resolvedArtist }, progress = { value ->
+                            if (value.received % (256 * 1024) < 8192) cloudScope.launch {
+                                val total = value.total
+                                if (cloudDownloading) cloudDownloadStatus = if (total != null && total > 0) "正在下载：${value.received * 100 / total}%" else "正在下载：${value.received / 1024} KB"
+                            }
+                        })
+                        cloudDownloadStatus = "下载完成：${result.candidate.format} ${result.candidate.bitrate ?: "未知"} kbps"
+                    } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+                    catch (error: Exception) { cloudDownloadStatus = "下载失败，请重试：${error.message ?: "未知错误"}" }
+                    finally { cloudDownloading = false }
+                }
+            }
+        },
+        downloadStatus = cloudDownloadStatus,
+        downloading = cloudDownloading,
+        onDismiss = { showCloud = false },
+    )
     var showRoleMenu by remember { mutableStateOf<String?>(null) }
 
     Column(Modifier.fillMaxSize()) {
+        if (playerState.isCloud && playerState.status == PlayerStatus.ERROR && playbackState.isPlaying) {
+            TextButton(onClick = appState::retryCloudPreparation) { Text("云播放中断，点击重试") }
+        }
+        playbackState.preparation?.takeUnless { it.committed }?.let { preparation ->
+            val names = preparation.waiting.map { id -> members.firstOrNull { it.userId == id }?.displayName ?: id }
+            Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                Text(if (names.isEmpty()) "成员已准备" else "等待准备：${names.joinToString("、")}", style = MaterialTheme.typography.bodySmall)
+                if (preparation.failed.isNotEmpty()) Text("部分成员解析或缓冲失败，可重试", color = MaterialTheme.colorScheme.error)
+                Row {
+                    if (appState.getIdentity().userId in preparation.waiting) TextButton(onClick = appState::retryCloudPreparation) { Text("重试准备") }
+                    if (isHost) TextButton(onClick = appState::forceCloudPlayback) { Text(if (names.isEmpty()) "开始播放" else "房主继续") }
+                }
+            }
+        }
+        if (!showCloud && cloudDownloadStatus != null) {
+            TextButton(onClick = { showCloud = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("云音乐 · $cloudDownloadStatus", style = MaterialTheme.typography.bodySmall)
+            }
+        }
         appState.roomError?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) }
         // --- Top Bar ---
         Surface(
@@ -203,21 +291,16 @@ fun RoomScreen(appState: DesktopAppState) {
                             modifier = Modifier.fillMaxWidth().padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            // Play indicator or track number
+                            // Track artwork and current playback indicator
                             Box(
-                                modifier = Modifier.size(36.dp),
+                                modifier = Modifier.size(56.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
+                                CloudCoverImage(track.cloud?.track?.coverUrl.orEmpty())
                                 if (isCurrentTrack && isPlaying) {
-                                    Text("🔊", style = MaterialTheme.typography.titleMedium)
+                                    Text("🔊", style = MaterialTheme.typography.titleSmall)
                                 } else if (isCurrentTrack) {
-                                    Text("⏸", style = MaterialTheme.typography.titleMedium)
-                                } else {
-                                    Text(
-                                        "${index + 1}",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                                    Text("⏸", style = MaterialTheme.typography.titleSmall)
                                 }
                             }
 
@@ -238,6 +321,9 @@ fun RoomScreen(appState: DesktopAppState) {
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
+                                track.cloud?.let { cloud ->
+                                    Text("${cloud.track.source} · ${cloud.format} ${cloud.bitrate ?: "未知"} kbps", style = MaterialTheme.typography.labelSmall)
+                                }
                             }
 
                             // Duration
@@ -246,6 +332,12 @@ fun RoomScreen(appState: DesktopAppState) {
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+
+                            if (canControl && track.status == com.synclisten.shared.domain.model.TrackStatus.READY) {
+                                IconButton(onClick = { appState.playTrack(track.trackId) }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Default.PlayArrow, contentDescription = "播放此曲")
+                                }
+                            }
 
                             // Reorder buttons
                             if (canControl) {
@@ -374,8 +466,13 @@ fun RoomScreen(appState: DesktopAppState) {
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    val currentTrack = playlist.find { it.trackId == playbackState.trackId }
+                    val position = if (playerState.trackId == currentTrack?.trackId && playerState.durationMs > 0)
+                        playerState.positionMs else playbackState.positionMs
+                    val displayPosition = if ((currentTrack?.durationMs ?: 0) > 0)
+                        position.coerceIn(0, currentTrack!!.durationMs) else position.coerceAtLeast(0)
                     Text(
-                        formatDuration(playbackState.positionMs),
+                        formatDuration(displayPosition),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -383,9 +480,6 @@ fun RoomScreen(appState: DesktopAppState) {
                     Spacer(Modifier.width(8.dp))
 
                     // Progress bar — use local player state for real-time position
-                    val currentTrack = playlist.find { it.trackId == playbackState.trackId }
-                    val displayPosition = if (playerState.trackId == currentTrack?.trackId && playerState.durationMs > 0)
-                        playerState.positionMs else playbackState.positionMs
                     Slider(
                         value = if (currentTrack != null && currentTrack.durationMs > 0)
                             (displayPosition.toFloat() / currentTrack.durationMs).coerceIn(0f, 1f)
@@ -416,6 +510,7 @@ fun RoomScreen(appState: DesktopAppState) {
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    OutlinedButton(onClick = { showCloud = true }) { Text("云音乐") }
                     // Upload button
                     OutlinedButton(
                         onClick = {

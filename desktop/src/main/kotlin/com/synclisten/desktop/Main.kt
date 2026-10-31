@@ -2,6 +2,8 @@ package com.synclisten.desktop
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.DpSize
@@ -38,7 +40,7 @@ fun main() {
             state = windowState,
         ) {
             SyncListenDesktopTheme {
-                Box(Modifier.fillMaxSize()) {
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     AnimatedContent(
                         targetState = appState.currentScreen,
                         modifier = Modifier.fillMaxSize(),

@@ -39,7 +39,7 @@ data class PlannedDownload(val track: Track, val priority: Int)
 
 class DownloadQueuePlanner {
     fun plan(tracks: List<Track>, currentTrackId: String?): List<PlannedDownload> {
-        val ordered = tracks.filter { it.status == TrackStatus.READY }.sortedBy { it.orderIndex }
+        val ordered = tracks.filter { it.status == TrackStatus.READY && it.cloud == null }.sortedBy { it.orderIndex }
         val currentIndex = ordered.indexOfFirst { it.trackId == currentTrackId }
         val nextTrackId = ordered.getOrNull(currentIndex + 1)?.trackId
         return ordered.map { track ->

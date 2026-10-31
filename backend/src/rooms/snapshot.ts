@@ -20,6 +20,7 @@ type MemberRow = {
   role: "HOST" | "ADMIN" | "MEMBER";
   connected: number;
   joined_at: number;
+  protocol_version: number;
 };
 
 type PlaybackRow = {
@@ -88,6 +89,7 @@ export function toMember(row: MemberRow) {
     role: row.role,
     connected: row.connected === 1,
     joinedAt: row.joined_at,
+    ...(row.protocol_version > 1 ? { protocolVersion: row.protocol_version } : {}),
   };
 }
 

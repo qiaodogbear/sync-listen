@@ -10,6 +10,8 @@ import { loadServerConfig } from "./config.js";
 import { initializeDatabase } from "./db/database.js";
 import { AppError } from "./errors.js";
 import { registerAuthentication } from "./auth.js";
+import { CloudMusicClient } from "./cloud/music.js";
+import { registerCloudRoutes } from "./cloud/routes.js";
 import { PlaybackService } from "./playback/playbackService.js";
 import { registerPlaybackRoutes } from "./playback/routes.js";
 import { registerRoomRoutes } from "./rooms/routes.js";
@@ -25,6 +27,7 @@ type BuildAppOptions = {
     leadTimeMs: number;
     syncIntervalMs: number;
   };
+  cloudMusic?: CloudMusicClient;
 };
 
 export async function buildApp(
@@ -81,10 +84,14 @@ export async function buildApp(
   }));
 
   const roomHub = new RoomHub(database);
+  const playlistService = new PlaylistService(database, roomHub);
+  const playbackService = new PlaybackService(database, roomHub, options.playback?.leadTimeMs, options.playback?.syncIntervalMs);
+  roomHub.onMemberChanged = (roomId, userId, connected) => playbackService.memberChanged(roomId, userId, connected);
+  roomHub.playbackSnapshot = roomId => playbackService.getState(roomId);
   registerAuthentication(app, database);
+  await registerCloudRoutes(app, options.cloudMusic ?? new CloudMusicClient(), playlistService, playbackService);
   await registerRoomRoutes(app, database, roomHub);
   roomHub.register(app);
-  const playlistService = new PlaylistService(database, roomHub);
   await registerPlaylistRoutes(app, playlistService, database);
   await registerTrackFileRoutes(app, database, playlistService, {
     audioStoragePath: options.storage?.audioStoragePath ?? config.audioStoragePath,
@@ -93,12 +100,6 @@ export async function buildApp(
       ? {}
       : { maxUploadBytes: options.storage.maxUploadBytes }),
   });
-  const playbackService = new PlaybackService(
-    database,
-    roomHub,
-    options.playback?.leadTimeMs,
-    options.playback?.syncIntervalMs,
-  );
   playbackService.start();
   await registerPlaybackRoutes(app, playbackService);
   app.addHook("onClose", async () => {

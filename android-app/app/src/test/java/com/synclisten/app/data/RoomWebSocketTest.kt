@@ -22,6 +22,17 @@ class RoomWebSocketTest {
 
     private fun client() = RoomWebSocketClient(OkHttpClient(), kotlinx.coroutines.flow.MutableStateFlow(true), json)
 
+    @Test fun preparationArrivingBeforeJoinSnapshotIsNotLost() {
+        val reducer = RoomEventReducer()
+        reducer.beginConnection()
+        val prepare = RoomEventParser(json).parse("""{"type":"CLOUD_PREPARE","payload":{"trackId":"song","positionMs":0,"isPlaying":false,"serverTimeMs":2,"preparation":{"generation":5,"trackId":"song","waiting":["host"],"failed":[],"committed":false}},"serverTimeMs":2}""")
+        assertEquals(null, reducer.apply(null, prepare))
+        val joined = RoomEventParser(json).parse("""{"type":"ROOM_JOINED","payload":{"room":{"roomId":"r","roomCode":"ABC123","name":"Room","hostUserId":"host","status":"ACTIVE","createdAt":1},"members":[],"playlist":[],"playbackState":{"trackId":null,"positionMs":0,"isPlaying":false,"serverTimeMs":1}},"serverTimeMs":1}""")
+        val result = reducer.apply(null, joined)
+        assertEquals("song", result?.playbackState?.trackId)
+        assertEquals(5L, result?.playbackState?.preparation?.generation)
+    }
+
     @Test
     fun roomJoinedRestoresAuthoritativeSnapshot() {
         val event = RoomEventParser(json).parse(

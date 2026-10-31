@@ -1,6 +1,8 @@
 package com.synclisten.app.ui.screen
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -47,7 +49,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,6 +67,16 @@ import com.synclisten.app.ui.RoomViewModel
 import com.synclisten.app.ui.UploadViewModel
 import com.synclisten.app.transfer.BatchUploadState
 import com.synclisten.app.ui.component.DiagnosticsPanel
+import com.synclisten.cloud.ui.CloudSearchDialog
+import com.synclisten.cloud.ui.CloudCoverImage
+import com.synclisten.cloud.CloudDownloader
+import com.synclisten.cloud.CloudResolution
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.security.MessageDigest
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -96,6 +110,62 @@ fun RoomScreen(
     val snackbar = remember { SnackbarHostState() }
 
     var showRoleMenuFor by remember { mutableStateOf<String?>(null) }
+    var showCloud by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val cloudScope = rememberCoroutineScope()
+    var downloadStatus by remember { mutableStateOf<String?>(null) }
+    var downloading by remember { mutableStateOf(false) }
+    var pendingDownload by remember { mutableStateOf<CloudResolution?>(null) }
+    val saveCloud = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        val initial = pendingDownload
+        pendingDownload = null
+        if (uri != null && initial != null) cloudScope.launch {
+            downloading = true
+            downloadStatus = "正在下载…"
+            val temp = File(context.cacheDir, "cloud-${UUID.randomUUID()}.part")
+            try {
+                val chosen = initial.candidates.single()
+                val result = CloudDownloader().download(initial, temp, refresh = {
+                    val fresh = roomViewModel.resolveCloud(initial.track)
+                    fresh.copy(candidates = fresh.candidates.filter { it.format == chosen.format && it.bitrate == chosen.bitrate })
+                }, accept = { it.resolvedTitle == initial.resolvedTitle && it.resolvedArtist == initial.resolvedArtist }, progress = { value ->
+                    if (value.received % (256 * 1024) < 8192) cloudScope.launch {
+                        val total = value.total
+                        if (downloading) downloadStatus = if (total != null && total > 0) "正在下载：${value.received * 100 / total}%" else "正在下载：${value.received / 1024} KB"
+                    }
+                })
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri, "w")?.use { output -> result.file.inputStream().use { it.copyTo(output) } }
+                        ?: error("无法写入所选文件")
+                    val digest = MessageDigest.getInstance("SHA-256")
+                    var size = 0L
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        val buffer = ByteArray(8192)
+                        while (true) { val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count); size += count }
+                    } ?: error("无法核对所选文件")
+                    check(size == result.size && digest.digest().joinToString("") { "%02x".format(it) } == result.sha256) { "保存文件校验失败" }
+                }
+                downloadStatus = "下载完成：${result.candidate.format} ${result.candidate.bitrate ?: "未知"} kbps"
+            } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+            catch (error: Exception) { downloadStatus = "下载失败，请重试：${error.message ?: "未知错误"}" }
+            finally { downloading = false; temp.delete() }
+        }
+    }
+    CloudSearchDialog(
+        visible = showCloud,
+        search = roomViewModel::searchCloud,
+        resolve = roomViewModel::resolveCloud,
+        lyrics = roomViewModel::cloudLyrics,
+        onEnqueue = roomViewModel::addCloudTrack,
+        onDownload = { result ->
+            pendingDownload = result
+            val extension = result.candidates.single().format.lowercase().takeIf { it in setOf("mp3", "flac", "m4a", "ogg", "wav", "aac") } ?: "audio"
+            saveCloud.launch("${result.track.title.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(80)}.$extension")
+        },
+        downloadStatus = downloadStatus,
+        downloading = downloading,
+        onDismiss = { showCloud = false },
+    )
     var showDeleteDialog by remember { mutableStateOf<String?>(null) }
 
     var confirmLeave by remember { mutableStateOf(false) }
@@ -124,6 +194,7 @@ fun RoomScreen(
                     }
                 },
                 actions = {
+                    TextButton(onClick = { showCloud = true }) { Text("云音乐") }
                     TextButton(onClick = onOpenUpload) { Text("添加") }
                     TextButton(onClick = onOpenInvite) { Text("邀请") }
                     TextButton(onClick = onOpenSettings) { Text("设置") }
@@ -134,6 +205,27 @@ fun RoomScreen(
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
         ) {
+            if (player.isCloud && player.status == PlayerStatus.ERROR && snapshot?.playbackState?.isPlaying == true) {
+                TextButton(onClick = roomViewModel::retryCloudPreparation) { Text("云播放中断，点击重试") }
+            }
+            snapshot?.playbackState?.preparation?.takeUnless { it.committed }?.let { preparation ->
+                val names = preparation.waiting.map { id -> snapshot?.members?.firstOrNull { it.userId == id }?.displayName ?: id }
+                Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(if (names.isEmpty()) "成员已准备" else "等待准备：${names.joinToString("、")}", style = MaterialTheme.typography.bodySmall)
+                        if (preparation.failed.isNotEmpty()) Text("部分成员解析或缓冲失败，可重试", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        Row {
+                            if (room?.member?.userId in preparation.waiting) TextButton(onClick = roomViewModel::retryCloudPreparation) { Text("重试准备") }
+                            if (isHost) TextButton(onClick = roomViewModel::forceCloudPlayback) { Text(if (names.isEmpty()) "开始播放" else "房主继续") }
+                        }
+                    }
+                }
+            }
+            if (!showCloud && downloadStatus != null) {
+                Card(onClick = { showCloud = true }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Text("云音乐 · $downloadStatus", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
+                }
+            }
             // Members row with role badges
             Text("成员", style = MaterialTheme.typography.titleMedium)
             LazyRow(modifier = Modifier.padding(vertical = 4.dp)) {
@@ -265,6 +357,8 @@ fun RoomScreen(
                             modifier = Modifier.padding(8.dp).fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            CloudCoverImage(track.cloud?.track?.coverUrl.orEmpty())
+                            Spacer(Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     if (track.trackId == currentTrack?.trackId && player.status == PlayerStatus.PLAYING) {
@@ -277,6 +371,9 @@ fun RoomScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                                track.cloud?.let { cloud ->
+                                    Text("${cloud.track.source} · ${cloud.format} ${cloud.bitrate ?: "未知"} kbps", style = MaterialTheme.typography.labelSmall)
+                                }
                             }
 
                             // Play button

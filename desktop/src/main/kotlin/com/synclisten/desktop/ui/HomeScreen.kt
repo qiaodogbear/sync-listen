@@ -16,7 +16,6 @@ import com.synclisten.desktop.ui.component.MemberAvatar
 import com.synclisten.desktop.ui.theme.CreateCardTint
 import com.synclisten.desktop.ui.theme.JoinCardTint
 import com.synclisten.desktop.ui.theme.OnlineGreen
-import com.synclisten.shared.data.AppSettings
 import com.synclisten.shared.data.normalizeServerUrl
 import com.synclisten.shared.util.ConnectivityProbe
 import com.synclisten.shared.util.ProbeResult
@@ -24,10 +23,11 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(appState: DesktopAppState) {
-    val settings by appState.getSettingsFlow().collectAsState(initial = AppSettings())
+    val settings by appState.getSettingsFlow().collectAsState()
     var serverUrlInput by remember { mutableStateOf(settings.serverUrl) }
     var checkingServer by remember { mutableStateOf(false) }
     var serverReachable by remember { mutableStateOf<Boolean?>(null) }
+    var serverCheckError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -96,7 +96,8 @@ fun HomeScreen(appState: DesktopAppState) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = serverUrlInput,
-                        onValueChange = { serverUrlInput = it },
+                        onValueChange = { serverUrlInput = it; serverReachable = null; serverCheckError = null },
+                        enabled = !checkingServer,
                         modifier = Modifier.weight(1f),
                         placeholder = { Text("例如: http://192.168.1.10:38571") },
                         singleLine = true,
@@ -107,14 +108,20 @@ fun HomeScreen(appState: DesktopAppState) {
                             scope.launch {
                                 checkingServer = true
                                 serverReachable = null
-                                val normalized = normalizeServerUrl(serverUrlInput)
-                                val result = ConnectivityProbe.probe(normalized)
-                                serverReachable = result is ProbeResult.Reachable
-                                if (serverReachable == true) {
-                                    appState.settings.update(serverUrl = normalized)
-                                    appState.serverUrl = normalized
+                                serverCheckError = null
+                                try {
+                                    val normalized = normalizeServerUrl(serverUrlInput)
+                                    val result = ConnectivityProbe.probe(normalized)
+                                    if (result is ProbeResult.Reachable) {
+                                        appState.settings.update(serverUrl = normalized)
+                                        appState.serverUrl = normalized
+                                        serverReachable = true
+                                    } else serverReachable = false
+                                } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+                                catch (_: Exception) { serverCheckError = "检测或保存地址失败，请重试。" }
+                                finally {
+                                    checkingServer = false
                                 }
-                                checkingServer = false
                             }
                         },
                         enabled = !checkingServer && serverUrlInput.isNotBlank(),
@@ -130,6 +137,7 @@ fun HomeScreen(appState: DesktopAppState) {
                         color = if (serverReachable == true) OnlineGreen else MaterialTheme.colorScheme.error,
                     )
                 }
+                serverCheckError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
             }
         }
 

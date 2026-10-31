@@ -20,6 +20,8 @@ type Client = {
 export class RoomHub {
   private readonly rooms = new Map<string, Set<Client>>();
   private shuttingDown = false;
+  onMemberChanged: (roomId: string, userId: string, connected: boolean) => void = () => {};
+  playbackSnapshot?: (roomId: string) => Record<string, unknown>;
 
   constructor(private readonly database: DatabaseSync) {}
 
@@ -60,8 +62,10 @@ export class RoomHub {
           .run(Date.now(), roomId, userId);
         const member = findMember(this.database, roomId, userId);
 
-        this.send(socket, "ROOM_JOINED", getRoomSnapshot(this.database, roomId));
+        const snapshot = getRoomSnapshot(this.database, roomId);
+        this.send(socket, "ROOM_JOINED", { ...snapshot, playbackState: this.playbackSnapshot?.(roomId) ?? snapshot.playbackState });
         this.broadcast(roomId, "MEMBER_JOINED", { member: toMember(member) }, socket);
+        this.onMemberChanged(roomId, userId, true);
 
         let alive = true;
         socket.on("pong", () => { alive = true; });
@@ -86,6 +90,7 @@ export class RoomHub {
               )
               .run(Date.now(), roomId, userId);
             this.broadcast(roomId, "MEMBER_LEFT", { userId });
+            this.onMemberChanged(roomId, userId, false);
           }
         });
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { cloudReferenceSchema } from "../cloud/schema.js";
 
 export const memberRoleSchema = z.enum(["HOST", "ADMIN", "MEMBER"]);
 export type MemberRole = z.infer<typeof memberRoleSchema>;
@@ -52,14 +53,21 @@ export const trackSchema = z.object({
   title: z.string().min(1),
   artist: z.string().min(1).nullable(),
   durationMs: z.number().int().nonnegative(),
-  fileName: z.string().min(1),
+  fileName: z.string(),
   fileSize: z.number().int().nonnegative(),
-  fileHash: z.string().regex(/^[a-fA-F0-9]{64}$/),
+  fileHash: z.string(),
   uploaderId: z.string().min(1),
   uploaderName: z.string().min(1),
   orderIndex: z.number().int().nonnegative(),
   status: trackStatusSchema,
   createdAt: z.number().int().nonnegative(),
+  cloud: cloudReferenceSchema.optional(),
+}).superRefine((track, ctx) => {
+  if (track.cloud) {
+    if (track.fileName !== "" || track.fileSize !== 0 || track.fileHash !== "") ctx.addIssue({ code: "custom", message: "Cloud tracks cannot have local file metadata" });
+  } else if (!track.fileName || !/^[a-fA-F0-9]{64}$/.test(track.fileHash)) {
+    ctx.addIssue({ code: "custom", message: "Invalid local file metadata" });
+  }
 });
 export type Track = z.infer<typeof trackSchema>;
 
@@ -88,6 +96,8 @@ export const websocketEventTypeSchema = z.enum([
   "NEXT",
   "SYNC",
   "DOWNLOAD_HINT",
+  "CLOUD_PREPARE",
+  "CLOUD_STATUS",
   "ERROR",
 ]);
 export type WebSocketEventType = z.infer<typeof websocketEventTypeSchema>;

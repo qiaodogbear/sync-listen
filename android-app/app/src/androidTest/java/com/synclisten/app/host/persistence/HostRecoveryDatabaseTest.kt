@@ -17,6 +17,32 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class HostRecoveryDatabaseTest {
     @Test
+    fun migrationFromVersionTwoKeepsLocalTracks() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val name = "host-migration-${java.util.UUID.randomUUID()}.db"
+        try {
+            val first = Room.databaseBuilder(context, HostPersistenceDatabase::class.java, name).build()
+            val store = HostRoomStore(dao = first.hostDao(), transaction = { block -> first.withTransaction { block() } })
+            val room = store.createRoom(CreateRoomRequest("Test", "host", "Alice"), "a".repeat(64)).room
+            val track = store.addReadyTrack(AddHostTrack(room.roomId, "Local", null, 1_000, "local.wav", 100,
+                "b".repeat(64), "/test/local.wav", "host", "Alice"))
+            first.close()
+            android.database.sqlite.SQLiteDatabase.openDatabase(context.getDatabasePath(name).path, null, android.database.sqlite.SQLiteDatabase.OPEN_READWRITE).use { db ->
+                db.execSQL("ALTER TABLE host_tracks DROP COLUMN cloudJson")
+                db.execSQL("ALTER TABLE host_members DROP COLUMN protocolVersion")
+                db.version = 2
+            }
+            val migrated = Room.databaseBuilder(context, HostPersistenceDatabase::class.java, name)
+                .addMigrations(HostPersistenceDatabase.MIGRATION_2_3).build()
+            try {
+                val restored = migrated.hostDao().getTracks(room.roomId).single()
+                assertEquals(track.trackId, restored.trackId)
+                assertEquals(null, restored.cloudJson)
+            } finally { migrated.close() }
+        } finally { context.deleteDatabase(name) }
+    }
+
+    @Test
     fun repeatedRecoveryAndShutdownPreserveTracksInRealDatabase() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val database = Room.inMemoryDatabaseBuilder(context, HostPersistenceDatabase::class.java).build()

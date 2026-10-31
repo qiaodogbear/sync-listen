@@ -2,36 +2,34 @@
 
 ## 本机工具
 
-本轮环境为 Windows 11 / PowerShell 7，物理内存约 14 GB。以下是这台机器的已确认路径，其他开发者应换成自己的安装位置，不要加入全局 PATH 或提交 local.properties。
+本机使用 Windows / PowerShell 7。以下路径为本机配置，其他开发者应换成自己的安装位置，不要提交 local.properties。
 
 | 工具 | 本机位置 / 用法 |
 |---|---|
-| 工程 | C:\Users\15224\Desktop\工程\sync-listen |
-| ASCII 映射 | S: 指向工程；用于 Gradle 测试与打包 |
-| Node / npm | C:\Program Files\nodejs；使用 Node 24，最低 22.13 |
+| 工程 | C:\JoeProjects\Temp\sync-listen |
+| Node / npm | Node 24；最低 22.13 |
 | Git | C:\Program Files\Git\cmd\git.exe |
 | GitHub CLI | gh；已登录账号通过系统凭据存储，不导出 token |
-| Android JBR | C:\Program Files\Android\Android Studio\jbr |
-| 完整 JDK 21 | C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot；含 jpackage |
-| Android SDK | %LOCALAPPDATA%\Android\Sdk |
+| 完整 JDK 21 | C:\JoeProjects\Temp\android-toolchain\jdk\jdk-21.0.13.0.2+1；含 jpackage |
+| Android SDK | C:\JoeProjects\Temp\android-toolchain\sdk |
 | adb / emulator | SDK 的 platform-tools\adb.exe / emulator\emulator.exe |
-| 镜像与 AVD | API 35 Google APIs x86_64；SyncListen_A / SyncListen_B，Pixel 6 |
-| draw.io | C:\Program Files\draw.io\draw.io.exe；图源在 docs/images |
+| 镜像与 AVD | API 35 Google APIs x86_64；SyncListen_Test_A / SyncListen_Test_B，Pixel 6；AVD 目录在 C:\JoeProjects\Temp\android-toolchain\avd |
 | Gradle | 使用仓库 wrapper，不使用全局 Gradle |
 
-PowerShell 路径映射（仅在 S: 空闲时执行，不覆盖已有映射）：
+PowerShell 会话配置：
 
 ```powershell
-subst S: 'C:\Users\15224\Desktop\工程\sync-listen'
-$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot'
-$env:ANDROID_HOME="$env:LOCALAPPDATA\Android\Sdk"
+$projectRoot='C:\JoeProjects\Temp\sync-listen'
+$env:JAVA_HOME='C:\JoeProjects\Temp\android-toolchain\jdk\jdk-21.0.13.0.2+1'
+$env:ANDROID_HOME='C:\JoeProjects\Temp\android-toolchain\sdk'
+$env:ANDROID_AVD_HOME='C:\JoeProjects\Temp\android-toolchain\avd'
 $adb="$env:ANDROID_HOME\platform-tools\adb.exe"
 ```
 
 ## 构建和测试
 
 ```powershell
-Set-Location S:\backend
+Set-Location "$projectRoot\backend"
 npm ci
 npm run lint
 npm run typecheck
@@ -41,16 +39,16 @@ npm audit --audit-level=high
 ```
 
 ```powershell
-Set-Location S:\android-app
+Set-Location "$projectRoot\android-app"
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest --no-daemon
 ```
 
 ```powershell
-Set-Location S:\
+Set-Location $projectRoot
 .\gradlew.bat :shared:test :desktop:test :desktop:createDistributable --no-daemon
 ```
 
-Android 报告位于 app/build/reports，JUnit XML 位于 app/build/test-results；shared/desktop 对应各自 build/test-results/test。本机 Android JBR 不含 jpackage，桌面打包必须选择上表的完整 JDK。
+Android 报告位于 app/build/reports，JUnit XML 位于 app/build/test-results；shared/desktop 对应各自 build/test-results/test。桌面打包须使用含 jmods 和 jpackage 的完整 JDK。
 
 ## 模拟器
 
@@ -58,22 +56,22 @@ Android 报告位于 app/build/reports，JUnit XML 位于 app/build/test-results
 
 ```powershell
 & "$env:ANDROID_HOME\emulator\emulator.exe" -list-avds
-Start-Process -FilePath "$env:ANDROID_HOME\emulator\emulator.exe" -ArgumentList '-avd','SyncListen_A','-port','5554','-no-window','-no-audio','-no-boot-anim' -WindowStyle Hidden
+Start-Process -FilePath "$env:ANDROID_HOME\emulator\emulator.exe" -ArgumentList '-avd','SyncListen_Test_A','-port','5554','-no-window','-no-audio','-no-boot-anim' -WindowStyle Hidden
 & $adb -s emulator-5554 shell getprop sys.boot_completed
 & $adb devices
 ```
 
-boot_completed 必须为 1，devices 必须为 device。B 使用 SyncListen_B 和端口 5556。低内存机器不要同时跑两个模拟器和 R8/大规模 Gradle 构建；本轮运行中曾出现模拟器 Launcher/System UI ANR，不能误写成 App ANR。
+boot_completed 必须为 1，devices 必须为 device。B 使用 SyncListen_Test_B 和端口 5556。本机 Windows Hypervisor Platform 已启用，`emulator -accel-check` 检测到 WHPX 可用。避免同时运行两个模拟器和大规模 Gradle/R8 构建。
 
 ## 安装和启动
 
 ```powershell
 # Debug
-& $adb -s emulator-5554 install -r S:\android-app\app\build\outputs\apk\debug\app-debug.apk
+& $adb -s emulator-5554 install -r "$projectRoot\android-app\app\build\outputs\apk\debug\app-debug.apk"
 & $adb -s emulator-5554 shell am start -n com.synclisten.app.debug/com.synclisten.app.MainActivity
 
 # 正式签名 Release
-& $adb -s emulator-5554 install -r S:\android-app\app\build\outputs\apk\release\app-release.apk
+& $adb -s emulator-5554 install -r "$projectRoot\android-app\app\build\outputs\apk\release\app-release.apk"
 & $adb -s emulator-5554 shell am start -n com.synclisten.app/com.synclisten.app.MainActivity
 & $adb -s emulator-5554 shell pidof com.synclisten.app
 ```
@@ -89,11 +87,11 @@ Invoke-RestMethod http://127.0.0.1:3000/health
 Get-NetTCPConnection -LocalPort 3000 -State Listen
 ```
 
-手机模式直接用 A 的界面创建房间，不需要 Node。Emulator 36.5+ 支持共享虚拟 Wi-Fi；本轮 36.6.11 已实际验证两个模拟器通过 NSD 发现和邀请，不依赖 adb 端口转发：
+手机模式直接用 A 的界面创建房间，不需要 Node。Emulator 36.5+ 支持共享虚拟 Wi-Fi：
 
 ```powershell
 # A/B 都使用这些额外参数启动，B 改 AVD 名和端口 5556。
-Start-Process -FilePath "$env:ANDROID_HOME\emulator\emulator.exe" -ArgumentList '-avd','SyncListen_A','-port','5554','-no-window','-no-audio','-no-snapshot-load','-feature','WiFiPacketStream','-memory','1536' -WindowStyle Hidden
+Start-Process -FilePath "$env:ANDROID_HOME\emulator\emulator.exe" -ArgumentList '-avd','SyncListen_Test_A','-port','5554','-no-window','-no-audio','-no-snapshot-load','-feature','WiFiPacketStream','-memory','1536' -WindowStyle Hidden
 # 等待两台启动完成后，让两台都连到扫描中实际存在的 AndroidWifi。
 & $adb -s emulator-5554 shell cmd wifi connect-network AndroidWifi open
 & $adb -s emulator-5556 shell cmd wifi connect-network AndroidWifi open
@@ -101,7 +99,7 @@ Start-Process -FilePath "$env:ANDROID_HOME\emulator\emulator.exe" -ArgumentList 
 & $adb -s emulator-5556 shell ip -4 addr show wlan0
 ```
 
-本次分配 A=10.0.2.16、B=10.0.2.17，地址不应写死。附近功能必须双方打开“附近可见”且 App 在前台。系统版本和配置不同可能不支持共享 Wi-Fi，参见 [官方模拟器互联说明](https://developer.android.com/studio/run/emulator-networking-interconnect)。
+地址由模拟器网络分配，不应写死。附近功能必须双方打开“附近可见”且 App 在前台。系统版本和配置不同可能不支持共享 Wi-Fi，参见 [官方模拟器互联说明](https://developer.android.com/studio/run/emulator-networking-interconnect)。
 
 旧版或隔离 NAT 模式中，B 不能直接使用另一个模拟器的 10.0.2.15，此时可用以下后备方案。它只能测试手动加入，不代表 NSD 被测通：
 
@@ -129,7 +127,7 @@ B 手动输入 `http://10.0.2.2:38571` 和 A 的房间码；真正手机不需�
 真实 Room 数据库回归在独立内存数据库上运行，不读取用户房间：
 
 ```powershell
-Set-Location S:\android-app
+Set-Location "$projectRoot\android-app"
 $env:ANDROID_SERIAL='emulator-5554'
 .\gradlew.bat connectedDebugAndroidTest --no-daemon
 ```
@@ -143,7 +141,7 @@ $env:ANDROID_SERIAL='emulator-5554'
 ## 签名与分发
 
 ```powershell
-Set-Location S:\
+Set-Location $projectRoot
 # 仅首次且确实没有旧签名时才使用 -InitializeSigning
 .\scripts\build-release.ps1
 & "$env:ANDROID_HOME\build-tools\35.0.0\apksigner.bat" verify --verbose --print-certs android-app\app\build\outputs\apk\release\app-release.apk
@@ -158,6 +156,6 @@ Set-Location S:\
 - 401/403：检查请求头与 origin；所有设备升级到 v0.3.0 并重建旧房间，不要移除鉴权解决问题。
 - 连接失败：确认端口、同一局域网、热点隔离、VPN、防火墙；离房后才切换服务器。
 - 下载失败：检查可用空间、READY 状态、文件长度/hash；重新加入可重建队列，永久失败需后续改进。
-- Android 测试类找不到：使用 S: ASCII 路径；不要反复换 CMD/Bash。
+- Android 测试类找不到：先检查工程路径和构建日志；非 ASCII 路径可使用映射到工程的空闲盘符。
 - jpackage 找不到：切换完整 JDK 21，不是重新安装 Android SDK。
 - Release 安装签名冲突：同包名签名不同不能覆盖；先保留需要的数据，再卸载旧测试包。

@@ -9,8 +9,35 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.synclisten.cloud.CloudSearchRequest
+import com.synclisten.cloud.CloudSearchResponse
+import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.HttpException
+import retrofit2.Response
 
 class RoomRepositoryTest {
+    @Test
+    fun cloudSearchPassesRoomAndQuery() = runBlocking {
+        var captured: Pair<String, CloudSearchRequest>? = null
+        val repository = RoomRepository(object : RoomRemoteDataSource {
+            override suspend fun searchCloud(roomId: String, request: CloudSearchRequest): CloudSearchResponse {
+                captured = roomId to request
+                return CloudSearchResponse(emptyList())
+            }
+        })
+        assertTrue(repository.searchCloud("room", "qq", "test", 2) is RepositoryResult.Success)
+        assertEquals("room" to CloudSearchRequest("qq", "test", 2), captured)
+    }
+
+    @Test
+    fun cloudSearchExplainsMissingRoomOrOldHost() = runBlocking {
+        val repository = RoomRepository(object : RoomRemoteDataSource {
+            override suspend fun searchCloud(roomId: String, request: CloudSearchRequest): CloudSearchResponse =
+                throw HttpException(Response.error<CloudSearchResponse>(404, "".toResponseBody()))
+        })
+        val result = repository.searchCloud("room", "qq", "test") as RepositoryResult.Failure
+        assertEquals("CLOUD_NOT_FOUND", result.code)
+    }
     @Test
     fun createRoomReturnsRemoteRoom() = runBlocking {
         val expected = CreateRoomResponse(
@@ -62,7 +89,7 @@ class RoomRepositoryTest {
 
         assertEquals(expected, (result as RepositoryResult.Success).value)
         assertEquals(
-            JoinRoomRequest(userId = "user-2", displayName = "Bob", roomCode = "ABC123"),
+            JoinRoomRequest(userId = "user-2", displayName = "Bob", roomCode = "ABC123", protocolVersion = 2),
             captured,
         )
     }

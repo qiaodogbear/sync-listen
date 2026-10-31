@@ -28,6 +28,7 @@ class SettingsStoreTest {
             assertEquals(original.deviceSecret, restored.deviceSecret)
             assertEquals("Alice", restored.displayName)
             assertEquals("http://192.168.1.2:3000", restored.serverUrl)
+            assertEquals(restored, FileSettingsStore(file).settings.value)
         } finally { file.delete(); file.parentFile.delete() }
     }
     @Test fun credentialsAreScopedToOriginAndUser() {

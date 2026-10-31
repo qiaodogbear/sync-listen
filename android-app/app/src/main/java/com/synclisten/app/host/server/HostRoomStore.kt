@@ -21,6 +21,13 @@ import com.synclisten.app.host.persistence.HostRoomEntity
 import com.synclisten.app.host.persistence.HostTrackEntity
 import com.synclisten.app.host.persistence.RecoveryMarkerEntity
 import com.synclisten.protocol.DeviceCredential
+import com.synclisten.cloud.CloudTrackReference
+import com.synclisten.cloud.isValid
+import com.synclisten.cloud.CloudReadiness
+import com.synclisten.cloud.CloudReadinessSnapshot
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import java.util.UUID
 import kotlin.random.Random
 import kotlinx.coroutines.sync.Mutex
@@ -67,6 +74,7 @@ class HostRoomStore(
     private val members = linkedMapOf<String, Member>()
     private val tracks = mutableListOf<StoredHostTrack>()
     private var playback = PlaybackState(null, 0, false, clock(), null)
+    private var cloudReadiness = CloudReadiness()
 
     // Roll back the in-memory mirror when its database transaction does not commit.
     private suspend fun <T> mutate(block: suspend () -> T): T = mutex.withLock {
@@ -76,6 +84,7 @@ class HostRoomStore(
         val oldCredentials = credentials.toMap()
         val oldTracks = tracks.toList()
         val oldPlayback = playback
+        val oldReadiness = cloudReadiness.copy()
         try {
             var result: Result<T>? = null
             transaction { result = Result.success(block()) }
@@ -87,6 +96,7 @@ class HostRoomStore(
             credentials.clear(); credentials.putAll(oldCredentials)
             tracks.clear(); tracks.addAll(oldTracks)
             playback = oldPlayback
+            cloudReadiness = oldReadiness
             throw error
         }
     }
@@ -118,6 +128,7 @@ class HostRoomStore(
                 connected = m.connected,
                 joinedAt = m.joinedAt,
                 credentialHash = credentials[m.userId].orEmpty(),
+                protocolVersion = m.protocolVersion,
             )
         )
     }
@@ -139,6 +150,7 @@ class HostRoomStore(
                 orderIndex = stored.track.orderIndex,
                 status = stored.track.status.name,
                 createdAt = stored.track.createdAt,
+                cloudJson = stored.track.cloud?.let { Json.encodeToString(it) },
             )
         )
     }
@@ -191,18 +203,20 @@ class HostRoomStore(
             fail(409, "ACTIVE_ROOM_EXISTS", "This device already hosts an active room")
         }
         validateIdentity(request.userId, request.displayName)
+        if (request.protocolVersion !in 1..2) fail(400, "VALIDATION_ERROR", "Unsupported protocol version")
         if (request.name.trim().length !in 1..80) fail(400, "VALIDATION_ERROR", "Room name must be 1-80 characters")
         clearAllPersistence()
         credentials.clear()
         credentials[request.userId] = DeviceCredential.hash(credential)
         val now = clock()
         val created = Room(idFactory(), roomCodeFactory(), request.name.trim(), request.userId, RoomStatus.ACTIVE, now)
-        val host = Member(request.userId, request.displayName.trim(), MemberRole.HOST, false, now)
+        val host = Member(request.userId, request.displayName.trim(), MemberRole.HOST, false, now, request.protocolVersion)
         room = created
         joinToken = idFactory()
         members.clear()
         members[host.userId] = host
         tracks.clear()
+        cloudReadiness.cancel()
         playback = PlaybackState(null, 0, false, now, null)
         // 持久化写入
         persistRoom(created)
@@ -239,7 +253,11 @@ class HostRoomStore(
         val active = requireActiveRoom(roomId)
         if (token != joinToken) invalidJoin()
         val member = members[userId] ?: fail(404, "MEMBER_NOT_FOUND", "Member does not exist")
+        if (member.protocolVersion < 2 && tracks.any { it.track.cloud != null }) {
+            fail(409, "CLIENT_UPGRADE_REQUIRED", "房间包含云曲目，请更新客户端")
+        }
         members[userId] = member.copy(connected = true)
+        if (playback.preparation?.committed == false) playback = playback.copy(preparation = cloudReadiness.join(userId))
         persistMember(members[userId]!!)
         RoomSnapshot(active, members.values.toList(), tracks.map(StoredHostTrack::track), currentPlayback())
     }
@@ -253,8 +271,10 @@ class HostRoomStore(
             persistRoom(room!!)
             deleteRecoveryMarker()
             members.clear()
+            cloudReadiness.cancel()
         } else {
             members.remove(userId) ?: fail(404, "MEMBER_NOT_FOUND", "Member does not exist")
+            if (playback.preparation?.committed == false) playback = playback.copy(preparation = cloudReadiness.disconnect(userId))
             dao?.deleteMember(roomId, userId)
         }
     }
@@ -266,6 +286,9 @@ class HostRoomStore(
         val member = members[userId] ?: fail(404, "MEMBER_NOT_FOUND", "Member does not exist")
         member.copy(connected = connected).also {
             members[userId] = it
+            if (playback.preparation?.committed == false) {
+                playback = playback.copy(preparation = if (connected) cloudReadiness.join(userId) else cloudReadiness.disconnect(userId))
+            }
             persistMember(it)
         }
     }
@@ -291,6 +314,24 @@ class HostRoomStore(
             createdAt = clock(),
         )
         val stored = StoredHostTrack(track, input.storagePath)
+        tracks += stored
+        persistTrack(stored)
+        persistRecoveryMarker()
+        track
+    }
+
+    suspend fun addCloudTrack(roomId: String, actorId: String, reference: CloudTrackReference): Track = mutate {
+        requireActiveRoom(roomId)
+        val member = members[actorId] ?: fail(404, "MEMBER_NOT_FOUND", "Uploader is not a room member")
+        if (member.protocolVersion < 2 || members.values.any { it.connected && it.protocolVersion < 2 }) {
+            fail(409, "CLIENT_UPGRADE_REQUIRED", "房间成员需要更新客户端才能使用云曲目")
+        }
+        val source = reference.track
+        if (!reference.isValid()) fail(400, "VALIDATION_ERROR", "Invalid cloud track")
+        val track = Track(idFactory(), roomId, source.title, source.artists.joinToString(" / ").ifBlank { null },
+            source.durationMs ?: 0, "", 0, "", actorId, member.displayName,
+            (tracks.maxOfOrNull { it.track.orderIndex } ?: -1) + 1, TrackStatus.READY, clock(), reference)
+        val stored = StoredHostTrack(track, "")
         tracks += stored
         persistTrack(stored)
         persistRecoveryMarker()
@@ -331,24 +372,14 @@ class HostRoomStore(
             val updatedTrack = stored.track.copy(orderIndex = index)
             val updatedStored = stored.copy(track = updatedTrack)
             reordered += updatedStored
-            dao?.upsertTrack(
-                HostTrackEntity(
-                    trackId = updatedTrack.trackId, roomId = updatedTrack.roomId,
-                    title = updatedTrack.title, artist = updatedTrack.artist,
-                    durationMs = updatedTrack.durationMs, fileName = updatedTrack.fileName,
-                    fileSize = updatedTrack.fileSize, fileHash = updatedTrack.fileHash,
-                    storagePath = stored.storagePath, uploaderId = updatedTrack.uploaderId,
-                    uploaderName = updatedTrack.uploaderName, orderIndex = index,
-                    status = updatedTrack.status.name, createdAt = updatedTrack.createdAt,
-                )
-            )
+            persistTrack(updatedStored)
         }
         tracks.clear()
         tracks.addAll(reordered)
     }
 
     suspend fun storedTrack(trackId: String): StoredHostTrack = mutex.withLock {
-        tracks.firstOrNull { it.track.trackId == trackId && it.track.status == TrackStatus.READY }
+        tracks.firstOrNull { it.track.trackId == trackId && it.track.status == TrackStatus.READY && it.track.cloud == null }
             ?: fail(404, "TRACK_FILE_NOT_FOUND", "Track file does not exist")
     }
 
@@ -357,18 +388,23 @@ class HostRoomStore(
     suspend fun play(roomId: String, command: TrackPlaybackCommand): PlaybackState = mutate {
         requireHostOrAdmin(roomId, command.userId)
         requireReadyTrack(roomId, command.trackId)
+        requireCloudPlaybackAvailable(command.trackId)
+        cloudReadiness.cancel()
         schedule(command.trackId, command.positionMs)
     }
 
     suspend fun seek(roomId: String, command: TrackPlaybackCommand): PlaybackState = mutate {
         requireHostOrAdmin(roomId, command.userId)
         requireReadyTrack(roomId, command.trackId)
+        requireCloudPlaybackAvailable(command.trackId)
+        cloudReadiness.cancel()
         schedule(command.trackId, command.positionMs, playback.isPlaying)
     }
 
     suspend fun pause(roomId: String, command: TrackPlaybackCommand): PlaybackState = mutate {
         requireHostOrAdmin(roomId, command.userId)
         requireReadyTrack(roomId, command.trackId)
+        cloudReadiness.cancel()
         PlaybackState(command.trackId, command.positionMs.coerceAtLeast(0), false, clock(), null)
             .also { playback = it; persistPlayback(it) }
     }
@@ -378,7 +414,41 @@ class HostRoomStore(
         val currentIndex = tracks.indexOfFirst { it.track.trackId == playback.trackId }
         val next = tracks.drop(currentIndex + 1).firstOrNull { it.track.status == TrackStatus.READY }
             ?: fail(409, "NO_NEXT_TRACK", "No next ready track exists")
+        requireCloudPlaybackAvailable(next.track.trackId)
+        cloudReadiness.cancel()
         schedule(next.track.trackId, command.positionMs)
+    }
+
+    suspend fun prepareCloud(roomId: String, actorId: String, trackId: String, positionMs: Long, playAfterReady: Boolean = true): PlaybackState = mutate {
+        requireHostOrAdmin(roomId, actorId)
+        if (members[actorId]?.connected != true) fail(409, "MEMBER_NOT_CONNECTED", "控制者尚未连接房间")
+        requireReadyTrack(roomId, trackId)
+        if (tracks.first { it.track.trackId == trackId }.track.cloud == null) fail(400, "VALIDATION_ERROR", "不是云曲目")
+        if (positionMs < 0) fail(400, "VALIDATION_ERROR", "播放位置无效")
+        val preparation = cloudReadiness.begin(trackId, members.values.filter { it.connected }.map { it.userId }, playAfterReady)
+        PlaybackState(trackId, positionMs, false, clock(), null, preparation).also { playback = it; persistPlayback(it) }
+    }
+
+    suspend fun reportCloudReady(roomId: String, actorId: String, trackId: String, generation: Long, ready: Boolean): PlaybackState = mutate {
+        requireActiveRoom(roomId)
+        if (members[actorId]?.connected != true) fail(409, "MEMBER_NOT_CONNECTED", "成员尚未连接房间")
+        val preparation = try { cloudReadiness.report(generation, trackId, actorId, ready) }
+            catch (_: IllegalStateException) { fail(409, "PREPARATION_STALE", "准备状态已过期") }
+        playback = playback.copy(preparation = preparation)
+        if (preparation.waiting.isEmpty()) {
+            val committed = cloudReadiness.commit(generation, false)
+            if (committed.playAfterReady) schedule(trackId, playback.positionMs, preparation = committed)
+            else playback.copy(preparation = committed).also { playback = it; persistPlayback(it) }
+        } else playback
+    }
+
+    suspend fun commitCloud(roomId: String, actorId: String, generation: Long, force: Boolean): PlaybackState = mutate {
+        requireHostOrAdmin(roomId, actorId)
+        if (force) requireHost(roomId, actorId)
+        val preparation = try { cloudReadiness.commit(generation, force) }
+            catch (_: IllegalStateException) { fail(409, "PREPARATION_NOT_READY", "成员尚未准备好或准备状态已过期") }
+        if (preparation.playAfterReady) schedule(preparation.trackId, playback.positionMs, preparation = preparation)
+        else playback.copy(preparation = preparation).also { playback = it; persistPlayback(it) }
     }
 
     suspend fun playback(roomId: String): PlaybackState = mutex.withLock {
@@ -401,6 +471,7 @@ class HostRoomStore(
         clearAllPersistence()
         members.clear()
         tracks.clear()
+        cloudReadiness.cancel()
         playback = PlaybackState(null, 0, false, clock(), null)
     }
 
@@ -440,6 +511,7 @@ class HostRoomStore(
 
     suspend fun recoverRoom(): RoomSnapshot = mutate {
         val d = dao ?: fail(500, "PERSISTENCE_UNAVAILABLE", "Persistence layer is not available")
+        cloudReadiness.cancel()
         d.getRecoveryMarker() ?: fail(409, "ROOM_NOT_RECOVERABLE", "No recovery marker exists")
         val roomEntity = d.getRoom() ?: fail(404, "ROOM_NOT_FOUND", "No room to recover")
         if (roomEntity.status != "ACTIVE" && roomEntity.status != "CLOSED") fail(409, "ROOM_NOT_RECOVERABLE", "Room is not in a recoverable state")
@@ -468,6 +540,7 @@ class HostRoomStore(
                 role = try { MemberRole.valueOf(me.role) } catch (_: Exception) { MemberRole.MEMBER },
                 connected = false,
                 joinedAt = me.joinedAt,
+                protocolVersion = me.protocolVersion,
             )
             members[member.userId] = member
             credentials[member.userId] = me.credentialHash
@@ -492,6 +565,7 @@ class HostRoomStore(
                 orderIndex = te.orderIndex,
                 status = try { TrackStatus.valueOf(te.status) } catch (_: Exception) { TrackStatus.READY },
                 createdAt = te.createdAt,
+                cloud = te.cloudJson?.let { Json.decodeFromString<CloudTrackReference>(it) },
             )
             tracks += StoredHostTrack(track, te.storagePath)
         }
@@ -527,6 +601,10 @@ class HostRoomStore(
 
     private suspend fun join(active: Room, request: JoinRoomRequest, credential: String): JoinRoomResponse {
         validateIdentity(request.userId, request.displayName)
+        if (request.protocolVersion !in 1..2) fail(400, "VALIDATION_ERROR", "Unsupported protocol version")
+        if (request.protocolVersion < 2 && tracks.any { it.track.cloud != null }) {
+            fail(409, "CLIENT_UPGRADE_REQUIRED", "房间包含云曲目，请更新客户端")
+        }
         if (members.containsKey(request.userId) && !DeviceCredential.matches(credentials[request.userId], credential)) {
             fail(403, "INVALID_CREDENTIAL", "Member credential is invalid")
         }
@@ -539,6 +617,7 @@ class HostRoomStore(
             existing?.role ?: MemberRole.MEMBER,
             existing?.connected ?: false,
             existing?.joinedAt ?: now,
+            request.protocolVersion,
         )
         members[member.userId] = member
         persistMember(member)
@@ -571,9 +650,15 @@ class HostRoomStore(
         if (track?.status != TrackStatus.READY) fail(409, "TRACK_NOT_READY", "Track is not ready for playback")
     }
 
-    private suspend fun schedule(trackId: String, positionMs: Long, isPlaying: Boolean = true): PlaybackState {
+    private fun requireCloudPlaybackAvailable(trackId: String) {
+        if (tracks.firstOrNull { it.track.trackId == trackId }?.track?.cloud != null) {
+            fail(409, "CLOUD_SYNC_UNAVAILABLE", "云曲目的多人准备尚不可用")
+        }
+    }
+
+    private suspend fun schedule(trackId: String, positionMs: Long, isPlaying: Boolean = true, preparation: CloudReadinessSnapshot? = null): PlaybackState {
         val executeAt = clock() + leadTimeMs
-        return PlaybackState(trackId, positionMs.coerceAtLeast(0), isPlaying, executeAt, executeAt)
+        return PlaybackState(trackId, positionMs.coerceAtLeast(0), isPlaying, executeAt, executeAt, preparation)
             .also { playback = it; persistPlayback(it) }
     }
 
@@ -591,6 +676,9 @@ class HostRoomStore(
         requireActiveRoom(roomId)
         val member = members[userId] ?: fail(403, "INVALID_MEMBER", "User is not a room member")
         if (!DeviceCredential.matches(credentials[userId], credential)) fail(403, "INVALID_CREDENTIAL", "Member credential is invalid")
+        if (member.protocolVersion < 2 && tracks.any { it.track.cloud != null }) {
+            fail(409, "CLIENT_UPGRADE_REQUIRED", "房间包含云曲目，请更新客户端")
+        }
         member
     }
 

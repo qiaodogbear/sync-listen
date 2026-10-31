@@ -46,7 +46,7 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Bg950)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(padding)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -78,7 +78,7 @@ fun HomeScreen(
                             Text(
                                 "你好，${settings.displayName.ifBlank { "用户" }}",
                                 style = MaterialTheme.typography.labelLarge,
-                                color = TextSecondary,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         Spacer(Modifier.width(8.dp))
@@ -96,13 +96,13 @@ fun HomeScreen(
                     Text(
                         "Sync Listen",
                         style = MaterialTheme.typography.displayLarge,
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onBackground,
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
                         "和朋友一起 · 同步听歌",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = TextMuted,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -124,7 +124,7 @@ fun HomeScreen(
                 onClick = onNavigateCreate,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Bg900),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             ) {
                 Row(
@@ -149,12 +149,12 @@ fun HomeScreen(
                         Text(
                             "创建房间",
                             style = MaterialTheme.typography.titleLarge,
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
                             "手机托管，无需电脑",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -165,7 +165,7 @@ fun HomeScreen(
                 onClick = onNavigateJoin,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Bg900),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             ) {
                 Row(
@@ -190,12 +190,12 @@ fun HomeScreen(
                         Text(
                             "加入房间",
                             style = MaterialTheme.typography.titleLarge,
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
                             "扫码 / 房间码 / 附近设备",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }

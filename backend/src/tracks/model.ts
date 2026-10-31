@@ -13,6 +13,7 @@ export type TrackRow = {
   order_index: number;
   status: "UPLOADING" | "READY" | "FAILED";
   created_at: number;
+  cloud_json: string | null;
 };
 
 export function toTrack(row: TrackRow) {
@@ -30,6 +31,7 @@ export function toTrack(row: TrackRow) {
     orderIndex: row.order_index,
     status: row.status,
     createdAt: row.created_at,
+    ...(row.cloud_json ? { cloud: JSON.parse(row.cloud_json) as unknown } : {}),
   };
 }
 

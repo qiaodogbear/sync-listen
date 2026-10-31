@@ -3,12 +3,17 @@ package com.synclisten.desktop.audio
 import com.synclisten.shared.playback.PlayerEngine
 import com.synclisten.shared.playback.PlayerEngineEvent
 import java.io.File
+import java.io.BufferedInputStream
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioInputStream
 import javax.sound.sampled.AudioSystem
 import javax.sound.sampled.SourceDataLine
 import kotlin.concurrent.withLock
+import okhttp3.Call
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
 interface AudioOutput : AutoCloseable {
     val playedFrames: Long
@@ -32,7 +37,7 @@ private class JavaSoundOutput(format: AudioFormat) : AudioOutput {
 class DesktopPlayerEngine(
     private val outputFactory: (AudioFormat) -> AudioOutput = ::JavaSoundOutput,
 ) : PlayerEngine {
-    private class Session(val file: File, val startMs: Long, initiallyPlaying: Boolean) {
+    private class Session(val source: String, val startMs: Long, initiallyPlaying: Boolean) {
         val lock = ReentrantLock()
         val changed = lock.newCondition()
         @Volatile var playing = initiallyPlaying
@@ -40,6 +45,7 @@ class DesktopPlayerEngine(
         @Volatile var ended = false
         @Volatile var output: AudioOutput? = null
         @Volatile var stream: AudioInputStream? = null
+        @Volatile var call: Call? = null
         @Volatile var frameRate: Float = 0f
         @Volatile var offsetMs: Long = startMs
         var thread: Thread? = null
@@ -47,9 +53,11 @@ class DesktopPlayerEngine(
 
     @Volatile private var session: Session? = null
     @Volatile private var listener: (PlayerEngineEvent) -> Unit = {}
+    private val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
     override fun setEventListener(listener: (PlayerEngineEvent) -> Unit) { this.listener = listener }
 
-    override fun load(localPath: String) = startSession(File(localPath), 0, false)
+    override fun load(localPath: String) = startSession(localPath, 0, false)
+    override fun loadAt(path: String, positionMs: Long) = startSession(path, positionMs.coerceAtLeast(0), false)
 
     override fun currentPositionMs(): Long? {
         val current = session ?: return null
@@ -60,7 +68,7 @@ class DesktopPlayerEngine(
 
     override fun play() {
         val current = session ?: return
-        if (current.ended) { startSession(current.file, 0, true); return }
+        if (current.ended) { startSession(current.source, 0, true); return }
         current.lock.withLock { current.playing = true; current.output?.start(); current.changed.signalAll() }
     }
 
@@ -71,7 +79,9 @@ class DesktopPlayerEngine(
 
     override fun seekTo(positionMs: Long) {
         val current = session ?: return
-        startSession(current.file, positionMs.coerceAtLeast(0), current.playing)
+        val remote = current.source.startsWith("http://") || current.source.startsWith("https://")
+        if (remote) listener(PlayerEngineEvent.Buffering)
+        startSession(current.source, positionMs.coerceAtLeast(0), current.playing && !remote)
     }
 
     override fun setPlaybackSpeed(speed: Float) = Unit // The desktop sync manager uses seeks.
@@ -82,8 +92,8 @@ class DesktopPlayerEngine(
     }
 
     @Synchronized
-    private fun startSession(file: File, startMs: Long, playing: Boolean) {
-        val next = Session(file, startMs, playing)
+    private fun startSession(source: String, startMs: Long, playing: Boolean) {
+        val next = Session(source, startMs, playing)
         val old = session
         session = next
         stop(old)
@@ -93,6 +103,7 @@ class DesktopPlayerEngine(
     private fun stop(current: Session?) {
         current ?: return
         current.stopped = true
+        current.call?.cancel()
         current.lock.withLock { current.changed.signalAll() }
         runCatching { current.output?.close() }
         current.thread?.interrupt()
@@ -104,7 +115,20 @@ class DesktopPlayerEngine(
 
     private fun decode(current: Session) {
         try {
-            AudioSystem.getAudioInputStream(current.file).use { raw ->
+            val remote = current.source.startsWith("http://") || current.source.startsWith("https://")
+            val raw = if (remote) {
+                val call = http.newCall(Request.Builder().url(current.source).build())
+                current.call = call
+                if (current.stopped) { call.cancel(); return }
+                val response = call.execute()
+                if (!response.isSuccessful || response.body == null) {
+                    response.close()
+                    throw IllegalStateException("音频服务不可用")
+                }
+                try { AudioSystem.getAudioInputStream(BufferedInputStream(response.body!!.byteStream())) }
+                catch (error: Exception) { response.close(); throw error }
+            } else AudioSystem.getAudioInputStream(File(current.source))
+            raw.use {
                 val base = raw.format
                 val pcm = AudioFormat(AudioFormat.Encoding.PCM_SIGNED, base.sampleRate, 16, base.channels, base.channels * 2, base.sampleRate, false)
                 AudioSystem.getAudioInputStream(pcm, raw).use { input ->
@@ -124,14 +148,18 @@ class DesktopPlayerEngine(
                         current.frameRate = pcm.frameRate
                         current.offsetMs = offsetMs
                         current.output = output
+                        // Network readiness requires decoded audio, not merely an HTTP response.
+                        val prefetched = if (remote) input.read(buffer) else 0
+                        if (remote && prefetched <= 0) throw IllegalStateException("音频流为空")
                         emit(current, PlayerEngineEvent.Ready(duration))
+                        var pending = prefetched
                         while (!current.stopped) {
                             current.lock.withLock {
                                 while (!current.playing && !current.stopped) current.changed.await()
                             }
                             if (current.stopped) break
                             output.start()
-                            val count = input.read(buffer)
+                            val count = if (pending > 0) pending.also { pending = 0 } else input.read(buffer)
                             if (count < 0) {
                                 output.drain()
                                 current.ended = true
@@ -148,7 +176,8 @@ class DesktopPlayerEngine(
             }
         } catch (error: Exception) {
             if (!current.stopped && error !is InterruptedException) {
-                emit(current, PlayerEngineEvent.Error(error.message ?: "无法解码音频，桌面端建议使用 MP3 或 WAV"))
+                val remote = current.source.startsWith("http://") || current.source.startsWith("https://")
+                emit(current, PlayerEngineEvent.Error(if (remote) "无法读取或解码音频流，请检查地址或重试" else error.message ?: "无法解码音频，桌面端建议使用 MP3 或 WAV"))
             }
         } finally {
             current.output = null

@@ -2,6 +2,8 @@ package com.synclisten.app.transfer
 
 import com.synclisten.app.domain.model.Track
 import com.synclisten.app.domain.model.TrackStatus
+import com.synclisten.cloud.CloudTrack
+import com.synclisten.cloud.CloudTrackReference
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -24,6 +26,12 @@ class DownloadQueuePlannerTest {
         )
 
         assertEquals(listOf("ready"), planned.map { it.track.trackId })
+    }
+
+    @Test fun cloudTracksAreNotScheduledForFileDownload() {
+        val cloud = track("cloud", 1).copy(cloud = CloudTrackReference(CloudTrack("qq", "song", "Song", listOf("Artist")), "mp3", 128))
+        val planned = DownloadQueuePlanner().plan(listOf(track("local", 0), cloud), "cloud")
+        assertEquals(listOf("local"), planned.map { it.track.trackId })
     }
 
     @Test

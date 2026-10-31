@@ -21,6 +21,7 @@ const createRoomBodySchema = z.object({
   name: z.string().trim().min(1).max(80),
   userId: z.string().trim().min(1).max(128),
   displayName: z.string().trim().min(1).max(40),
+  protocolVersion: z.number().int().min(1).max(2).default(1),
 });
 
 const joinRoomBodySchema = z
@@ -29,6 +30,7 @@ const joinRoomBodySchema = z
     displayName: z.string().trim().min(1).max(40),
     joinToken: z.string().trim().min(1).optional(),
     roomCode: z.string().trim().min(1).optional(),
+    protocolVersion: z.number().int().min(1).max(2).default(1),
   })
   .refine(({ joinToken, roomCode }) => joinToken !== undefined || roomCode !== undefined, {
     message: "joinToken or roomCode is required",
@@ -52,20 +54,24 @@ function joinRoom(
   ) {
     throw new AppError(403, "INVALID_JOIN_TOKEN", "Join credentials are invalid");
   }
+  if (body.protocolVersion < 2 && database.prepare("SELECT 1 FROM tracks WHERE room_id = ? AND cloud_json IS NOT NULL LIMIT 1").get(room.room_id)) {
+    throw new AppError(409, "CLIENT_UPGRADE_REQUIRED", "房间包含云曲目，请更新客户端");
+  }
 
   const now = Date.now();
   const existing = database.prepare("SELECT user_id FROM members WHERE room_id = ? AND user_id = ?").get(room.room_id, body.userId);
-  if (existing) verifyMember(database, room.room_id, body.userId, credential);
+  if (existing) verifyMember(database, room.room_id, body.userId, credential, true);
   database
     .prepare(
       `INSERT INTO members
-       (room_id, user_id, display_name, role, connected, joined_at, last_seen_at, credential_hash)
-       VALUES (?, ?, ?, 'MEMBER', 0, ?, ?, ?)
+       (room_id, user_id, display_name, role, connected, joined_at, last_seen_at, credential_hash, protocol_version)
+       VALUES (?, ?, ?, 'MEMBER', 0, ?, ?, ?, ?)
        ON CONFLICT(room_id, user_id) DO UPDATE SET
          display_name = excluded.display_name,
-         last_seen_at = excluded.last_seen_at`,
+         last_seen_at = excluded.last_seen_at,
+         protocol_version = excluded.protocol_version`,
     )
-    .run(room.room_id, body.userId, body.displayName, now, now, credentialHash(credential));
+    .run(room.room_id, body.userId, body.displayName, now, now, credentialHash(credential), body.protocolVersion);
 
   return {
     room: toRoom(room),
@@ -100,10 +106,10 @@ export async function registerRoomRoutes(
       database
         .prepare(
           `INSERT INTO members
-           (room_id, user_id, display_name, role, connected, joined_at, last_seen_at, credential_hash)
-           VALUES (?, ?, ?, 'HOST', 0, ?, ?, ?)`,
+           (room_id, user_id, display_name, role, connected, joined_at, last_seen_at, credential_hash, protocol_version)
+           VALUES (?, ?, ?, 'HOST', 0, ?, ?, ?, ?)`,
         )
-        .run(roomId, body.userId, body.displayName, now, now, credentialHash(readIdentity(request).credential));
+        .run(roomId, body.userId, body.displayName, now, now, credentialHash(readIdentity(request).credential), body.protocolVersion);
       database
         .prepare(
           `INSERT INTO playback_states
@@ -132,6 +138,7 @@ export async function registerRoomRoutes(
         role: "HOST",
         connected: false,
         joinedAt: now,
+        ...(body.protocolVersion > 1 ? { protocolVersion: body.protocolVersion } : {}),
       },
       joinToken,
     });

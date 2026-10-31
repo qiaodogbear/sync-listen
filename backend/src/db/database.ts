@@ -85,6 +85,14 @@ export function initializeDatabase(paths: DatabasePaths): DatabaseSync {
   if (!memberColumns.some((column) => column.name === "credential_hash")) {
     database.exec("ALTER TABLE members ADD COLUMN credential_hash TEXT NOT NULL DEFAULT ''");
   }
+  if (!memberColumns.some((column) => column.name === "protocol_version")) {
+    database.exec("ALTER TABLE members ADD COLUMN protocol_version INTEGER NOT NULL DEFAULT 1");
+  }
+  const trackColumns = database.prepare("PRAGMA table_info(tracks)").all() as { name: string }[];
+  if (!trackColumns.some((column) => column.name === "cloud_json")) {
+    database.exec("ALTER TABLE tracks ADD COLUMN cloud_json TEXT");
+  }
+  database.exec("UPDATE playback_states SET is_playing = 0, execute_at_server_time_ms = NULL WHERE track_id IN (SELECT track_id FROM tracks WHERE cloud_json IS NOT NULL)");
   database.exec("UPDATE members SET connected = 0");
   database
     .prepare(

@@ -3,6 +3,10 @@ package com.synclisten.app.playback
 import com.synclisten.app.cache.CacheDao
 import com.synclisten.app.cache.VerifyStatus
 import com.synclisten.app.util.AppLogger
+import com.synclisten.cloud.CloudMusicException
+import com.synclisten.cloud.CloudResolution
+import com.synclisten.cloud.CloudTrackReference
+import com.synclisten.cloud.selectCandidate
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -31,6 +35,7 @@ data class PlayerControllerState(
     val localFilePath: String? = null,
     val bufferedMs: Long = 0,
     val audioSessionId: Int = 0,
+    val isCloud: Boolean = false,
 )
 
 sealed interface PlayerEngineEvent {
@@ -45,6 +50,7 @@ interface PlayerEngine {
     fun currentPositionMs(): Long? = null
     fun setEventListener(listener: (PlayerEngineEvent) -> Unit)
     fun load(localPath: String)
+    fun loadAt(path: String, positionMs: Long) { load(path); if (positionMs > 0) seekTo(positionMs) }
     fun play()
     fun pause()
     fun seekTo(positionMs: Long)
@@ -70,12 +76,19 @@ class PlayerController @Inject constructor(
     private val mutableState = MutableStateFlow(PlayerControllerState())
     override val state: StateFlow<PlayerControllerState> = mutableState
     private var pendingReady: CompletableDeferred<Unit>? = null
+    var cloudTrack: (String) -> CloudTrackReference? = { null }
+    var resolveCloud: suspend (CloudTrackReference) -> CloudResolution = { throw CloudMusicException("云音乐服务不可用") }
 
     init {
         engine.setEventListener(::onEngineEvent)
     }
 
     override suspend fun prepare(trackId: String) {
+        val reference = cloudTrack(trackId)
+        if (reference != null) {
+            prepareCloud(trackId, reference, 0)
+            return
+        }
         val cache = cacheDao.findByTrackId(trackId)
         if (cache?.verifyStatus != VerifyStatus.VERIFIED || !File(cache.localPath).isFile) {
             mutableState.value = PlayerControllerState(trackId, PlayerStatus.WAITING_FOR_CACHE)
@@ -95,10 +108,49 @@ class PlayerController @Inject constructor(
         }
     }
 
+    suspend fun prepareCloudAt(trackId: String, positionMs: Long) {
+        val reference = cloudTrack(trackId) ?: run {
+            mutableState.value = PlayerControllerState(trackId, PlayerStatus.ERROR, error = "云曲目信息不可用")
+            return
+        }
+        prepareCloud(trackId, reference, positionMs.coerceAtLeast(0))
+    }
+
+    private suspend fun prepareCloud(trackId: String, reference: CloudTrackReference, positionMs: Long) {
+        pendingReady?.cancel()
+        pendingReady = null
+        engine.pause()
+        repeat(2) { attempt ->
+            mutableState.value = PlayerControllerState(trackId, PlayerStatus.PREPARING, isCloud = true)
+            val resolution = try {
+                resolveCloud(reference)
+            } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+            catch (_: Exception) {
+                if (attempt == 0) return@repeat
+                update(status = PlayerStatus.ERROR, error = "云音乐解析失败，请重试"); return
+            }
+            val candidate = try { reference.selectCandidate(resolution) } catch (error: CloudMusicException) {
+                update(status = PlayerStatus.ERROR, error = error.message ?: "云音乐解析失败"); return
+            }
+            val ready = CompletableDeferred<Unit>()
+            pendingReady?.cancel()
+            pendingReady = ready
+            engine.loadAt(candidate.url, positionMs)
+            try {
+                val completed = kotlinx.coroutines.withTimeoutOrNull(15_000) { ready.await(); true } ?: false
+                if (!completed) update(status = PlayerStatus.ERROR, error = "音频缓冲超时，请重试")
+            } finally {
+                if (pendingReady === ready) pendingReady = null
+            }
+            if (state.value.status == PlayerStatus.READY) return
+            if (attempt == 1) return
+        }
+    }
+
     override fun currentPositionMs(): Long = engine.currentPositionMs() ?: state.value.positionMs
 
     override fun play() {
-        if (mutableState.value.status !in playableStatuses) return
+        if (pendingReady != null || mutableState.value.status !in playableStatuses) return
         engine.play()
         update(status = PlayerStatus.PLAYING)
     }
@@ -107,7 +159,9 @@ class PlayerController @Inject constructor(
         if (mutableState.value.trackId == null || mutableState.value.status in
             setOf(PlayerStatus.IDLE, PlayerStatus.WAITING_FOR_CACHE, PlayerStatus.ERROR)) return
         engine.pause()
-        update(status = PlayerStatus.PAUSED)
+        if (mutableState.value.status !in setOf(PlayerStatus.PREPARING, PlayerStatus.BUFFERING)) {
+            update(status = PlayerStatus.PAUSED)
+        }
     }
 
     override fun seekTo(positionMs: Long) {
@@ -178,7 +232,6 @@ class PlayerController @Inject constructor(
 
     private companion object {
         val playableStatuses = setOf(
-            PlayerStatus.PREPARING,
             PlayerStatus.READY,
             PlayerStatus.PAUSED,
             PlayerStatus.ENDED,

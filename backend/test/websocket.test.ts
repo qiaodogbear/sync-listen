@@ -5,7 +5,7 @@ import type { WebSocket } from "ws";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { inject, injectWS } from "./client.js";
+import { authHeaders, inject, injectWS } from "./client.js";
 import { buildApp } from "../src/app.js";
 import { initializeDatabase } from "../src/db/database.js";
 
@@ -68,6 +68,44 @@ afterEach(async () => {
 });
 
 describe("room websocket", () => {
+  it("broadcasts cloud preparation and commits only after both members report ready", async () => {
+    const app = await createTestApp();
+    const created = await inject(app, { method: "POST", url: "/api/rooms", payload: { name: "Room", userId: "host", displayName: "Alice", protocolVersion: 2 } });
+    const { room, joinToken } = created.json<{ room: { roomId: string }; joinToken: string }>();
+    await inject(app, { method: "POST", url: `/api/rooms/${room.roomId}/join`, payload: { userId: "member", displayName: "Bob", joinToken, protocolVersion: 2 } });
+    const hostEvents = eventCollector();
+    const host = await injectWS(app, `/ws/rooms/${room.roomId}?token=${joinToken}&userId=host`, undefined, { onInit: hostEvents.onInit });
+    expect((await hostEvents.next()).type).toBe("ROOM_JOINED");
+    const memberEvents = eventCollector();
+    const member = await injectWS(app, `/ws/rooms/${room.roomId}?token=${joinToken}&userId=member`, undefined, { onInit: memberEvents.onInit });
+    expect((await memberEvents.next()).type).toBe("ROOM_JOINED");
+    expect((await hostEvents.next()).type).toBe("MEMBER_JOINED");
+    try {
+      const added = await inject(app, { method: "POST", url: `/api/rooms/${room.roomId}/cloud/tracks`, payload: {
+        track: { source: "qq", id: "song", title: "Song", artists: ["Artist"], mediaId: "media" }, format: "mp3", bitrate: 128,
+      } });
+      const trackId = added.json().track.trackId as string;
+      for (const events of [hostEvents, memberEvents]) {
+        expect((await events.next()).type).toBe("TRACK_READY");
+        expect((await events.next()).type).toBe("PLAYLIST_UPDATED");
+      }
+      const preparing = await inject(app, { method: "POST", url: `/api/rooms/${room.roomId}/cloud/prepare`, payload: { trackId, positionMs: 0 } });
+      const generation = preparing.json().state.preparation.generation as number;
+      expect((await hostEvents.next()).type).toBe("CLOUD_PREPARE");
+      expect((await memberEvents.next()).type).toBe("CLOUD_PREPARE");
+      const ready = { trackId, generation, ready: true };
+      const first = await app.inject({ method: "POST", url: `/api/rooms/${room.roomId}/cloud/ready`, headers: authHeaders("host"), payload: ready });
+      expect(first.json().state.isPlaying).toBe(false);
+      expect((await hostEvents.next()).type).toBe("CLOUD_STATUS");
+      expect((await memberEvents.next()).type).toBe("CLOUD_STATUS");
+      const second = await app.inject({ method: "POST", url: `/api/rooms/${room.roomId}/cloud/ready`, headers: authHeaders("member"), payload: ready });
+      expect(second.json().state.isPlaying).toBe(true);
+      const hostPlay = await hostEvents.next();
+      const memberPlay = await memberEvents.next();
+      expect(hostPlay.type).toBe("PLAY");
+      expect(memberPlay.payload.executeAtServerTimeMs).toBe(hostPlay.payload.executeAtServerTimeMs);
+    } finally { host.terminate(); member.terminate(); await app.close(); }
+  }, 10_000);
   it("sends a snapshot and broadcasts member connection changes", async () => {
     const app = await createTestApp();
     const created = await inject(app, {

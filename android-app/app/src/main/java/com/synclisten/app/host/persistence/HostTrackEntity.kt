@@ -33,4 +33,5 @@ data class HostTrackEntity(
     val orderIndex: Int,
     val status: String,
     val createdAt: Long,
+    val cloudJson: String? = null,
 )

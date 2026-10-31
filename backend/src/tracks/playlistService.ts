@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 
 import { AppError } from "../errors.js";
-import { findActiveRoom } from "../rooms/snapshot.js";
+import { findActiveRoom, findMember } from "../rooms/snapshot.js";
+import type { CloudTrackReference } from "../cloud/music.js";
 import type { RoomHub } from "../websocket/roomHub.js";
 import { toTrack, type TrackRow } from "./model.js";
 
@@ -24,6 +25,32 @@ export class PlaylistService {
     private readonly database: DatabaseSync,
     private readonly roomHub?: RoomHub,
   ) {}
+
+  addCloudTrack(roomId: string, actorId: string, reference: CloudTrackReference) {
+    findActiveRoom(this.database, roomId);
+    const member = findMember(this.database, roomId, actorId);
+    const trackId = randomUUID();
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const legacy = this.database.prepare("SELECT 1 FROM members WHERE room_id = ? AND connected = 1 AND protocol_version < 2 LIMIT 1").get(roomId);
+      if (member.protocol_version < 2 || legacy) throw new AppError(409, "CLIENT_UPGRADE_REQUIRED", "房间成员需要更新客户端才能使用云曲目");
+      const row = this.database.prepare("SELECT COALESCE(MAX(order_index), -1) + 1 AS next_index FROM tracks WHERE room_id = ?").get(roomId) as { next_index: number };
+      this.database.prepare(`INSERT INTO tracks
+        (track_id, room_id, title, artist, duration_ms, file_name, file_size, file_hash, storage_path,
+         uploader_id, uploader_name, order_index, status, created_at, cloud_json)
+        VALUES (?, ?, ?, ?, ?, '', 0, '', NULL, ?, ?, ?, 'READY', ?, ?)`)
+        .run(trackId, roomId, reference.track.title, reference.track.artists.join(" / ") || null,
+          reference.track.durationMs ?? 0, actorId, member.display_name, row.next_index, Date.now(), JSON.stringify(reference));
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+    const track = this.getTrack(trackId);
+    this.roomHub?.broadcast(roomId, "TRACK_READY", { track });
+    this.roomHub?.broadcast(roomId, "PLAYLIST_UPDATED", { playlist: this.getPlaylist(roomId) });
+    return track;
+  }
 
   async addReadyTrack(input: AddReadyTrackInput) {
     findActiveRoom(this.database, input.roomId);

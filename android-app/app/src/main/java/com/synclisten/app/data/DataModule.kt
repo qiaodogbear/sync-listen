@@ -84,7 +84,7 @@ object NetworkModule {
     @Singleton
     fun provideHostPersistenceDatabase(@ApplicationContext context: Context): HostPersistenceDatabase =
         Room.databaseBuilder(context, HostPersistenceDatabase::class.java, "host-persistence.db")
-            .addMigrations(HostPersistenceDatabase.MIGRATION_1_2).build()
+            .addMigrations(HostPersistenceDatabase.MIGRATION_1_2, HostPersistenceDatabase.MIGRATION_2_3).build()
 
     @Provides
     fun provideHostDao(database: HostPersistenceDatabase): HostDao = database.hostDao()

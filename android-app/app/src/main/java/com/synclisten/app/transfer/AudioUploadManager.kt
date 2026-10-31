@@ -84,6 +84,10 @@ class UploadCoordinator @Inject constructor(
     private val mutableState = MutableStateFlow(UploadProgress())
     val state: StateFlow<UploadProgress> = mutableState
 
+    fun clearResult() {
+        if (runningHash.get() == null) mutableState.value = UploadProgress()
+    }
+
     // Batch upload — survives navigation
     private val uploadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutableBatch = MutableStateFlow(BatchUploadState())

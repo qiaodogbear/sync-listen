@@ -20,7 +20,7 @@ val Pink80 = Color(0xFFEFB8C8)
 
 val DarkBackground = Color(0xFF121212)
 val DarkSurface = Color(0xFF1E1E1E)
-val LightBackground = Color(0xFFF8F8FF)
+val LightBackground = Color(0xFFF8F8F8)
 val LightSurface = Color(0xFFFFFFFF)
 
 val OnlineGreen = Color(0xFF4CAF50)

@@ -49,7 +49,13 @@ class Media3PlayerEngine @Inject constructor(
                 }
             }
             override fun onPlayerError(error: PlaybackException) {
-                if (player === current) listener(PlayerEngineEvent.Error(error.message ?: "Media3 playback failed"))
+                if (player === current) {
+                    val scheme = current.currentMediaItem?.localConfiguration?.uri?.scheme
+                    val message = if (scheme == "http" || scheme == "https") {
+                        "无法读取或解码音频流，请检查地址或重试"
+                    } else error.message ?: "Media3 playback failed"
+                    listener(PlayerEngineEvent.Error(message))
+                }
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (player !== current) return
@@ -64,10 +70,12 @@ class Media3PlayerEngine @Inject constructor(
 
     override fun setEventListener(listener: (PlayerEngineEvent) -> Unit) { this.listener = listener }
 
-    override fun load(localPath: String) = onMain {
+    override fun load(localPath: String) = loadAt(localPath, 0)
+
+    override fun loadAt(path: String, positionMs: Long) = onMain {
         val current = player ?: createPlayer().also { player = it }
         current.pause()
-        current.setMediaItem(MediaItem.fromUri(localPath))
+        current.setMediaItem(MediaItem.fromUri(path), positionMs.coerceAtLeast(0))
         current.prepare()
     }
 

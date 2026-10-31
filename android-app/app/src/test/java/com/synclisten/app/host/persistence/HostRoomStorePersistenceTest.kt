@@ -9,6 +9,8 @@ import com.synclisten.app.host.server.AddHostTrack
 import com.synclisten.app.host.server.HostRecoverySnapshot
 import com.synclisten.app.host.server.HostRoomStore
 import com.synclisten.app.host.server.HostServerError
+import com.synclisten.cloud.CloudTrack
+import com.synclisten.cloud.CloudTrackReference
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -19,6 +21,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HostRoomStorePersistenceTest {
+
+    @Test fun `cloud metadata survives reorder and recovery without a stored file`() = runBlocking {
+        val dao = FakeHostDao()
+        val original = store(dao)
+        val room = original.createRoom(CreateRoomRequest("Party", "host", "Alice", protocolVersion = 2))
+        val ref = CloudTrackReference(CloudTrack("qq", "song", "Song", listOf("Artist"), mediaId = "media"), "mp3", 128)
+        val cloud = original.addCloudTrack(room.room.roomId, "host", ref)
+        val local = original.addReadyTrack(track(room.room.roomId, "Local"))
+        original.reorderPlaylist(room.room.roomId, listOf(local.trackId, cloud.trackId), "host")
+        assertError("TRACK_FILE_NOT_FOUND") { original.storedTrack(cloud.trackId) }
+        original.emergencyShutdown()
+        val recovered = store(dao).recoverRoom()
+        assertEquals(ref, recovered.playlist.single { it.trackId == cloud.trackId }.cloud)
+    }
 
     @Test
     fun `failed commit restores in-memory tracks and playback`() = runBlocking {

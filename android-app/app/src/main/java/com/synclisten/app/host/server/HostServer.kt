@@ -11,6 +11,12 @@ import com.synclisten.app.domain.model.ApiError
 import com.synclisten.app.domain.model.ErrorResponse
 import com.synclisten.app.domain.model.WebSocketEventType
 import com.synclisten.app.domain.model.Track
+import com.synclisten.cloud.cloudMusicRoutes
+import com.synclisten.cloud.CloudMusicClient
+import com.synclisten.cloud.CloudTrackReference
+import com.synclisten.cloud.CloudPrepareRequest
+import com.synclisten.cloud.CloudReadyRequest
+import com.synclisten.cloud.CloudCommitRequest
 import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
 import io.ktor.http.HttpStatusCode
@@ -77,6 +83,7 @@ fun Application.hostServerModule(
     jsonCodec: Json = Json { ignoreUnknownKeys = true },
     clock: () -> Long = System::currentTimeMillis,
     storage: HostStorage? = null,
+    cloudMusic: CloudMusicClient = CloudMusicClient(),
 ) {
     install(ContentNegotiation) { json(jsonCodec) }
     install(WebSockets) {
@@ -124,6 +131,31 @@ fun Application.hostServerModule(
     }
     routing {
         install(authorization)
+        cloudMusicRoutes(cloudMusic)
+        post("/api/rooms/{roomId}/cloud/tracks") {
+            val added = store.addCloudTrack(call.roomId(), call.actor(), call.receive<CloudTrackReference>())
+            hub.broadcast(call.roomId(), WebSocketEventType.TRACK_READY, buildJsonObject { put("track", jsonCodec.encodeToJsonElement(added)) })
+            hub.broadcast(call.roomId(), WebSocketEventType.PLAYLIST_UPDATED, jsonCodec.objectPayload(PlaylistResponse(store.playlist(call.roomId()))))
+            call.respond(HttpStatusCode.Created, buildJsonObject { put("track", jsonCodec.encodeToJsonElement(added)) })
+        }
+        post("/api/rooms/{roomId}/cloud/prepare") {
+            val request = call.receive<CloudPrepareRequest>()
+            val state = store.prepareCloud(call.roomId(), call.actor(), request.trackId, request.positionMs, request.playAfterReady)
+            hub.broadcast(call.roomId(), WebSocketEventType.CLOUD_PREPARE, jsonCodec.objectPayload(state))
+            call.respond(PlaybackResponse(state))
+        }
+        post("/api/rooms/{roomId}/cloud/ready") {
+            val request = call.receive<CloudReadyRequest>()
+            val state = store.reportCloudReady(call.roomId(), call.actor(), request.trackId, request.generation, request.ready)
+            hub.broadcast(call.roomId(), if (state.isPlaying) WebSocketEventType.PLAY else WebSocketEventType.CLOUD_STATUS, jsonCodec.objectPayload(state))
+            call.respond(PlaybackResponse(state))
+        }
+        post("/api/rooms/{roomId}/cloud/commit") {
+            val request = call.receive<CloudCommitRequest>()
+            val state = store.commitCloud(call.roomId(), call.actor(), request.generation, request.force)
+            hub.broadcast(call.roomId(), if (state.isPlaying) WebSocketEventType.PLAY else WebSocketEventType.CLOUD_STATUS, jsonCodec.objectPayload(state))
+            call.respond(PlaybackResponse(state))
+        }
         get("/health") {
             call.respond(buildJsonObject {
                 put("status", "ok")
@@ -162,6 +194,9 @@ fun Application.hostServerModule(
             val closing = store.snapshot(call.roomId()).room.hostUserId == userId
             store.leave(call.roomId(), userId)
             if (closing) hub.closeAll() else hub.closeMember(call.roomId(), userId)
+            if (!closing) store.playback(call.roomId()).takeIf { it.preparation?.committed == false }?.let {
+                hub.broadcast(call.roomId(), WebSocketEventType.CLOUD_STATUS, jsonCodec.objectPayload(it))
+            }
             call.respond(HttpStatusCode.NoContent)
         }
         get("/api/rooms/{roomId}/playlist") { call.respond(PlaylistResponse(store.playlist(call.roomId()))) }
@@ -325,11 +360,17 @@ fun Application.hostServerModule(
                 hub.send(this, WebSocketEventType.ROOM_JOINED, jsonCodec.objectPayload(snapshot))
                 val connectedMember = snapshot.members.first { it.userId == userId }
                 hub.broadcast(roomId, WebSocketEventType.MEMBER_JOINED, jsonCodec.memberPayload(connectedMember))
+                if (snapshot.playbackState.preparation?.committed == false) hub.broadcast(roomId, WebSocketEventType.CLOUD_STATUS, jsonCodec.objectPayload(snapshot.playbackState))
                 for (frame in incoming) if (frame is Frame.Text) frame.readText()
             } finally {
                 hub.remove(roomId, this)
                 if (!hub.isConnected(roomId, userId)) {
-                    runCatching { store.setConnected(roomId, userId, false) }
+                    runCatching {
+                        store.setConnected(roomId, userId, false)
+                        store.playback(roomId).takeIf { it.preparation?.committed == false }?.let {
+                            hub.broadcast(roomId, WebSocketEventType.CLOUD_STATUS, jsonCodec.objectPayload(it))
+                        }
+                    }
                     hub.broadcast(roomId, WebSocketEventType.MEMBER_LEFT, buildJsonObject { put("userId", userId) })
                 }
             }

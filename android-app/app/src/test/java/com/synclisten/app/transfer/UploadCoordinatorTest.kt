@@ -55,6 +55,8 @@ class UploadCoordinatorTest {
         assertTrue(coordinator.upload(request()) is UploadState.Success)
         assertEquals(2, calls)
         assertEquals(100, coordinator.state.value.progress)
+        coordinator.clearResult()
+        assertEquals(UploadProgress(), coordinator.state.value)
     }
 
     private fun request() = UploadRequest(

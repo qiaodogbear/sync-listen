@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -69,7 +71,7 @@ class FileSettingsStore(private val file: File) : SettingsStore {
         file.parentFile?.mkdirs()
     }
 
-    override val settings: Flow<AppSettings> = state
+    override val settings: StateFlow<AppSettings> = state.asStateFlow()
 
     override suspend fun update(
         userId: String?,

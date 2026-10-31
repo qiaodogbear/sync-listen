@@ -1,5 +1,7 @@
 package com.synclisten.app.domain.model
 
+import com.synclisten.cloud.CloudTrackReference
+import com.synclisten.cloud.CloudReadinessSnapshot
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -40,6 +42,7 @@ data class Member(
     val role: MemberRole,
     val connected: Boolean,
     val joinedAt: Long,
+    val protocolVersion: Int = 1,
 )
 
 @Serializable
@@ -67,6 +70,7 @@ data class Track(
     val orderIndex: Int,
     val status: TrackStatus,
     val createdAt: Long,
+    val cloud: CloudTrackReference? = null,
 )
 
 @Serializable
@@ -76,6 +80,7 @@ data class PlaybackState(
     val isPlaying: Boolean,
     val serverTimeMs: Long,
     val executeAtServerTimeMs: Long? = null,
+    val preparation: CloudReadinessSnapshot? = null,
 )
 
 @Serializable
@@ -107,6 +112,8 @@ enum class WebSocketEventType {
     NEXT,
     SYNC,
     DOWNLOAD_HINT,
+    CLOUD_PREPARE,
+    CLOUD_STATUS,
     ERROR,
 }
 

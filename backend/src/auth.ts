@@ -23,13 +23,16 @@ export function requireActor(request: FastifyRequest, claimedUserId: string): vo
   }
 }
 
-export function verifyMember(database: DatabaseSync, roomId: string, userId: string, credential: string) {
+export function verifyMember(database: DatabaseSync, roomId: string, userId: string, credential: string, allowLegacy = false) {
   findActiveRoom(database, roomId);
   const member = findMember(database, roomId, userId);
   const stored = Buffer.from(member.credential_hash, "hex");
   const supplied = Buffer.from(credentialHash(credential), "hex");
   if (stored.length !== supplied.length || !timingSafeEqual(stored, supplied)) {
     throw new AppError(403, "INVALID_CREDENTIAL", "Member credential is invalid; re-create legacy rooms");
+  }
+  if (!allowLegacy && member.protocol_version < 2 && database.prepare("SELECT 1 FROM tracks WHERE room_id = ? AND cloud_json IS NOT NULL LIMIT 1").get(roomId)) {
+    throw new AppError(409, "CLIENT_UPGRADE_REQUIRED", "房间包含云曲目，请更新客户端");
   }
   return member;
 }

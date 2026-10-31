@@ -9,6 +9,30 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SyncCheckpointTest {
+    @Test fun cloudSeekWaitsForDecoderBeforeStartingPlayback() = runBlocking {
+        var now = 2_000L
+        var plays = 0
+        val player = object : PlaybackPort {
+            override val state = MutableStateFlow(PlayerControllerState(trackId = "track", status = PlayerStatus.READY, isCloud = true))
+            override suspend fun prepare(trackId: String) = Unit
+            override fun play() { plays++ }
+            override fun pause() = Unit
+            override fun seekTo(positionMs: Long) {
+                state.value = state.value.copy(positionMs = positionMs, status = PlayerStatus.BUFFERING)
+            }
+            override fun setPlaybackSpeed(speed: Float) = Unit
+        }
+        val clock = object : ServerTimeProvider { override fun estimatedServerNowMs() = now }
+        val manager = PlaybackSyncManager(player, clock, speedCorrectionEnabled = false)
+        manager.apply(PlaybackState("track", 0, true, 1_000, 1_000))
+        assertEquals(0, plays)
+        assertEquals("等待音频准备", manager.state.value.correction)
+        player.state.value = player.state.value.copy(status = PlayerStatus.READY)
+        now += 10
+        manager.checkpoint()
+        assertEquals(1, plays)
+    }
+
     @Test fun acceptsLegacyAndExtendedTimeResponses() = runBlocking {
         for (extended in listOf(false, true)) {
             val times = (if (extended) listOf(1_000L, 1_100L) else listOf(1_000L, 1_020L)).iterator()

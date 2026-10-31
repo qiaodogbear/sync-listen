@@ -1,5 +1,14 @@
 package com.synclisten.shared.data
 
+import com.synclisten.cloud.CloudResolution
+import com.synclisten.cloud.CloudSearchRequest
+import com.synclisten.cloud.CloudSearchResponse
+import com.synclisten.cloud.CloudTrack
+import com.synclisten.cloud.CloudLyrics
+import com.synclisten.cloud.CloudTrackReference
+import com.synclisten.cloud.CloudPrepareRequest
+import com.synclisten.cloud.CloudReadyRequest
+import com.synclisten.cloud.CloudCommitRequest
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -24,6 +33,14 @@ class RetrofitRoomRemoteDataSource(
     private val apiFactory: RetrofitApiFactory,
 ) : RoomRemoteDataSource {
     private suspend fun api(): SyncListenApi = apiFactory.create(settingsStore.settings.first().serverUrl)
+    override suspend fun addCloudTrack(roomId: String, reference: CloudTrackReference): CloudTrackResponse = api().addCloudTrack(roomId, reference)
+    override suspend fun prepareCloud(roomId: String, request: CloudPrepareRequest): PlaybackResponse = api().prepareCloud(roomId, request)
+    override suspend fun cloudReady(roomId: String, request: CloudReadyRequest): PlaybackResponse = api().cloudReady(roomId, request)
+    override suspend fun commitCloud(roomId: String, request: CloudCommitRequest): PlaybackResponse = api().commitCloud(roomId, request)
+    override suspend fun cloudLyrics(roomId: String, track: CloudTrack): CloudLyrics = api().cloudLyrics(roomId, track)
+
+    override suspend fun searchCloud(roomId: String, request: CloudSearchRequest): CloudSearchResponse = api().searchCloud(roomId, request)
+    override suspend fun resolveCloud(roomId: String, track: CloudTrack): CloudResolution = api().resolveCloud(roomId, track)
 
     override suspend fun createRoom(request: CreateRoomRequest): CreateRoomResponse =
         api().createRoom(request)

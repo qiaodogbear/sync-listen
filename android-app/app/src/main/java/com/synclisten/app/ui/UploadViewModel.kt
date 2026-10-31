@@ -50,6 +50,8 @@ class UploadViewModel @Inject constructor(
             mutableState.value = UploadSelectionState.Cancelled
             return
         }
+        uploadCoordinator.clearBatch()
+        uploadCoordinator.clearResult()
         inspectionJob = viewModelScope.launch {
             mutableState.value = UploadSelectionState.Reading
             mutableState.value = when (val result = inspector.inspect(uri)) {
@@ -67,6 +69,8 @@ class UploadViewModel @Inject constructor(
             mutableState.value = UploadSelectionState.Cancelled
             return
         }
+        uploadCoordinator.clearResult()
+        mutableState.value = UploadSelectionState.Empty
         val items = uris.map { uri ->
             BatchUploadItem(uri, uri.lastPathSegment ?: "unknown", 0, BatchItemState.Pending)
         }

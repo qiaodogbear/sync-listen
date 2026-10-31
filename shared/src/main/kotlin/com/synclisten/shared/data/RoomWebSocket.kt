@@ -34,6 +34,8 @@ sealed interface RoomEvent {
     data class TrackRemoved(val trackId: String) : RoomEvent
     data class Playlist(val value: PlaylistResponse, val serverTimeMs: Long) : RoomEvent
     data class Playback(val value: PlaybackState) : RoomEvent
+    data class CloudPrepare(val value: PlaybackState) : RoomEvent
+    data class CloudStatus(val value: PlaybackState) : RoomEvent
     data class Other(val envelope: WebSocketEnvelope) : RoomEvent
 }
 
@@ -61,6 +63,8 @@ class RoomEventParser(private val json: Json) {
             WebSocketEventType.NEXT,
             WebSocketEventType.SYNC,
             -> RoomEvent.Playback(json.decodeFromJsonElement(envelope.payload))
+            WebSocketEventType.CLOUD_PREPARE -> RoomEvent.CloudPrepare(json.decodeFromJsonElement(envelope.payload))
+            WebSocketEventType.CLOUD_STATUS -> RoomEvent.CloudStatus(json.decodeFromJsonElement(envelope.payload))
             else -> RoomEvent.Other(envelope)
         }
     }
@@ -80,11 +84,18 @@ private data class TrackRemovedPayload(val trackId: String)
 
 class RoomEventReducer {
     private var latestPlaylistServerTimeMs = Long.MIN_VALUE
+    private var awaitingSnapshot = false
+    private var pendingPlayback: PlaybackState? = null
+
+    fun beginConnection() { awaitingSnapshot = true; pendingPlayback = null }
 
     fun apply(current: RoomSnapshot?, event: RoomEvent): RoomSnapshot? = when (event) {
         is RoomEvent.Snapshot -> {
             latestPlaylistServerTimeMs = event.serverTimeMs
-            event.value.copy(playlist = normalizePlaylist(event.value.playlist))
+            val playback = pendingPlayback ?: event.value.playbackState
+            pendingPlayback = null
+            awaitingSnapshot = false
+            event.value.copy(playlist = normalizePlaylist(event.value.playlist), playbackState = playback)
         }
         is RoomEvent.MemberJoined -> current?.copy(
             members = current.members.filterNot { it.userId == event.member.userId } + event.member,
@@ -108,7 +119,25 @@ class RoomEventReducer {
             latestPlaylistServerTimeMs = event.serverTimeMs
             current?.copy(playlist = normalizePlaylist(event.value.playlist))
         }
-        is RoomEvent.Playback -> current?.copy(playbackState = event.value)
+        is RoomEvent.Playback -> {
+            if (awaitingSnapshot) pendingPlayback = event.value
+            current?.copy(playbackState = event.value)
+        }
+        is RoomEvent.CloudPrepare -> current?.let {
+            if (awaitingSnapshot) pendingPlayback = event.value
+            val incoming = event.value.preparation
+            val previous = it.playbackState.preparation
+            if (incoming == null || (previous != null && incoming.generation <= previous.generation)) it
+            else it.copy(playbackState = event.value)
+        } ?: run { if (awaitingSnapshot) pendingPlayback = event.value; null }
+        is RoomEvent.CloudStatus -> current?.let {
+            if (awaitingSnapshot && pendingPlayback?.isPlaying != true) pendingPlayback = event.value
+            val old = it.playbackState
+            val incoming = event.value.preparation
+            if (incoming == null || old.trackId != event.value.trackId || old.isPlaying ||
+                (old.preparation != null && old.preparation.generation != incoming.generation)) it
+            else it.copy(playbackState = event.value)
+        } ?: run { if (awaitingSnapshot && pendingPlayback?.isPlaying != true) pendingPlayback = event.value; null }
         is RoomEvent.Other -> current
     }
 
@@ -223,6 +252,7 @@ class RoomWebSocketClient(
     private val listener = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
             if (webSocket !== socket) return
+            reducer.beginConnection()
             reconnectGate.reset()
             mutableConnection.value = RoomConnectionState.Connected
             AppLogger.debug("WebSocket", "Connected")
@@ -232,8 +262,8 @@ class RoomWebSocketClient(
             if (webSocket !== socket) return
             runCatching { parser.parse(text) }
                 .onSuccess {
-                    mutableLastEvent.value = it
                     mutableSnapshot.value = reducer.apply(mutableSnapshot.value, it)
+                    mutableLastEvent.value = it
                 }
                 .onFailure { AppLogger.error("WebSocket", "Message parse failed", it) }
         }

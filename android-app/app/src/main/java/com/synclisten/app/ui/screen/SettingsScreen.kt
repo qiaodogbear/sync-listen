@@ -59,8 +59,10 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     var shareError by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(settings) {
+    LaunchedEffect(settings.displayName) {
         displayName = settings.displayName
+    }
+    LaunchedEffect(settings.serverUrl) {
         serverUrl = settings.serverUrl
     }
 

@@ -3,6 +3,10 @@ package com.synclisten.app.playback
 import com.synclisten.app.cache.CacheDao
 import com.synclisten.app.cache.CacheEntity
 import com.synclisten.app.cache.VerifyStatus
+import com.synclisten.cloud.CloudCandidate
+import com.synclisten.cloud.CloudResolution
+import com.synclisten.cloud.CloudTrack
+import com.synclisten.cloud.CloudTrackReference
 import java.nio.file.Files
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -12,6 +16,42 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PlayerControllerTest {
+    @Test
+    fun cloudPreparationRefreshesAnExpiredAddressWithoutDownloadingAFile() = runBlocking {
+        val track = CloudTrack("qq", "song", "Song", listOf("Artist"), mediaId = "media")
+        val reference = CloudTrackReference(track, "mp3", 128)
+        val engine = FakePlayerEngine()
+        val controller = PlayerController(PlayerFakeCacheDao(mutableListOf()), engine)
+        controller.cloudTrack = { reference }
+        var resolutions = 0
+        controller.resolveCloud = {
+            resolutions++
+            CloudResolution(track, listOf(CloudCandidate("https://example.invalid/audio-$resolutions", 128, "mp3")), "", "", "test")
+        }
+        val preparing = async { controller.prepare("cloud") }
+        delay(10)
+        assertEquals("https://example.invalid/audio-1", engine.loadedPath)
+        engine.emit(PlayerEngineEvent.Error("expired"))
+        delay(10)
+        assertEquals("https://example.invalid/audio-2", engine.loadedPath)
+        engine.emit(PlayerEngineEvent.Ready(10_000))
+        preparing.await()
+        assertEquals(2, resolutions)
+        assertEquals(PlayerStatus.READY, controller.state.value.status)
+        assertNull(controller.state.value.localFilePath)
+    }
+
+    @Test fun cloudPreparationRejectsChangedVersionBeforeLoading() = runBlocking {
+        val track = CloudTrack("qq", "song", "Song", listOf("Artist"), mediaId = "media")
+        val reference = CloudTrackReference(track, "mp3", 128, "Song", "Artist")
+        val engine = FakePlayerEngine()
+        val controller = PlayerController(PlayerFakeCacheDao(mutableListOf()), engine)
+        controller.cloudTrack = { reference }
+        controller.resolveCloud = { CloudResolution(track, listOf(CloudCandidate("https://example.invalid/audio", 128, "mp3")), "Song", "Other", "test") }
+        controller.prepare("cloud")
+        assertEquals(PlayerStatus.ERROR, controller.state.value.status)
+        assertNull(engine.loadedPath)
+    }
     @Test
     fun preparesOnlyVerifiedLocalCache() = runBlocking {
         val file = Files.createTempFile("player", ".mp3").toFile()
@@ -49,6 +89,8 @@ class PlayerControllerTest {
         val preparing = async { controller.prepare("track") }
         delay(10)
         assertEquals(false, preparing.isCompleted)
+        controller.play()
+        assertEquals(emptyList<String>(), engine.commands)
 
         engine.emit(PlayerEngineEvent.Ready(durationMs = 5_000))
         preparing.await()
